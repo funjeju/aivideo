@@ -1,0 +1,61 @@
+{
+  "common": {
+    "appName": "DrawNarrate",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "signInWithGoogle": "Sign in with Google",
+    "signInWithEmail": "Sign in with Email",
+    "email": "Email",
+    "password": "Password",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign Up"
+  },
+  "dashboard": {
+    "title": "My Projects",
+    "newProject": "New Project",
+    "empty": "No projects yet",
+    "emptyDesc": "Create your first video"
+  },
+  "create": {
+    "title": "Create New Video",
+    "modeGenerate": "Generate from Topic",
+    "modeFaithful": "Upload Material",
+    "topicPlaceholder": "Enter a topic for your video (e.g. The Law of Diminishing Marginal Utility)",
+    "uploadPlaceholder": "Drag & drop or click to upload PDF, DOCX, TXT, MD",
+    "length": "Video Length",
+    "length50": "50s Short",
+    "length180": "3 min",
+    "length600": "10 min",
+    "style": "Art Style",
+    "voice": "Voice",
+    "generate": "Start Generating"
+  },
+  "project": {
+    "scriptApproval": "Review Script",
+    "approveScript": "Approve & Create Video",
+    "generating": "Generating video...",
+    "done": "Done",
+    "download": "Download",
+    "share": "Share"
+  },
+  "admin": {
+    "title": "Admin",
+    "members": "Members",
+    "templates": "Templates",
+    "videos": "Videos",
+    "voices": "Voices",
+    "billing": "Billing",
+    "settings": "Settings",
+    "unauthorized": "Unauthorized"
+  }
+}

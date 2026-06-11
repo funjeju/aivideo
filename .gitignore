@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
+# dependencies (모든 depth — worker/node_modules 포함)
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# worker 빌드 산출물
+worker/dist/
+worker/.cache/
+
+# 테스트 산출물 (이미지/영상)
+scripts/*.png
+scripts/*.mp4
+scripts/*.mp3

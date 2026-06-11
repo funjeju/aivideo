@@ -1,0 +1,61 @@
+{
+  "common": {
+    "appName": "DrawNarrate",
+    "loading": "불러오는 중...",
+    "error": "오류가 발생했습니다",
+    "cancel": "취소",
+    "confirm": "확인",
+    "save": "저장",
+    "delete": "삭제",
+    "edit": "편집",
+    "back": "뒤로"
+  },
+  "auth": {
+    "signIn": "로그인",
+    "signOut": "로그아웃",
+    "signInWithGoogle": "Google로 로그인",
+    "signInWithEmail": "이메일로 로그인",
+    "email": "이메일",
+    "password": "비밀번호",
+    "noAccount": "계정이 없으신가요?",
+    "signUp": "회원가입"
+  },
+  "dashboard": {
+    "title": "내 프로젝트",
+    "newProject": "새 프로젝트",
+    "empty": "아직 프로젝트가 없어요",
+    "emptyDesc": "첫 번째 영상을 만들어 보세요"
+  },
+  "create": {
+    "title": "새 영상 만들기",
+    "modeGenerate": "주제로 생성",
+    "modeFaithful": "자료 업로드",
+    "topicPlaceholder": "영상으로 만들 주제를 입력하세요 (예: 한계효용 체감의 법칙)",
+    "uploadPlaceholder": "PDF, DOCX, TXT, MD 파일을 드래그하거나 클릭하세요",
+    "length": "영상 길이",
+    "length50": "50초 숏폼",
+    "length180": "3분",
+    "length600": "10분",
+    "style": "화풍",
+    "voice": "목소리",
+    "generate": "영상 생성 시작"
+  },
+  "project": {
+    "scriptApproval": "원고 검토",
+    "approveScript": "승인하고 영상 만들기",
+    "generating": "영상 생성 중...",
+    "done": "완성",
+    "download": "다운로드",
+    "share": "공유"
+  },
+  "admin": {
+    "title": "어드민",
+    "members": "회원 관리",
+    "templates": "템플릿 관리",
+    "videos": "영상 관리",
+    "voices": "보이스 관리",
+    "billing": "비용·매출",
+    "settings": "시스템 설정",
+    "unauthorized": "접근 권한이 없습니다"
+  }
+}
