@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   if (typeof body.billingEnabled === "boolean") patch.billingEnabled = body.billingEnabled;
   if (typeof body.brushSize === "number") patch.brushSize = Math.min(6, Math.max(0.3, body.brushSize));
   if (typeof body.brushCount === "number") patch.brushCount = Math.min(6, Math.max(1, Math.round(body.brushCount)));
-  if (typeof body.brushSpeed === "number") patch.brushSpeed = Math.min(4, Math.max(0.3, body.brushSpeed));
+  if (typeof body.brushSpeed === "number") patch.brushSpeed = Math.min(4, Math.max(0.05, body.brushSpeed));
   await ref().set(patch, { merge: true });
   return NextResponse.json({ ok: true });
 }

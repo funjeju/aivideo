@@ -126,7 +126,7 @@ export default function BrushTestPage() {
           </div>
           <div className="flex items-center gap-3">
             <label className="text-sm text-[var(--ink)] w-16">붓 속도</label>
-            <input type="range" min={0.3} max={4} step={0.1} value={brushSpeed}
+            <input type="range" min={0.05} max={4} step={0.05} value={brushSpeed}
               onChange={(e) => setBrushSpeed(Number(e.target.value))}
               className="flex-1 accent-[var(--accent)]" />
             <span className="text-sm tabular-nums w-10 text-right">{brushSpeed.toFixed(1)}×</span>

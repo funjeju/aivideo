@@ -318,7 +318,7 @@ export function renderSceneFrame(
     const objects = (scene.reveal?.objects ?? []).filter((o) => o.bbox);
     const brushSize = scene.hand?.size ?? opts.brushSize ?? 1;
     const brushCount = Math.max(1, Math.round(scene.hand?.count ?? opts.brushCount ?? 1));
-    const brushSpeed = Math.max(0.2, scene.hand?.speed ?? opts.brushSpeed ?? 1);
+    const brushSpeed = Math.max(0.05, scene.hand?.speed ?? opts.brushSpeed ?? 1);
     const baseW = Math.max(10, 42 * brushSize) * (height / 1920);
 
     const drawWindow = Math.max(scene.durationSec * 0.85, 0.5);
@@ -373,22 +373,28 @@ export function renderSceneFrame(
             const cnt = Math.max(1, Math.floor(it.path.length * ease(prog)));
             strokePathOnMask(mctx, it.path, cnt, baseW, hashSeed(it.obj.id));
 
-            // 마무리 패스: 객체 진행 70%부터 붓이 못 간 빈 부분을 부드럽게 채움
-            // (붓질 흔적/구멍 없이 자연스럽게 완성 — 100%면 완전 공개)
+            // 마무리 패스: 객체 진행 70%부터 붓이 못 간 빈 부분을 부드럽게 채움.
+            // 사각형은 직선 윤곽이 남으므로, 가장자리가 투명으로 사라지는
+            // 타원 방사 그라데이션(먹이 번지듯)으로 — 직선 모서리 없음.
             if (prog > 0.7) {
               const a = ease((prog - 0.7) / 0.3);
               const bx1 = it.obj.bbox[0] * fit.bScaleX + fit.offsetX;
               const by1 = it.obj.bbox[1] * fit.bScaleY + fit.offsetY;
               const bx2 = it.obj.bbox[2] * fit.bScaleX + fit.offsetX;
               const by2 = it.obj.bbox[3] * fit.bScaleY + fit.offsetY;
-              const pad = baseW * 0.5;
+              const cx = (bx1 + bx2) / 2, cy = (by1 + by2) / 2;
+              const rx = (bx2 - bx1) / 2 + baseW, ry = (by2 - by1) / 2 + baseW;
               mctx.save();
               mctx.globalAlpha = a;
-              mctx.fillStyle = "#fff";
-              mctx.shadowColor = "#fff";
-              mctx.shadowBlur = baseW;
+              mctx.translate(cx, cy);
+              mctx.scale(Math.max(rx, 1), Math.max(ry, 1));
+              const g = mctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+              g.addColorStop(0, "rgba(255,255,255,1)");
+              g.addColorStop(0.72, "rgba(255,255,255,1)");
+              g.addColorStop(1, "rgba(255,255,255,0)");
+              mctx.fillStyle = g;
               mctx.beginPath();
-              mctx.roundRect(bx1 - pad, by1 - pad, (bx2 - bx1) + pad * 2, (by2 - by1) + pad * 2, baseW);
+              mctx.arc(0, 0, 1, 0, Math.PI * 2);
               mctx.fill();
               mctx.restore();
             }
