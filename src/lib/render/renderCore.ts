@@ -9,7 +9,7 @@
  *
  * 결정적: 같은 SceneSpec + 같은 t → 같은 픽셀 (랜덤은 seeded).
  */
-import { SceneSpec, RevealObject } from "@/lib/types";
+import { SceneSpec, RevealObject, BrushType } from "@/lib/types";
 import { createSeededRandom, hashSeed } from "./seededRandom";
 
 export interface CanvasSize { width: number; height: number }
@@ -31,6 +31,7 @@ interface RenderOptions {
   brushSize?: number;
   brushCount?: number;
   brushSpeed?: number;
+  brushType?: BrushType;
   /** 테스트용: 완성본으로 점프하지 않고 path 드로잉만 유지 */
   noFinalImage?: boolean;
 }
@@ -247,44 +248,140 @@ function drawHand(ctx: CanvasRenderingContext2D, pos: Pt, angle: number, tool: s
   ctx.restore();
 }
 
-/** 마스크에 경로 0..count 까지 가변 두께 + 잉크 튐으로 긋기 (흰색) */
+/** 마스크에 경로 0..count 까지 붓 타입별로 흰색 스트로크 */
 function strokePathOnMask(
-  mctx: CanvasRenderingContext2D, path: Pt[], count: number, baseW: number, seed: number
+  mctx: CanvasRenderingContext2D, path: Pt[], count: number, baseW: number, seed: number,
+  brushType: BrushType = "round"
 ) {
   if (count < 1 || path.length < 2) {
     if (path.length) { mctx.fillStyle = "#fff"; mctx.beginPath(); mctx.arc(path[0].x, path[0].y, baseW / 2, 0, Math.PI * 2); mctx.fill(); }
     return;
   }
   const rnd = createSeededRandom(seed);
+  const n = Math.min(count, path.length - 1);
+  const fade = 12;
   mctx.strokeStyle = "#fff";
   mctx.fillStyle = "#fff";
-  mctx.lineCap = "round";
-  mctx.lineJoin = "round";
-  // 잉크 번짐 — 마스크 가장자리를 부드럽게 (destination-in 시 원본이 페이드되며 나타남)
-  mctx.shadowColor = "#fff";
-  mctx.shadowBlur = baseW * 0.35;
-  const n = Math.min(count, path.length - 1);
-  const fade = 12; // 펜 끝 최근 구간은 옅게 시작 → 점점 진해짐 (끊김 방지)
-  for (let i = 1; i <= n; i++) {
-    const p0 = path[i - 1], p1 = path[i];
-    // 동적 두께 (사인 압력) — 얇게 유지해 선의 디테일을 따라가는 게 보이게.
-    // 못 덮은 여백은 마무리 패스(70% 타원/92% 전역)가 채우므로 얇아도 빵꾸 없음.
-    const w = baseW * (0.5 + 0.3 * (0.5 + 0.5 * Math.sin(i * 0.35)));
-    mctx.lineWidth = w;
-    mctx.globalAlpha = i > n - fade ? Math.max(0.08, (n - i) / fade) : 1;
-    mctx.beginPath();
-    mctx.moveTo(p0.x, p0.y);
-    mctx.lineTo(p1.x, p1.y);
-    mctx.stroke();
-    // 잉크 튐 (dabs)
-    if (rnd() < 0.35) {
-      const r = baseW * (0.12 + rnd() * 0.3);
-      mctx.globalAlpha = 0.5 + rnd() * 0.5;
+
+  if (brushType === "round") {
+    // ─ 기본 둥근 붓: 가변 두께 + 잉크 튐 ─
+    mctx.lineCap = "round"; mctx.lineJoin = "round";
+    mctx.shadowColor = "#fff"; mctx.shadowBlur = baseW * 0.35;
+    for (let i = 1; i <= n; i++) {
+      const p0 = path[i - 1], p1 = path[i];
+      mctx.lineWidth = baseW * (0.5 + 0.3 * (0.5 + 0.5 * Math.sin(i * 0.35)));
+      mctx.globalAlpha = i > n - fade ? Math.max(0.08, (n - i) / fade) : 1;
+      mctx.beginPath(); mctx.moveTo(p0.x, p0.y); mctx.lineTo(p1.x, p1.y); mctx.stroke();
+      if (rnd() < 0.35) {
+        const r = baseW * (0.12 + rnd() * 0.3);
+        mctx.globalAlpha = 0.5 + rnd() * 0.5;
+        mctx.beginPath(); mctx.arc(p1.x + (rnd() - 0.5) * baseW, p1.y + (rnd() - 0.5) * baseW, r, 0, Math.PI * 2); mctx.fill();
+      }
+    }
+
+  } else if (brushType === "dry") {
+    // ─ 드라이브러시: 촘촘한 점 찍기, 군데군데 빈칸, 거친 질감 ─
+    mctx.shadowColor = "#fff"; mctx.shadowBlur = baseW * 0.15;
+    for (let i = 1; i <= n; i++) {
+      const p0 = path[i - 1], p1 = path[i];
+      const alpha = i > n - fade ? Math.max(0.06, (n - i) / fade) : 1;
+      // 빈칸: 약 30% 구간은 건너뜀
+      if (rnd() < 0.3) continue;
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len, ny = dx / len; // 법선 방향
+      // 진행 방향을 따라 여러 개의 짧은 털 dab
+      const dabs = 3 + Math.floor(rnd() * 3);
+      for (let d = 0; d < dabs; d++) {
+        const t2 = rnd(); // 세그먼트 상의 위치
+        const spread = (rnd() - 0.5) * baseW * 0.9;
+        const cx = p0.x + dx * t2 + nx * spread;
+        const cy = p0.y + dy * t2 + ny * spread;
+        const r = baseW * (0.08 + rnd() * 0.2);
+        mctx.globalAlpha = alpha * (0.4 + rnd() * 0.6);
+        mctx.beginPath(); mctx.arc(cx, cy, r, 0, Math.PI * 2); mctx.fill();
+      }
+    }
+
+  } else if (brushType === "flat") {
+    // ─ 평붓: 진행 방향 수직 사각형 터치. 넓고 납작. ─
+    mctx.shadowColor = "#fff"; mctx.shadowBlur = baseW * 0.2;
+    for (let i = 1; i <= n; i++) {
+      const p0 = path[i - 1], p1 = path[i];
+      const alpha = i > n - fade ? Math.max(0.08, (n - i) / fade) : 1;
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const ang = Math.atan2(dy, dx);
+      const w = baseW * (1.4 + 0.4 * Math.sin(i * 0.4)); // 넓은 폭
+      const h = baseW * (0.18 + rnd() * 0.12);            // 얇은 두께
+      mctx.save();
+      mctx.translate((p0.x + p1.x) / 2, (p0.y + p1.y) / 2);
+      mctx.rotate(ang);
+      mctx.globalAlpha = alpha;
+      mctx.fillRect(-len / 2 - 1, -w / 2, len + 2, w);
+      // 테두리 살짝 불규칙하게
+      if (rnd() < 0.4) {
+        mctx.globalAlpha = alpha * 0.4;
+        mctx.fillRect(-len / 2 - 1, -w / 2 - h, len + 2, h);
+        mctx.fillRect(-len / 2 - 1, w / 2, len + 2, h);
+      }
+      mctx.restore();
+    }
+
+  } else if (brushType === "bristle") {
+    // ─ 강모붓: 5가닥 평행선, 각 가닥은 약간 어긋나고 불규칙 ─
+    const STRANDS = 5;
+    mctx.lineCap = "round"; mctx.lineJoin = "round";
+    mctx.shadowColor = "#fff"; mctx.shadowBlur = baseW * 0.1;
+    for (let s = 0; s < STRANDS; s++) {
+      const rndS = createSeededRandom(seed + s * 1337);
+      const offset = (s / (STRANDS - 1) - 0.5) * baseW * 1.2; // 좌우 퍼짐
+      const thick = baseW * (0.08 + rndS() * 0.12);
+      mctx.lineWidth = thick;
       mctx.beginPath();
-      mctx.arc(p1.x + (rnd() - 0.5) * baseW, p1.y + (rnd() - 0.5) * baseW, r, 0, Math.PI * 2);
-      mctx.fill();
+      let started = false;
+      for (let i = 1; i <= n; i++) {
+        const p0 = path[i - 1], p1 = path[i];
+        const alpha = i > n - fade ? Math.max(0.06, (n - i) / fade) : (0.5 + rndS() * 0.5);
+        const dx = p1.x - p0.x, dy = p1.y - p0.y;
+        const len2 = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = -dy / len2, ny = dx / len2;
+        // 가닥별 미세 흔들림
+        const jx = (rndS() - 0.5) * baseW * 0.08;
+        const jy = (rndS() - 0.5) * baseW * 0.08;
+        const px = p1.x + nx * offset + jx;
+        const py = p1.y + ny * offset + jy;
+        // 드라이 효과: 간헐적 끊김
+        if (rndS() < 0.12) { started = false; mctx.stroke(); mctx.beginPath(); continue; }
+        mctx.globalAlpha = alpha;
+        if (!started) { mctx.moveTo(px, py); started = true; }
+        else mctx.lineTo(px, py);
+      }
+      mctx.stroke();
+    }
+
+  } else if (brushType === "ink") {
+    // ─ 먹/캘리그래피: 속도에 따라 두께가 극적으로 변함. 얇다→두껍다→얇다 ─
+    mctx.lineCap = "round"; mctx.lineJoin = "round";
+    mctx.shadowColor = "#fff"; mctx.shadowBlur = baseW * 0.5;
+    for (let i = 1; i <= n; i++) {
+      const p0 = path[i - 1], p1 = path[i];
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      const speed = Math.sqrt(dx * dx + dy * dy);
+      // 빠르게 움직일수록 얇게 (필압 역관계)
+      const pressure = 1 - Math.min(speed / (baseW * 0.8), 1) * 0.75;
+      const w = baseW * (0.15 + pressure * 1.6);
+      mctx.lineWidth = w;
+      mctx.globalAlpha = i > n - fade ? Math.max(0.06, (n - i) / fade) : (0.85 + rnd() * 0.15);
+      mctx.beginPath(); mctx.moveTo(p0.x, p0.y); mctx.lineTo(p1.x, p1.y); mctx.stroke();
+      // 선 끝 잉크 뭉침
+      if (rnd() < 0.18) {
+        const r = w * (0.4 + rnd() * 0.6);
+        mctx.beginPath(); mctx.arc(p1.x, p1.y, r, 0, Math.PI * 2); mctx.fill();
+      }
     }
   }
+
   mctx.globalAlpha = 1;
   mctx.shadowBlur = 0;
 }
@@ -318,6 +415,7 @@ export function renderSceneFrame(
     const brushSize = scene.hand?.size ?? opts.brushSize ?? 1;
     const brushCount = Math.max(1, Math.round(scene.hand?.count ?? opts.brushCount ?? 1));
     const brushSpeed = Math.max(0.05, scene.hand?.speed ?? opts.brushSpeed ?? 1);
+    const brushType: BrushType = scene.hand?.brushType ?? opts.brushType ?? "round";
     const baseW = Math.max(10, 42 * brushSize) * (height / 1920);
 
     const drawWindow = Math.max(scene.durationSec * 0.85, 0.5);
@@ -378,7 +476,7 @@ export function renderSceneFrame(
               const sub = path.slice(s0, Math.min(path.length, (c + 1) * seg + 1));
               if (sub.length < 1) continue;
               const cnt = Math.max(1, Math.floor(sub.length * eased));
-              strokePathOnMask(mctx, sub, cnt, baseW, hashSeed(it.obj.id + ":" + c));
+              strokePathOnMask(mctx, sub, cnt, baseW, hashSeed(it.obj.id + ":" + c), brushType);
               if (prog < 1 && sub.length >= 2) {
                 const idx = Math.min(cnt, sub.length - 1);
                 const pos = sub[idx];

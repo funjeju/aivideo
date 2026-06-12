@@ -21,6 +21,7 @@ export type ImageStatus = "pending" | "done" | "error";
 export type VoiceProvider = "elevenlabs" | "openai";
 export type VoiceTier = "free" | "premium";
 export type TextStrategy = "in-image" | "overlay" | "hybrid";
+export type BrushType = "round" | "dry" | "flat" | "bristle" | "ink";
 
 export interface UserDoc {
   email: string;
@@ -91,7 +92,7 @@ export interface SceneSpec {
   };
   camera?: Array<{ at: number; scale: number; x: number; y: number }>;
   overlays?: Array<{ type: string; asset: string; opacity?: number; pos?: [number, number]; trigger?: string }>;
-  hand?: { enabled: boolean; asset: string; size?: number; count?: number; speed?: number };
+  hand?: { enabled: boolean; asset: string; size?: number; count?: number; speed?: number; brushType?: BrushType };
 }
 
 export interface SceneDoc {

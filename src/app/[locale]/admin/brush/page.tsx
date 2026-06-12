@@ -1,8 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { SceneSpec, RevealObject, StylePackId } from "@/lib/types";
+import { SceneSpec, RevealObject, StylePackId, BrushType } from "@/lib/types";
 import BrushPlayer from "./BrushPlayer";
+
+const BRUSH_TYPES: { id: BrushType; name: string; desc: string }[] = [
+  { id: "round",   name: "둥근 붓",     desc: "부드럽고 일반적인 붓" },
+  { id: "dry",     name: "드라이브러시", desc: "군데군데 끊기는 거친 질감" },
+  { id: "flat",    name: "평붓",         desc: "넓고 납작한 터치" },
+  { id: "bristle", name: "강모붓",       desc: "여러 가닥이 갈라지는 붓" },
+  { id: "ink",     name: "먹/캘리",      desc: "속도따라 굵기가 극적으로 변화" },
+];
 
 const STYLES: { id: StylePackId; name: string }[] = [
   { id: "whiteboard", name: "화이트보드" },
@@ -23,6 +31,7 @@ export default function BrushTestPage() {
   const [objects, setObjects] = useState<RevealObject[]>([]);
   const [playing, setPlaying] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string>("");
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -35,8 +44,11 @@ export default function BrushTestPage() {
       const img = new Image();
       img.onload = () => setImage(img);
       img.src = dataUrl;
+      // 이미지 바꾸면 분석 결과 초기화
       setScene(null);
       setObjects([]);
+      setAudioUrl("");
+      setPlaying(false);
     };
     reader.readAsDataURL(f);
   }
@@ -46,19 +58,40 @@ export default function BrushTestPage() {
     setError("");
     setAnalyzing(true);
     setPlaying(false);
+    // 이전 blob URL 해제
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioUrl("");
+
     try {
       const { getIdToken } = await import("@/lib/clientAuth");
       const token = await getIdToken();
-      const res = await fetch("/api/admin/brush-test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "분석 실패"); return; }
+
+      // 이미지 분석 + TTS 병렬
+      const [brushRes, ttsRes] = await Promise.all([
+        fetch("/api/admin/brush-test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize }),
+        }),
+        narration.trim()
+          ? fetch("/api/admin/tts-preview", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ narration }),
+            })
+          : null,
+      ]);
+
+      const data = await brushRes.json();
+      if (!brushRes.ok) { setError(data.error ?? "분석 실패"); return; }
       setScene({ ...data.sceneSpec, image: { url: "local", fit: "contain" } });
       setObjects(data.objects ?? []);
-      setPlaying(true);
+
+      if (ttsRes?.ok) {
+        const blob = await ttsRes.blob();
+        setAudioUrl(URL.createObjectURL(blob));
+      }
+      // 분석 완료 후 자동 재생 안 함 — 재생 버튼을 따로 눌러서 시작
     } catch (e) {
       setError(e instanceof Error ? e.message : "오류");
     } finally {
@@ -137,19 +170,30 @@ export default function BrushTestPage() {
             붓 표시
           </label>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {/* 분석: 이미지+나레이션 바뀌었을 때만 다시 누름 */}
             <button onClick={analyze} disabled={analyzing}
               className="px-5 py-2.5 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium disabled:opacity-50">
-              {analyzing ? "분석 중..." : "분석하고 재생"}
+              {analyzing ? "분석 중..." : "분석"}
             </button>
+
+            {/* 재생/정지: 분석 결과 있을 때만 활성 */}
             {scene && (
-              <button onClick={() => setPlaying((p) => !p)}
-                className="px-5 py-2.5 rounded-[var(--radius)] border border-[var(--line)] text-sm">
-                {playing ? "정지" : "다시 재생"}
+              <button
+                onClick={() => setPlaying((p) => !p)}
+                className="px-5 py-2.5 rounded-[var(--radius)] border border-[var(--line)] text-sm font-medium"
+              >
+                {playing ? "⏸ 정지" : "▶ 재생"}
               </button>
             )}
           </div>
           {error && <p className="text-sm text-[var(--accent)]">{error}</p>}
+
+          {scene && (
+            <p className="text-xs text-[var(--ink-soft)]">
+              {audioUrl ? "🔊 나레이션 음성 준비됨 — 재생 시 음성과 붓이 함께 나옵니다" : "나레이션 없음 — 경과 시간 기반으로 재생됩니다"}
+            </p>
+          )}
 
           {objects.length > 0 && (
             <div className="text-xs text-[var(--ink-soft)] border border-[var(--line)] rounded p-3">
@@ -168,7 +212,16 @@ export default function BrushTestPage() {
 
         {/* 우: 미리보기 */}
         <div>
-          <BrushPlayer scene={scene} image={image} playing={playing} brushSize={brushSize} brushCount={brushCount} brushSpeed={brushSpeed} showBrush={showBrush} />
+          <BrushPlayer
+            scene={scene}
+            image={image}
+            playing={playing}
+            brushSize={brushSize}
+            brushCount={brushCount}
+            brushSpeed={brushSpeed}
+            showBrush={showBrush}
+            audioUrl={audioUrl}
+          />
         </div>
       </div>
     </div>
