@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 /** 배포 환경 진단 — 비밀값은 노출하지 않고 초기화 가능 여부만 보고 */
 export async function GET() {
   const report: Record<string, string> = {};
+  report.deployMarker = "v2-node22";
+  report.nodeVersion = process.version;
 
   // 1. env 존재 여부
   report.OPENAI_API_KEY = process.env.OPENAI_API_KEY ? "set" : "MISSING";
