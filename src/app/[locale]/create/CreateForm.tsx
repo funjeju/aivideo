@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -27,11 +29,12 @@ const ASPECTS: { value: AspectRatio; label: string; sub: string; icon: string }[
   { value: "1:1", label: "정사각", sub: "피드", icon: "▢" },
 ];
 
-const VOICES = [
-  { id: "nova", name: "따뜻한 여성", provider: "openai" },
-  { id: "shimmer", name: "차분한 여성", provider: "openai" },
-  { id: "echo", name: "낮은 남성", provider: "openai" },
-  { id: "onyx", name: "중후한 남성", provider: "openai" },
+// voices 컬렉션 로드 실패 시 폴백
+const FALLBACK_VOICES = [
+  { id: "nova", name: "따뜻한 여성" },
+  { id: "shimmer", name: "차분한 여성" },
+  { id: "echo", name: "낮은 남성" },
+  { id: "onyx", name: "중후한 남성" },
 ];
 
 export default function CreateForm() {
@@ -48,10 +51,31 @@ export default function CreateForm() {
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
   const [voiceId, setVoiceId] = useState("nova");
+  const [voices, setVoices] = useState<{ id: string; name: string }[]>(FALLBACK_VOICES);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // voices 컬렉션에서 노출 보이스 로드 (실패 시 폴백 유지)
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(db, "voices"), where("enabled", "==", true)));
+        if (!snap.empty) {
+          const list = snap.docs
+            .map((d) => d.data() as { id: string; displayName: string; sortOrder?: number })
+            .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99))
+            .map((v) => ({ id: v.id, name: v.displayName }));
+          setVoices(list);
+          if (!list.find((v) => v.id === voiceId)) setVoiceId(list[0].id);
+        }
+      } catch {
+        // 폴백 유지
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -108,8 +132,7 @@ export default function CreateForm() {
     if (dropped) setFile(dropped);
   }
 
-  function previewVoice(v: typeof VOICES[0]) {
-    // OpenAI 보이스는 캐시된 샘플 없으면 안내만
+  function previewVoice(v: { id: string }) {
     if (audioRef.current) {
       audioRef.current.src = `/api/voice-preview?voiceId=${v.id}`;
       audioRef.current.play().catch(() => {});
@@ -232,7 +255,7 @@ export default function CreateForm() {
         <section>
           <p className="text-sm font-medium text-[var(--ink)] mb-3">{t("voice")}</p>
           <div className="grid grid-cols-2 gap-2">
-            {VOICES.map((v) => (
+            {voices.map((v) => (
               <div
                 key={v.id}
                 className={`flex items-center justify-between p-3 rounded-[var(--radius)] border cursor-pointer transition-colors ${
