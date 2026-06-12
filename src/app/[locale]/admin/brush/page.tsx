@@ -23,6 +23,7 @@ export default function BrushTestPage() {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [narration, setNarration] = useState("");
   const [stylePackId, setStylePackId] = useState<StylePackId>("ink-wash");
+  const [brushType, setBrushType] = useState<BrushType>("round");
   const [brushSize, setBrushSize] = useState(1);
   const [brushCount, setBrushCount] = useState(1);
   const [brushSpeed, setBrushSpeed] = useState(1);
@@ -143,6 +144,26 @@ export default function BrushTestPage() {
             </select>
           </div>
 
+          <div>
+            <label className="text-sm font-medium text-[var(--ink)]">붓 종류</label>
+            <div className="grid grid-cols-5 gap-1 mt-1">
+              {BRUSH_TYPES.map((b) => (
+                <button
+                  key={b.id}
+                  title={b.desc}
+                  onClick={() => setBrushType(b.id)}
+                  className={`px-2 py-1.5 rounded text-xs border transition-colors ${
+                    brushType === b.id
+                      ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                      : "border-[var(--line)] text-[var(--ink)] hover:border-[var(--accent)]"
+                  }`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center gap-3">
             <label className="text-sm text-[var(--ink)] w-16">붓 크기</label>
             <input type="range" min={0.3} max={6} step={0.1} value={brushSize}
@@ -221,6 +242,7 @@ export default function BrushTestPage() {
             brushSpeed={brushSpeed}
             showBrush={showBrush}
             audioUrl={audioUrl}
+            brushType={brushType}
           />
         </div>
       </div>
