@@ -376,11 +376,10 @@ export function renderSceneFrame(
             const cnt = Math.max(1, Math.floor(it.path.length * ease(prog)));
             strokePathOnMask(mctx, it.path, cnt, baseW, hashSeed(it.obj.id));
 
-            // 마무리 패스: 객체 진행 70%부터 붓이 못 간 빈 부분을 부드럽게 채움.
-            // 사각형은 직선 윤곽이 남으므로, 가장자리가 투명으로 사라지는
-            // 타원 방사 그라데이션(먹이 번지듯)으로 — 직선 모서리 없음.
-            if (prog > 0.7) {
-              const a = ease((prog - 0.7) / 0.3);
+            // 채움 패스: 붓이 궤적을 45%쯤 그리면 그 공간이 뒤따라 서서히 페이드인.
+            // 가장자리가 투명으로 사라지는 타원 방사 그라데이션(먹 번짐) — 직선 모서리 없음.
+            if (prog > 0.45) {
+              const a = ease(clamp01((prog - 0.45) / 0.5));
               const bx1 = it.obj.bbox[0] * fit.bScaleX + fit.offsetX;
               const by1 = it.obj.bbox[1] * fit.bScaleY + fit.offsetY;
               const bx2 = it.obj.bbox[2] * fit.bScaleX + fit.offsetX;
