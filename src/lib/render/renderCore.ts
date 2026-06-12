@@ -31,8 +31,6 @@ interface RenderOptions {
   brushSize?: number;
   brushCount?: number;
   brushSpeed?: number;
-  /** 테스트용: 초당 그리는 점 수. 주면 durationSec 무시하고 작업량 기준으로 그림 (시간 제한 없음) */
-  pace?: number;
   /** 테스트용: 완성본으로 점프하지 않고 path 드로잉만 유지 */
   noFinalImage?: boolean;
 }
@@ -340,27 +338,25 @@ export function renderSceneFrame(
       if (items.length === 0) {
         ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
       } else {
-        // 이어달리기 스케줄: 객체 i가 30% 그려지면 객체 i+1 붓이 등장 (cascade).
-        // 동시 활성 붓은 brushCount로 제한 — 초과 시 앞 붓이 끝날 때까지 대기.
-        const OVERLAP = 0.3;
-        const starts: number[] = [];
-        const endsArr: number[] = [];
-        for (let i = 0; i < items.length; i++) {
-          const w = Math.max(1, items[i].path.length);
-          let s = i === 0 ? 0 : starts[i - 1] + Math.max(1, items[i - 1].path.length) * OVERLAP;
-          if (i >= brushCount) s = Math.max(s, endsArr[i - brushCount]); // 붓 수 제한
-          starts.push(s);
-          endsArr.push(s + w);
-        }
-        const sched = items.map((it, i) => ({ ...it, s: starts[i], e: endsArr[i] }));
-        const makespan = Math.max(1, ...endsArr);
-        // 그리기 완성 시각. 테스트(pace)면 작업량 기준(시간 제한 없음), 영상이면 오디오 길이 내로 클램프.
-        const effective = opts.pace
-          ? makespan / opts.pace / brushSpeed
-          : Math.min(scene.durationSec * 0.96, drawWindow / brushSpeed);
-        const scaleT = effective / makespan;
+        // 타이밍은 객체의 startAt/endAt(초)을 그대로 따른다 = 나레이션 동기화.
+        // (planner가 나레이션 anchorText로 startAt 산출. 없으면 아래 폴백으로 균등.)
+        const N = items.length;
+        const win = scene.durationSec * 0.85;
+        const sched = items.map((it, i) => {
+          let s = it.obj.startAt;
+          let e = it.obj.endAt;
+          if (s == null || e == null) {
+            // 폴백(테스트/나레이션 없음): 순서대로 약간 겹치게 균등 배분
+            const slot = win / N;
+            s = i * slot;
+            e = s + slot * 1.4;
+          }
+          return { ...it, s, e };
+        });
+        const maxEnd = Math.max(win, ...sched.map((x) => x.e));
+        const tEff = t * brushSpeed; // 영상: speed=1(나레이션 절대시각). 테스트: 슬라이더 가속.
 
-        if (t >= effective && !opts.noFinalImage) {
+        if (tEff >= maxEnd && !opts.noFinalImage) {
           ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH); // 완성본
         } else {
           const mask = scratch(_mask, width, height);
@@ -369,12 +365,27 @@ export function renderSceneFrame(
 
           const pens: { pos: Pt; angle: number }[] = [];
           for (const it of sched) {
-            const sT = it.s * scaleT;
-            const eT = it.e * scaleT;
-            const prog = clamp01((t - sT) / Math.max(eT - sT, 0.01));
+            const prog = clamp01((tEff - it.s) / Math.max(it.e - it.s, 0.01));
             if (prog <= 0) continue;
-            const cnt = Math.max(1, Math.floor(it.path.length * ease(prog)));
-            strokePathOnMask(mctx, it.path, cnt, baseW, hashSeed(it.obj.id));
+            const eased = ease(prog);
+            const path = it.path;
+
+            // 붓 개수: 한 객체를 brushCount 갈래로 나눠 동시에 그림 (펜이 설정 개수만큼 보임 + 빨라짐)
+            const seg = Math.ceil(path.length / brushCount);
+            for (let c = 0; c < brushCount; c++) {
+              const s0 = c * seg;
+              if (s0 >= path.length) break;
+              const sub = path.slice(s0, Math.min(path.length, (c + 1) * seg + 1));
+              if (sub.length < 1) continue;
+              const cnt = Math.max(1, Math.floor(sub.length * eased));
+              strokePathOnMask(mctx, sub, cnt, baseW, hashSeed(it.obj.id + ":" + c));
+              if (prog < 1 && sub.length >= 2) {
+                const idx = Math.min(cnt, sub.length - 1);
+                const pos = sub[idx];
+                const prev = sub[Math.max(0, idx - 1)];
+                pens.push({ pos, angle: Math.atan2(pos.y - prev.y, pos.x - prev.x) });
+              }
+            }
 
             // 채움 패스: 붓이 궤적을 45%쯤 그리면 그 공간이 뒤따라 서서히 페이드인.
             // 가장자리가 투명으로 사라지는 타원 방사 그라데이션(먹 번짐) — 직선 모서리 없음.
@@ -404,18 +415,11 @@ export function renderSceneFrame(
               mctx.fill();
               mctx.restore();
             }
-            // 현재 그리는 중인 객체에만 펜 (붓당 1개 → 동시 최대 brushCount, 끊김 없이 순환)
-            if (prog < 1 && it.path.length >= 2) {
-              const idx = Math.min(cnt, it.path.length - 1);
-              const pos = it.path[idx];
-              const prev = it.path[Math.max(0, idx - 1)];
-              pens.push({ pos, angle: Math.atan2(pos.y - prev.y, pos.x - prev.x) });
-            }
           }
 
           // 최종 패스: 전체 진행 92%부터 캔버스 전체를 서서히 공개.
           // 붓이 못 간 어떤 빈 곳도 끝에는 반드시 채워짐 (측정 불필요한 전역 보증).
-          const gp = clamp01(t / Math.max(effective, 0.01));
+          const gp = clamp01(tEff / Math.max(maxEnd, 0.01));
           if (gp > 0.92) {
             mctx.globalAlpha = ease((gp - 0.92) / 0.08);
             mctx.fillStyle = "#fff";

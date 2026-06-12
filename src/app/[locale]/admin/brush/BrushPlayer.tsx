@@ -47,8 +47,8 @@ export default function BrushPlayer({
 
     // hand.size를 슬라이더 값으로 덮어써 즉시 반영
     const liveScene: SceneSpec = { ...scene, hand: { ...(scene.hand ?? { enabled: true, asset: "brush" }), enabled: showBrush, size: brushSize, count: brushCount, speed: brushSpeed } };
-    // 테스트: 시간 제한 없이 작업량만큼 그림 (pace=초당 점수). 완성본 점프 없음.
-    const renderOpts = { pace: 240, noFinalImage: true };
+    // 테스트: 완성본 점프 없이 끝까지 그림 (속도 슬라이더로 완급 조절)
+    const renderOpts = { noFinalImage: true };
     const LOOP = 60; // 충분히 길게 두고, 다 그린 뒤엔 그대로 유지하다 리셋
 
     function frame(now: number) {
