@@ -120,11 +120,17 @@ export default function ProjectView({ projectId }: { projectId: string }) {
       );
 
       // 승인
-      await fetch("/api/approve", {
+      const apRes = await fetch("/api/approve", {
         method: "POST",
         headers: authHeaders,
         body: JSON.stringify({ projectId }),
       });
+      if (apRes.status === 402) {
+        const d = await apRes.json().catch(() => ({}));
+        alert(`크레딧이 부족합니다. (보유 $${(d.credits ?? 0).toFixed?.(2) ?? d.credits} / 필요 약 $${d.estimate})\n관리자에게 문의하거나 크레딧을 충전해 주세요.`);
+        setApproving(false);
+        return;
+      }
     } catch (e) {
       console.error(e);
     } finally {

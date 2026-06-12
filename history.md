@@ -132,6 +132,27 @@
 
 ---
 
+### Phase 4 진행 (2026-06-12, Opus 4.8)
+배포본 점검 → 랜딩/보안/어드민/사후편집/API인증 구현.
+
+- **랜딩 페이지** (`/[locale]`) — 로그인 리다이렉트 제거, 비로그인 공개 (히어로/화풍3종/작동방식/CTA)
+- **admin layout 클라이언트 전환** — Vercel server error 해소 (Admin SDK+쿠키 의존 제거, userDoc.role 기준)
+- **Firestore 보안 규칙** (`firestore.rules`) — 콘솔에서 게시 완료. 본인 데이터만, role/credits 서버 전용, stylePacks/voices 공개읽기
+- **AuthProvider** — users 문서 접근 실패 try/catch (무한 로딩 방지) + 최초 로그인 upsert
+- **어드민 화면 실구현** — 대시보드(지표)/회원(크레딧·역할)/영상(목록·원가)/비용(항목별 집계)
+  - `/api/admin/members` — 서버 토큰 검증 + superadmin, Custom Claims 동기화
+- **사후 편집** — `/api/edit/scene`(문장수정→TTS재합성→Planner / 그림재생성→Vision→Planner), 완료화면 SceneEditList
+- **API 인증 전면 적용** — authorizeRequest(토큰 OR 내부시크릿) + ownsProject + internalHeaders
+  - 전 라우트 401/403 가드, 클라 Bearer 토큰, 내부 오케스트레이션 시크릿
+  - 로컬 검증: 무인증 401, 내부시크릿 통과 확인
+- naggu1999@gmail.com → superadmin (scripts/set-admin.mjs)
+
+**⚠️ Vercel 환경변수 추가 필요: `INTERNAL_API_SECRET`** (랜덤 문자열 아무거나). 없으면 배포본에서 승인→생성, 사후편집의 내부 호출이 401로 깨짐.
+
+**남은 것:** 보이스 관리/시스템설정 어드민(데이터 시딩 필요), 크레딧 차감(과금), 멀티비율, 부분재렌더 최적화(현재 전체 재렌더).
+
+---
+
 ## 대화 기록
 
 **사용자**: 문서 파악만 해놔

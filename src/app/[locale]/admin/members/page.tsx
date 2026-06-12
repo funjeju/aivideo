@@ -71,6 +71,10 @@ export default function AdminMembersPage() {
     adminAction({ action: "setRole", userId: m.id, role: next }, m.id);
   }
 
+  function toggleExempt(m: MemberRow) {
+    adminAction({ action: "setBillingExempt", userId: m.id, exempt: !m.billingExempt }, m.id);
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-semibold text-[var(--ink)] mb-6">회원 관리</h1>
@@ -87,6 +91,7 @@ export default function AdminMembersPage() {
                 <th className="px-4 py-3 font-medium">역할</th>
                 <th className="px-4 py-3 font-medium">플랜</th>
                 <th className="px-4 py-3 font-medium text-right">크레딧</th>
+                <th className="px-4 py-3 font-medium text-center">과금</th>
                 {isSuperAdmin && <th className="px-4 py-3 font-medium text-right">관리</th>}
               </tr>
             </thead>
@@ -101,6 +106,13 @@ export default function AdminMembersPage() {
                   </td>
                   <td className="px-4 py-3 text-[var(--ink-soft)]">{m.plan ?? "-"}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-[var(--ink)]">{m.credits ?? 0}</td>
+                  <td className="px-4 py-3 text-center">
+                    {m.billingExempt ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">면제</span>
+                    ) : (
+                      <span className="text-xs text-[var(--ink-faint)]">과금</span>
+                    )}
+                  </td>
                   {isSuperAdmin && (
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button
@@ -113,9 +125,16 @@ export default function AdminMembersPage() {
                       <button
                         onClick={() => changeRole(m)}
                         disabled={busy === m.id}
-                        className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)] disabled:opacity-40"
+                        className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)] disabled:opacity-40 mr-3"
                       >
                         역할
+                      </button>
+                      <button
+                        onClick={() => toggleExempt(m)}
+                        disabled={busy === m.id}
+                        className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)] disabled:opacity-40"
+                      >
+                        {m.billingExempt ? "과금적용" : "면제"}
                       </button>
                     </td>
                   )}

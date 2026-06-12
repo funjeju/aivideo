@@ -29,7 +29,15 @@ export interface UserDoc {
   role: UserRole;
   uiLocale: UiLocale;
   themePref: ThemePref;
+  /** 과금 면제 (true면 토글 ON이어도 무제한) */
+  billingExempt?: boolean;
   createdAt: Timestamp;
+}
+
+export interface GlobalSettings {
+  /** 과금 적용 여부. false면 모두 무료. */
+  billingEnabled: boolean;
+  updatedAt?: Timestamp;
 }
 
 export interface ProjectDoc {

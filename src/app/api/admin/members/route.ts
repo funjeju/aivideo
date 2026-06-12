@@ -38,6 +38,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    if (action === "setBillingExempt") {
+      await ref.update({ billingExempt: !!body.exempt, updatedAt: FieldValue.serverTimestamp() });
+      return NextResponse.json({ ok: true });
+    }
+
     return NextResponse.json({ error: "unknown action" }, { status: 400 });
   } catch (e) {
     console.error("admin members action failed:", e);

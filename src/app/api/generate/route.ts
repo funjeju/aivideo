@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject, internalHeaders } from "@/lib/auth";
+import { isBillingEnabled } from "@/lib/billing";
 
 /**
  * 승인 후 이미지→Vision→Planner 파이프라인 오케스트레이션.
@@ -116,6 +117,24 @@ export async function POST(req: NextRequest) {
       "costLog.imageRegenerations": imageRegenerations,
       updatedAt: FieldValue.serverTimestamp(),
     });
+
+    // 크레딧 차감 (토글 ON & 비면제 계정만). 실비 = 이번 생성의 외부 API 원가.
+    try {
+      const ownerId = project.ownerId as string;
+      const userRef = db.collection("users").doc(ownerId);
+      const userData = (await userRef.get()).data();
+      const exempt = userData?.billingExempt === true;
+      if ((await isBillingEnabled()) && !exempt) {
+        const projData = (await db.collection("projects").doc(projectId).get()).data();
+        const c = projData?.costLog ?? {};
+        const spent = (c.imageCostUsd ?? 0) + (c.llmCostUsd ?? 0) + (c.ttsCostUsd ?? 0);
+        if (spent > 0) {
+          await userRef.update({ credits: FieldValue.increment(-spent) });
+        }
+      }
+    } catch (e) {
+      console.error("credit deduction failed:", e);
+    }
 
     return NextResponse.json({ ok: true, total });
   } catch (e) {

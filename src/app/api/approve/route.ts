@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject, internalHeaders } from "@/lib/auth";
+import { checkBillingGate } from "@/lib/billing";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +15,18 @@ export async function POST(req: NextRequest) {
     }
     if (!(await ownsProject(auth, projectId))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    // 과금 게이트 (이미지 생성 = 진짜 비용 발생 직전)
+    const projSnap = await adminDb().collection("projects").doc(projectId).get();
+    const ownerId = projSnap.data()?.ownerId as string;
+    const targetLength = (projSnap.data()?.targetLength as number) ?? 180;
+    const gate = await checkBillingGate(ownerId, targetLength);
+    if (!gate.allowed) {
+      return NextResponse.json(
+        { error: "insufficient_credits", credits: gate.credits, estimate: gate.estimate },
+        { status: 402 }
+      );
     }
 
     await adminDb()
