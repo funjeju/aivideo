@@ -19,7 +19,7 @@ export default function Header() {
 
   return (
     <header className="h-14 border-b border-[var(--line)] bg-[var(--paper-raised)] flex items-center px-6">
-      <Link href={`/${locale}/dashboard`} className="font-semibold text-[var(--ink)] mr-auto">
+      <Link href={`/${locale}`} className="font-semibold text-[var(--ink)] mr-auto">
         DrawNarrate
       </Link>
       {user ? (

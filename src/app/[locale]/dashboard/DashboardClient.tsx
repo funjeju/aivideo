@@ -43,6 +43,7 @@ export default function DashboardClient() {
 
   const [projects, setProjects] = useState<ProjectWithId[]>([]);
   const [fetching, setFetching] = useState(true);
+  const [queryError, setQueryError] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -57,10 +58,20 @@ export default function DashboardClient() {
       orderBy("createdAt", "desc")
     );
 
-    const unsub = onSnapshot(q, (snap) => {
-      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ProjectWithId)));
-      setFetching(false);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ProjectWithId)));
+        setFetching(false);
+        setQueryError(false);
+      },
+      (err) => {
+        // 복합 인덱스 미생성 시 여기로 (failed-precondition). 무한 스켈레톤 방지.
+        console.error("dashboard query failed:", err);
+        setFetching(false);
+        setQueryError(true);
+      }
+    );
 
     return unsub;
   }, [user, loading, locale, router]);
@@ -72,6 +83,31 @@ export default function DashboardClient() {
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-36 rounded-[var(--radius)] bg-[var(--paper-sunken)] animate-pulse" />
           ))}
+        </div>
+      </main>
+    );
+  }
+
+  if (queryError) {
+    return (
+      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-2xl font-semibold text-[var(--ink)]">{t("title")}</h1>
+        </div>
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-14 h-14 mb-4 rounded-full bg-[var(--accent-soft)] flex items-center justify-center text-2xl">
+            ⚠️
+          </div>
+          <p className="text-[var(--ink)] font-medium">목록을 불러오지 못했습니다</p>
+          <p className="text-sm text-[var(--ink-soft)] mt-1 max-w-md">
+            Firestore 인덱스가 아직 생성되지 않았을 수 있습니다. 잠시 후 다시 시도해 주세요.
+          </p>
+          <button
+            onClick={() => location.reload()}
+            className="mt-5 px-4 py-2 rounded-[var(--radius)] border border-[var(--line)] text-sm text-[var(--ink)] hover:bg-[var(--paper-sunken)]"
+          >
+            새로고침
+          </button>
         </div>
       </main>
     );

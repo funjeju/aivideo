@@ -1,4 +1,25 @@
 {
+  "landing": {
+    "heroBadge": "Automated educational videos",
+    "heroTitle": "Turn knowledge into drawings",
+    "heroSubtitle": "One line of topic is enough. We auto-generate drawing-reveal explainer videos in your chosen art style within minutes.",
+    "heroCtaPrimary": "Start for free",
+    "heroCtaSecondary": "See how it works",
+    "heroCtaDashboard": "Go to my studio",
+    "stylesTitle": "Pick your art style",
+    "stylesSubtitle": "Same content, different mood. It becomes your channel identity.",
+    "howTitle": "How it works",
+    "howSubtitle": "No complex editing. Just three steps.",
+    "step1Title": "Enter a topic",
+    "step1Desc": "Write a topic or upload material, and AI drafts the script and scenes.",
+    "step2Title": "Approve the script",
+    "step2Desc": "Review and edit the narration. It's before image generation, so it's free.",
+    "step3Title": "Get your video",
+    "step3Desc": "Images, motion, and voice are auto-composed into a drawing-reveal mp4.",
+    "ctaTitle": "Make your first video",
+    "ctaSubtitle": "Get started now. No credit card required.",
+    "ctaButton": "Start for free"
+  },
   "common": {
     "appName": "DrawNarrate",
     "loading": "Loading...",

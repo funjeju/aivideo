@@ -1,6 +1,12 @@
-import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+import Landing from "./Landing";
 
-export default async function LocaleRootPage({ params }: { params: Promise<{ locale: string }> }) {
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  redirect(`/${locale}/dashboard`);
+  const t = await getTranslations({ locale, namespace: "landing" });
+  return { title: `DrawNarrate — ${t("heroTitle")}` };
+}
+
+export default function LocaleRootPage() {
+  return <Landing />;
 }
