@@ -1,4 +1,4 @@
-import { RevealObject, SceneSpec, StylePackDoc } from "@/lib/types";
+import { RevealObject, SceneSpec, StylePackDoc, BrushType } from "@/lib/types";
 
 interface PlannerInput {
   sceneId: string;
@@ -13,10 +13,15 @@ interface PlannerInput {
   brushSize?: number;
   brushCount?: number;
   brushSpeed?: number;
+  brushType?: BrushType;
+  /** ""/undefined = 스타일팩 기본 도구 */
+  handAsset?: string;
+  /** sync(나레이션 anchor 동기) | topdown(위→아래 순차) */
+  flowMode?: "sync" | "topdown";
 }
 
 export function buildSceneSpec(input: PlannerInput): SceneSpec {
-  const { sceneId, order, narration, durationSec, audioUrl, imageUrl, objects, stylePack, aspect, brushSize, brushCount, brushSpeed } = input;
+  const { sceneId, order, narration, durationSec, audioUrl, imageUrl, objects, stylePack, aspect, brushSize, brushCount, brushSpeed, brushType, handAsset, flowMode } = input;
   const defaults = stylePack.plannerDefaults;
 
   // Reveal Planner: revealOrder가 이미 지정돼 있으면(=LLM 의미 매칭) 그 순서, 없으면 role 순서
@@ -27,11 +32,34 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     return (roleOrder[a.role] ?? 5) - (roleOrder[b.role] ?? 5);
   });
 
+  const DRAW_WINDOW = durationSec * 0.85;
+  const narrLen = Math.max(narration.length, 1);
+
+  // 위→아래 모드: anchor 무시, 화면 상단부터 순차 완성 (균등 슬롯, 겹침 최소)
+  if (flowMode === "topdown") {
+    const byY = [...objects].sort((a, b) => (a.bbox[1] - b.bbox[1]) || (a.bbox[0] - b.bbox[0]));
+    const slot = DRAW_WINDOW / Math.max(byY.length, 1);
+    const tdObjects: RevealObject[] = byY.map((obj, i) => ({
+      ...obj,
+      revealOrder: i + 1,
+      strokeStyle: (obj.strokeStyle ?? defaults.strokeStyle) as RevealObject["strokeStyle"],
+      flowDirection: obj.flowDirection ?? defaults.flowDirection,
+      startAt: parseFloat((i * slot).toFixed(2)),
+      endAt: parseFloat(Math.min(i * slot + slot * 1.15, durationSec).toFixed(2)),
+    }));
+    return {
+      sceneId, order, durationSec, narration, audioUrl,
+      canvas: { aspect, background: stylePack.id === "whiteboard" ? "white" : "paper-hanji" },
+      image: { url: imageUrl, fit: "contain" },
+      reveal: { objects: tdObjects },
+      overlays: stylePack.overlays.map((o) => ({ ...o })),
+      hand: { enabled: true, asset: handAsset || defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1, brushType: brushType ?? "round" },
+    };
+  }
+
   // Sync Planner: 나레이션-시각 시간 동기화.
   // anchorText(나레이션 구절)가 발화되는 시점에 객체를 그리기 시작한다.
   // 나레이션은 글자수에 비례해 균일 속도로 읽힌다고 보고, anchor 위치 비율 × durationSec = startAt.
-  const DRAW_WINDOW = durationSec * 0.85;
-  const narrLen = Math.max(narration.length, 1);
 
   // 각 객체의 앵커 시각 계산 (anchorText를 나레이션에서 찾아 위치 비율)
   type Timed = RevealObject & { _anchor: number };
@@ -81,6 +109,6 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     image: { url: imageUrl, fit: "contain" },
     reveal: { objects: revealObjects },
     overlays: stylePack.overlays.map((o) => ({ ...o })),
-    hand: { enabled: true, asset: defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1 },
+    hand: { enabled: true, asset: handAsset || defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1, brushType: brushType ?? "round" },
   };
 }

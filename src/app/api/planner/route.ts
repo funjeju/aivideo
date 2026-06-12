@@ -50,6 +50,9 @@ export async function POST(req: NextRequest) {
       brushSize: (settings.brushSize as number) ?? 1,
       brushCount: (settings.brushCount as number) ?? 1,
       brushSpeed: (settings.brushSpeed as number) ?? 1,
+      brushType: settings.brushType,
+      handAsset: settings.handAsset,
+      flowMode: settings.flowMode,
     });
 
     await db.collection("projects").doc(projectId).collection("scenes").doc(sceneId).update({

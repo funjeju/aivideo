@@ -51,8 +51,30 @@ export default function BrushTestPage() {
   const [audioUrl, setAudioUrl] = useState<string>("");
   const [error, setError] = useState("");
   const [recording, setRecording] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const playerRef = useRef<BrushPlayerHandle>(null);
+
+  async function saveAsDefaults() {
+    if (saving) return;
+    setSaving(true);
+    setSavedMsg("");
+    try {
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ brushSize, brushCount, brushSpeed, brushType, handAsset, flowMode }),
+      });
+      setSavedMsg(res.ok ? "✓ 저장됨 — 이후 생성되는 모든 영상에 적용" : "저장 실패 (superadmin 권한 필요)");
+    } catch {
+      setSavedMsg("저장 실패");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function downloadRecording() {
     if (!scene || recording) return;
@@ -343,7 +365,16 @@ export default function BrushTestPage() {
                 {recording ? "녹화 중..." : "⬇ 영상 다운로드"}
               </button>
             )}
+            <button
+              onClick={saveAsDefaults}
+              disabled={saving}
+              title="현재 붓 설정(크기/개수/속도/종류/도구/흐름)을 시스템 기본값으로 저장 — 자동 영상 생성에 적용"
+              className="px-5 py-2.5 rounded-[var(--radius)] border border-[var(--line)] text-sm font-medium disabled:opacity-50"
+            >
+              {saving ? "저장 중..." : "💾 기본값으로 저장"}
+            </button>
           </div>
+          {savedMsg && <p className="text-sm text-[var(--ink-soft)]">{savedMsg}</p>}
           {error && <p className="text-sm text-[var(--accent)]">{error}</p>}
 
           {scene && (
