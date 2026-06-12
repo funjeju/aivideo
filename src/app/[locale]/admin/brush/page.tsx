@@ -16,6 +16,8 @@ export default function BrushTestPage() {
   const [narration, setNarration] = useState("");
   const [stylePackId, setStylePackId] = useState<StylePackId>("ink-wash");
   const [brushSize, setBrushSize] = useState(1);
+  const [brushCount, setBrushCount] = useState(1);
+  const [brushSpeed, setBrushSpeed] = useState(1);
   const [scene, setScene] = useState<SceneSpec | null>(null);
   const [objects, setObjects] = useState<RevealObject[]>([]);
   const [playing, setPlaying] = useState(false);
@@ -109,10 +111,24 @@ export default function BrushTestPage() {
 
           <div className="flex items-center gap-3">
             <label className="text-sm text-[var(--ink)] w-16">붓 크기</label>
-            <input type="range" min={0.3} max={3} step={0.1} value={brushSize}
+            <input type="range" min={0.3} max={6} step={0.1} value={brushSize}
               onChange={(e) => setBrushSize(Number(e.target.value))}
               className="flex-1 accent-[var(--accent)]" />
             <span className="text-sm tabular-nums w-10 text-right">{brushSize.toFixed(1)}×</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-[var(--ink)] w-16">붓 개수</label>
+            <input type="range" min={1} max={6} step={1} value={brushCount}
+              onChange={(e) => setBrushCount(Number(e.target.value))}
+              className="flex-1 accent-[var(--accent)]" />
+            <span className="text-sm tabular-nums w-10 text-right">{brushCount}개</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-[var(--ink)] w-16">붓 속도</label>
+            <input type="range" min={0.3} max={4} step={0.1} value={brushSpeed}
+              onChange={(e) => setBrushSpeed(Number(e.target.value))}
+              className="flex-1 accent-[var(--accent)]" />
+            <span className="text-sm tabular-nums w-10 text-right">{brushSpeed.toFixed(1)}×</span>
           </div>
 
           <div className="flex gap-2">
@@ -146,7 +162,7 @@ export default function BrushTestPage() {
 
         {/* 우: 미리보기 */}
         <div>
-          <BrushPlayer scene={scene} image={image} playing={playing} brushSize={brushSize} />
+          <BrushPlayer scene={scene} image={image} playing={playing} brushSize={brushSize} brushCount={brushCount} brushSpeed={brushSpeed} />
         </div>
       </div>
     </div>

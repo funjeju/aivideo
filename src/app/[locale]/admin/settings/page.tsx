@@ -7,6 +7,8 @@ export default function AdminSettingsPage() {
   const { userDoc } = useAuth();
   const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null);
   const [brushSize, setBrushSize] = useState(1);
+  const [brushCount, setBrushCount] = useState(1);
+  const [brushSpeed, setBrushSpeed] = useState(1);
   const [saving, setSaving] = useState(false);
   const [brushSaved, setBrushSaved] = useState(false);
   const isSuper = userDoc?.role === "superadmin";
@@ -19,6 +21,8 @@ export default function AdminSettingsPage() {
       const data = await res.json();
       setBillingEnabled(data.billingEnabled ?? false);
       setBrushSize(data.brushSize ?? 1);
+      setBrushCount(data.brushCount ?? 1);
+      setBrushSpeed(data.brushSpeed ?? 1);
     })().catch(() => setBillingEnabled(false));
   }, []);
 
@@ -49,7 +53,7 @@ export default function AdminSettingsPage() {
     if (!isSuper) return;
     setSaving(true);
     try {
-      const res = await post({ brushSize });
+      const res = await post({ brushSize, brushCount, brushSpeed });
       if (res.ok) { setBrushSaved(true); setTimeout(() => setBrushSaved(false), 2000); }
       else alert("변경 실패");
     } finally {
@@ -109,20 +113,30 @@ export default function AdminSettingsPage() {
           <br />
           <span className="text-[var(--ink-faint)]">변경 후 영상을 다시 렌더링하면 반영됩니다.</span>
         </p>
-        <div className="flex items-center gap-4">
-          <input
-            type="range" min={0.3} max={3} step={0.1}
-            value={brushSize}
-            onChange={(e) => setBrushSize(Number(e.target.value))}
-            disabled={!isSuper}
-            className="flex-1 accent-[var(--accent)]"
-          />
-          <span className="text-sm text-[var(--ink)] tabular-nums w-12 text-right">{brushSize.toFixed(1)}×</span>
-          <button
-            onClick={saveBrush}
-            disabled={!isSuper || saving}
-            className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm disabled:opacity-50"
-          >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-4">
+            <label className="text-sm text-[var(--ink-soft)] w-16">크기</label>
+            <input type="range" min={0.3} max={6} step={0.1} value={brushSize}
+              onChange={(e) => setBrushSize(Number(e.target.value))} disabled={!isSuper}
+              className="flex-1 accent-[var(--accent)]" />
+            <span className="text-sm tabular-nums w-12 text-right">{brushSize.toFixed(1)}×</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="text-sm text-[var(--ink-soft)] w-16">개수</label>
+            <input type="range" min={1} max={6} step={1} value={brushCount}
+              onChange={(e) => setBrushCount(Number(e.target.value))} disabled={!isSuper}
+              className="flex-1 accent-[var(--accent)]" />
+            <span className="text-sm tabular-nums w-12 text-right">{brushCount}개</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="text-sm text-[var(--ink-soft)] w-16">속도</label>
+            <input type="range" min={0.3} max={4} step={0.1} value={brushSpeed}
+              onChange={(e) => setBrushSpeed(Number(e.target.value))} disabled={!isSuper}
+              className="flex-1 accent-[var(--accent)]" />
+            <span className="text-sm tabular-nums w-12 text-right">{brushSpeed.toFixed(1)}×</span>
+          </div>
+          <button onClick={saveBrush} disabled={!isSuper || saving}
+            className="self-start px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm disabled:opacity-50">
             저장
           </button>
         </div>

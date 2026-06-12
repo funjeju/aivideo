@@ -10,11 +10,15 @@ export default function BrushPlayer({
   image,
   playing,
   brushSize,
+  brushCount,
+  brushSpeed,
 }: {
   scene: SceneSpec | null;
   image: HTMLImageElement | null;
   playing: boolean;
   brushSize: number;
+  brushCount: number;
+  brushSpeed: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
@@ -31,7 +35,7 @@ export default function BrushPlayer({
 
     const dur = scene.durationSec || 6;
     // hand.size를 슬라이더 값으로 덮어써 즉시 반영
-    const liveScene: SceneSpec = { ...scene, hand: { ...(scene.hand ?? { enabled: true, asset: "brush" }), size: brushSize } };
+    const liveScene: SceneSpec = { ...scene, hand: { ...(scene.hand ?? { enabled: true, asset: "brush" }), size: brushSize, count: brushCount, speed: brushSpeed } };
 
     function frame(now: number) {
       if (!startRef.current) startRef.current = now;
@@ -49,7 +53,7 @@ export default function BrushPlayer({
       renderSceneFrame(c, liveScene, image ?? undefined as never, dur + 1, size);
     }
     return () => cancelAnimationFrame(rafRef.current);
-  }, [scene, image, playing, brushSize, size]);
+  }, [scene, image, playing, brushSize, brushCount, brushSpeed, size]);
 
   return (
     <div className="bg-[var(--stage-bg)] rounded-[var(--radius)] p-4 flex items-center justify-center">

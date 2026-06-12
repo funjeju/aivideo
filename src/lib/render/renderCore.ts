@@ -29,6 +29,8 @@ type ImageSource = CanvasImageSource & { width: number; height: number };
 interface RenderOptions {
   showHand?: boolean;
   brushSize?: number;
+  brushCount?: number;
+  brushSpeed?: number;
 }
 
 function ease(t: number): number {
@@ -269,6 +271,8 @@ export function renderSceneFrame(
   if (image) {
     const objects = (scene.reveal?.objects ?? []).filter((o) => o.bbox);
     const brushSize = scene.hand?.size ?? opts.brushSize ?? 1;
+    const brushCount = Math.max(1, Math.round(scene.hand?.count ?? opts.brushCount ?? 1));
+    const brushSpeed = Math.max(0.2, scene.hand?.speed ?? opts.brushSpeed ?? 1);
     const baseW = Math.max(10, 42 * brushSize) * (height / 1920);
 
     const maxEnd = objects.length
@@ -288,23 +292,31 @@ export function renderSceneFrame(
       const mctx = mask.getContext("2d")!;
       mctx.clearRect(0, 0, width, height);
 
-      let penPos: Pt | null = null;
-      let penAngle = 0;
+      const pens: { pos: Pt; angle: number }[] = [];
       for (const obj of objects) {
         const start = obj.startAt ?? 0;
         const end = obj.endAt ?? start + 1;
-        const prog = clamp01((t - start) / Math.max(end - start, 0.01));
+        // 속도: 그리기 진행 배속 (빠르면 일찍 완성하고 완성본 유지)
+        const prog = clamp01(((t - start) / Math.max(end - start, 0.01)) * brushSpeed);
         if (prog <= 0) continue;
         const path = computeDrawPath(image, obj, fit);
         const eased = ease(prog);
-        const count = Math.max(1, Math.floor(path.length * eased));
-        strokePathOnMask(mctx, path, count, baseW, hashSeed(obj.id));
-        // 현재 활성 객체의 펜 위치/각도
-        if (prog < 1 && count >= 1 && path.length >= 2) {
-          const idx = Math.min(count, path.length - 1);
-          penPos = path[idx];
-          const prev = path[Math.max(0, idx - 1)];
-          penAngle = Math.atan2(penPos.y - prev.y, penPos.x - prev.x);
+
+        // 붓 개수: 경로를 N등분해 동시에 여러 펜이 각 구간을 그림
+        const seg = Math.ceil(path.length / brushCount);
+        for (let c = 0; c < brushCount; c++) {
+          const s0 = c * seg;
+          if (s0 >= path.length) break;
+          const sub = path.slice(s0, Math.min(path.length, (c + 1) * seg + 1));
+          if (sub.length < 1) continue;
+          const cnt = Math.max(1, Math.floor(sub.length * eased));
+          strokePathOnMask(mctx, sub, cnt, baseW, hashSeed(obj.id + ":" + c));
+          if (prog < 1 && sub.length >= 2) {
+            const idx = Math.min(cnt, sub.length - 1);
+            const pos = sub[idx];
+            const prev = sub[Math.max(0, idx - 1)];
+            pens.push({ pos, angle: Math.atan2(pos.y - prev.y, pos.x - prev.x) });
+          }
         }
       }
 
@@ -319,8 +331,9 @@ export function renderSceneFrame(
 
       ctx.drawImage(masked, 0, 0);
 
-      if (opts.showHand !== false && scene.hand?.enabled && penPos) {
-        drawHand(ctx, penPos, penAngle, scene.hand.asset, Math.max(0.6, brushSize) * (height / 1920) * 1.2);
+      if (opts.showHand !== false && scene.hand?.enabled) {
+        const penScale = Math.max(0.6, brushSize) * (height / 1920) * 1.2;
+        for (const pen of pens) drawHand(ctx, pen.pos, pen.angle, scene.hand.asset, penScale);
       }
     }
   }
