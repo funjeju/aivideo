@@ -68,51 +68,91 @@ function scratch(ref: Cv, w: number, h: number): HTMLCanvasElement {
   return ref.c;
 }
 
-// ── 경로 생성 (엣지 디텍션 + TSP + 스무딩), 객체별 캐시 ────────────
+// ── 장면 전체 경로 생성 ──────────────────────────────────────────
+// 이미지 "전체"를 한 번에 분석(엣지)하고, 각 점을 의미 객체 정확히 하나에 배정한다.
+// (bbox가 겹쳐도 점은 한 번만 그려짐 → 같은 곳 재방문/뭉침/순서 붕괴 제거)
 interface Pt { x: number; y: number }
-const pathCache = new Map<string, Pt[]>();
+interface SceneItem { obj: RevealObject; path: Pt[] }
+const scenePathCache = new Map<string, SceneItem[]>();
 
-function computeDrawPath(image: ImageSource, obj: RevealObject, fit: ReturnType<typeof computeFit>): Pt[] {
-  const key = `${obj.id}|${obj.bbox.join(",")}|${Math.round(fit.drawW)}x${Math.round(fit.drawH)}`;
-  const hit = pathCache.get(key);
+/** 점들을 TSP(최근접 이웃)로 잇고 이동평균 스무딩 */
+function orderAndSmooth(pts: Pt[]): Pt[] {
+  if (pts.length === 0) return [];
+  const ordered: Pt[] = [];
+  const used = new Array(pts.length).fill(false);
+  let cur = 0;
+  for (let i = 1; i < pts.length; i++) if (pts[i].y < pts[cur].y) cur = i; // 위에서 시작
+  used[cur] = true; ordered.push(pts[cur]);
+  for (let k = 1; k < pts.length; k++) {
+    let best = -1, bestD = Infinity;
+    const p = pts[cur];
+    for (let i = 0; i < pts.length; i++) {
+      if (used[i]) continue;
+      const d = (pts[i].x - p.x) ** 2 + (pts[i].y - p.y) ** 2;
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    if (best < 0) break;
+    used[best] = true; ordered.push(pts[best]); cur = best;
+  }
+  const sm: Pt[] = [];
+  const W = 2;
+  for (let i = 0; i < ordered.length; i++) {
+    let sx = 0, sy = 0, n = 0;
+    for (let j = Math.max(0, i - W); j <= Math.min(ordered.length - 1, i + W); j++) { sx += ordered[j].x; sy += ordered[j].y; n++; }
+    sm.push({ x: sx / n, y: sy / n });
+  }
+  return sm;
+}
+
+/**
+ * 장면 경로 계산: 전체 이미지 엣지 → 점→객체 배정 → 객체별 TSP 경로.
+ * objects는 그리는 순서(reveal order)로 정렬되어 전달된다.
+ */
+function computeScenePaths(
+  image: ImageSource,
+  objects: RevealObject[],
+  fit: ReturnType<typeof computeFit>,
+  sceneKey: string
+): SceneItem[] {
+  const key = `${sceneKey}|${objects.map((o) => o.id + o.bbox.join(",")).join(";")}|${Math.round(fit.drawW)}x${Math.round(fit.drawH)}`;
+  const hit = scenePathCache.get(key);
   if (hit) return hit;
 
-  // 표시 좌표계 bbox
-  const dispX = obj.bbox[0] * fit.bScaleX + fit.offsetX;
-  const dispY = obj.bbox[1] * fit.bScaleY + fit.offsetY;
-  const dispW = (obj.bbox[2] - obj.bbox[0]) * fit.bScaleX;
-  const dispH = (obj.bbox[3] - obj.bbox[1]) * fit.bScaleY;
-
-  // 원본 이미지 픽셀 좌표계 bbox
-  const ax = (obj.bbox[0] / SRC_IMG_W) * image.width;
-  const ay = (obj.bbox[1] / SRC_IMG_H) * image.height;
-  const aw = ((obj.bbox[2] - obj.bbox[0]) / SRC_IMG_W) * image.width;
-  const ah = ((obj.bbox[3] - obj.bbox[1]) / SRC_IMG_H) * image.height;
-
-  // 다운샘플 (긴 변 ~160px)
-  const DS = 160;
-  const s = Math.min(DS / Math.max(aw, 1), DS / Math.max(ah, 1), 1);
-  const dw = Math.max(8, Math.round(aw * s));
-  const dh = Math.max(8, Math.round(ah * s));
-
   const rnd = createSeededRandom(hashSeed(key));
-  let points: Pt[] = [];
+
+  // 표시 좌표계 객체 박스 (배정용)
+  const boxes = objects.map((o) => {
+    const x1 = o.bbox[0] * fit.bScaleX + fit.offsetX;
+    const y1 = o.bbox[1] * fit.bScaleY + fit.offsetY;
+    const x2 = o.bbox[2] * fit.bScaleX + fit.offsetX;
+    const y2 = o.bbox[3] * fit.bScaleY + fit.offsetY;
+    return { x1, y1, x2, y2, area: Math.max(1, (x2 - x1) * (y2 - y1)), cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
+  });
+
+  let items: SceneItem[];
 
   try {
+    // 1) 전체 이미지 다운샘플 (긴 변 ~300px)
+    const DS = 300;
+    const s = Math.min(DS / image.width, DS / image.height, 1);
+    const dw = Math.max(16, Math.round(image.width * s));
+    const dh = Math.max(16, Math.round(image.height * s));
     const tmp = scratch(_tmp, dw, dh);
     const tctx = tmp.getContext("2d", { willReadFrequently: true })!;
     tctx.clearRect(0, 0, dw, dh);
-    tctx.drawImage(image, ax, ay, aw, ah, 0, 0, dw, dh);
+    tctx.drawImage(image, 0, 0, dw, dh);
     const { data } = tctx.getImageData(0, 0, dw, dh);
 
-    // 그레이스케일
     const gray = new Float32Array(dw * dh);
     for (let i = 0; i < dw * dh; i++) {
       gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
     }
 
-    // 소벨 엣지
-    const edges: Pt[] = [];
+    // 2) 소벨 엣지 + 그리드 양자화(셀당 1점) + 빈 셀 노이즈
+    const cell = 3;
+    const cols = Math.ceil(dw / cell);
+    const seen = new Set<number>();
+    const raw: Pt[] = [];
     for (let y = 1; y < dh - 1; y++) {
       for (let x = 1; x < dw - 1; x++) {
         const gx =
@@ -121,39 +161,25 @@ function computeDrawPath(image: ImageSource, obj: RevealObject, fit: ReturnType<
         const gy =
           -gray[(y - 1) * dw + x - 1] - 2 * gray[(y - 1) * dw + x] - gray[(y - 1) * dw + x + 1] +
            gray[(y + 1) * dw + x - 1] + 2 * gray[(y + 1) * dw + x] + gray[(y + 1) * dw + x + 1];
-        const mag = Math.sqrt(gx * gx + gy * gy);
-        if (mag > 90) edges.push({ x, y });
-      }
-    }
-
-    // 그리드 셀당 점 1개로 양자화 — 같은 곳을 뭉쳐 칠하는 중복 제거
-    const cell = 3; // 다운샘플 px 단위 셀
-    const cols = Math.ceil(dw / cell);
-    const seen = new Set<number>();
-    let pts: Pt[] = [];
-    for (const p of edges) {
-      const key = Math.floor(p.y / cell) * cols + Math.floor(p.x / cell);
-      if (!seen.has(key)) { seen.add(key); pts.push(p); }
-    }
-
-    // 빈 셀(아직 안 칠해질 여백)에만 노이즈 — 고르게 채우기
-    for (let gy = 0; gy < dh; gy += cell) {
-      for (let gx = 0; gx < dw; gx += cell) {
-        const key = Math.floor(gy / cell) * cols + Math.floor(gx / cell);
-        if (!seen.has(key) && rnd() < 0.06) {
-          seen.add(key);
-          pts.push({ x: gx + cell / 2, y: gy + cell / 2 });
+        if (Math.sqrt(gx * gx + gy * gy) > 90) {
+          const ck = Math.floor(y / cell) * cols + Math.floor(x / cell);
+          if (!seen.has(ck)) { seen.add(ck); raw.push({ x, y }); }
         }
       }
     }
-
-    // 점이 너무 적으면(빈 그림) 균등 그리드 보강
-    if (pts.length < 6) {
-      for (let y = 2; y < dh; y += 5) for (let x = 2; x < dw; x += 5) pts.push({ x, y });
+    for (let gy = 0; gy < dh; gy += cell) {
+      for (let gx = 0; gx < dw; gx += cell) {
+        const ck = Math.floor(gy / cell) * cols + Math.floor(gx / cell);
+        if (!seen.has(ck) && rnd() < 0.025) { seen.add(ck); raw.push({ x: gx + cell / 2, y: gy + cell / 2 }); }
+      }
     }
 
-    // 너무 많으면 솎아내기 (성능)
-    const MAX = 420;
+    // 3) 표시 좌표 변환 + 성능 상한
+    let pts = raw.map((p) => ({
+      x: fit.offsetX + (p.x / dw) * fit.drawW,
+      y: fit.offsetY + (p.y / dh) * fit.drawH,
+    }));
+    const MAX = 900;
     if (pts.length > MAX) {
       const step = pts.length / MAX;
       const reduced: Pt[] = [];
@@ -161,49 +187,43 @@ function computeDrawPath(image: ImageSource, obj: RevealObject, fit: ReturnType<
       pts = reduced;
     }
 
-    // TSP 최근접 이웃 (좌상단 시작)
-    const ordered: Pt[] = [];
-    const used = new Array(pts.length).fill(false);
-    let cur = 0;
-    // 시작점: 가장 위(작은 y)
-    for (let i = 1; i < pts.length; i++) if (pts[i].y < pts[cur].y) cur = i;
-    used[cur] = true; ordered.push(pts[cur]);
-    for (let k = 1; k < pts.length; k++) {
-      let best = -1, bestD = Infinity;
-      const p = pts[cur];
-      for (let i = 0; i < pts.length; i++) {
-        if (used[i]) continue;
-        const d = (pts[i].x - p.x) ** 2 + (pts[i].y - p.y) ** 2;
-        if (d < bestD) { bestD = d; best = i; }
+    // 4) 점 → 객체 배정: 포함하는 bbox 중 면적이 가장 작은(가장 구체적인) 객체.
+    //    아무 bbox에도 안 들어가면 가장 가까운 중심의 객체로 (전체 커버, 점은 정확히 1회).
+    const buckets: Pt[][] = objects.map(() => []);
+    for (const p of pts) {
+      let owner = -1, ownerArea = Infinity;
+      for (let i = 0; i < boxes.length; i++) {
+        const b = boxes[i];
+        if (p.x >= b.x1 && p.x <= b.x2 && p.y >= b.y1 && p.y <= b.y2 && b.area < ownerArea) {
+          owner = i; ownerArea = b.area;
+        }
       }
-      if (best < 0) break;
-      used[best] = true; ordered.push(pts[best]); cur = best;
+      if (owner < 0) {
+        let bestD = Infinity;
+        for (let i = 0; i < boxes.length; i++) {
+          const d = (boxes[i].cx - p.x) ** 2 + (boxes[i].cy - p.y) ** 2;
+          if (d < bestD) { bestD = d; owner = i; }
+        }
+      }
+      if (owner >= 0) buckets[owner].push(p);
     }
 
-    // 다운샘플 → 표시 좌표
-    const scaled = ordered.map((p) => ({ x: dispX + (p.x / dw) * dispW, y: dispY + (p.y / dh) * dispH }));
-
-    // 이동 평균 스무딩
-    const sm: Pt[] = [];
-    const W = 2;
-    for (let i = 0; i < scaled.length; i++) {
-      let sx = 0, sy = 0, n = 0;
-      for (let j = Math.max(0, i - W); j <= Math.min(scaled.length - 1, i + W); j++) { sx += scaled[j].x; sy += scaled[j].y; n++; }
-      sm.push({ x: sx / n, y: sy / n });
-    }
-    points = sm;
+    // 5) 객체별 TSP + 스무딩 (그리는 순서 그대로)
+    items = objects.map((obj, i) => ({ obj, path: orderAndSmooth(buckets[i]) }));
   } catch {
-    // CORS tainted 등 → bbox 내 지그재그 폴백
-    const rows = 8;
+    // CORS tainted 등 → 전체 지그재그를 첫 객체에 폴백
+    const points: Pt[] = [];
+    const rows = 10;
     for (let r = 0; r < rows; r++) {
-      const y = dispY + (dispH * r) / (rows - 1);
-      if (r % 2 === 0) { points.push({ x: dispX, y }); points.push({ x: dispX + dispW, y }); }
-      else { points.push({ x: dispX + dispW, y }); points.push({ x: dispX, y }); }
+      const y = fit.offsetY + (fit.drawH * r) / (rows - 1);
+      if (r % 2 === 0) { points.push({ x: fit.offsetX, y }); points.push({ x: fit.offsetX + fit.drawW, y }); }
+      else { points.push({ x: fit.offsetX + fit.drawW, y }); points.push({ x: fit.offsetX, y }); }
     }
+    items = objects.map((obj, i) => ({ obj, path: i === 0 ? points : [] }));
   }
 
-  pathCache.set(key, points);
-  return points;
+  scenePathCache.set(key, items);
+  return items;
 }
 
 // ── 펜 ─────────────────────────────────────────────────────────
@@ -313,8 +333,7 @@ export function renderSceneFrame(
       const sorted = [...objects].sort(
         (a, b) => (a.startAt ?? a.revealOrder ?? 0) - (b.startAt ?? b.revealOrder ?? 0)
       );
-      const items = sorted
-        .map((obj) => ({ obj, path: computeDrawPath(image, obj, fit) }))
+      const items = computeScenePaths(image, sorted, fit, scene.sceneId ?? "s")
         .filter((it) => it.path.length > 0);
 
       if (items.length === 0) {
