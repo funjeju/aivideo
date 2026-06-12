@@ -610,6 +610,92 @@ function strokePathOnMask(
         mctx.beginPath(); mctx.arc(p1.x, p1.y, r, 0, Math.PI * 2); mctx.fill();
       }
     }
+
+  } else if (brushType === "pencil") {
+    // ─ 연필: 가는 심 + 미세 떨림 2겹 — 흑연의 가볍고 건조한 질감 ─
+    mctx.lineCap = "round"; mctx.lineJoin = "round";
+    mctx.shadowBlur = 0;
+    for (let layer = 0; layer < 2; layer++) {
+      const rndL = createSeededRandom(seed + layer * 7919);
+      mctx.lineWidth = baseW * (0.16 + rndL() * 0.08);
+      for (let i = 1; i <= n; i++) {
+        const p0 = path[i - 1], p1 = path[i];
+        const alpha = i > n - fade ? Math.max(0.05, (n - i) / fade) : (0.45 + rndL() * 0.4);
+        const j = baseW * 0.12; // 손떨림
+        mctx.globalAlpha = alpha;
+        mctx.beginPath();
+        mctx.moveTo(p0.x + (rndL() - 0.5) * j, p0.y + (rndL() - 0.5) * j);
+        mctx.lineTo(p1.x + (rndL() - 0.5) * j, p1.y + (rndL() - 0.5) * j);
+        mctx.stroke();
+      }
+    }
+
+  } else if (brushType === "charcoal") {
+    // ─ 목탄: 본선 + 주변에 흩어지는 굵은 입자(그레인) — 거칠고 분진 날리는 느낌 ─
+    mctx.lineCap = "round"; mctx.lineJoin = "round";
+    mctx.shadowBlur = 0;
+    for (let i = 1; i <= n; i++) {
+      const p0 = path[i - 1], p1 = path[i];
+      const alpha = i > n - fade ? Math.max(0.06, (n - i) / fade) : 1;
+      // 본선: 중간 굵기, 약간 투명
+      mctx.lineWidth = baseW * (0.45 + 0.2 * Math.sin(i * 0.5));
+      mctx.globalAlpha = alpha * 0.55;
+      mctx.beginPath(); mctx.moveTo(p0.x, p0.y); mctx.lineTo(p1.x, p1.y); mctx.stroke();
+      // 그레인: 선 주변 분진 입자
+      const grains = 4 + Math.floor(rnd() * 4);
+      for (let g = 0; g < grains; g++) {
+        const t2 = rnd();
+        const gx = p0.x + (p1.x - p0.x) * t2 + (rnd() - 0.5) * baseW * 1.1;
+        const gy = p0.y + (p1.y - p0.y) * t2 + (rnd() - 0.5) * baseW * 1.1;
+        mctx.globalAlpha = alpha * (0.15 + rnd() * 0.45);
+        mctx.beginPath();
+        mctx.arc(gx, gy, baseW * (0.05 + rnd() * 0.14), 0, Math.PI * 2);
+        mctx.fill();
+      }
+    }
+
+  } else if (brushType === "watercolor") {
+    // ─ 수채: 넓고 투명한 겹침 + 큰 번짐 — 물이 스며들 듯 부드럽게 ─
+    mctx.lineCap = "round"; mctx.lineJoin = "round";
+    mctx.shadowColor = "#fff"; mctx.shadowBlur = baseW * 1.1;
+    for (let i = 1; i <= n; i++) {
+      const p0 = path[i - 1], p1 = path[i];
+      const alpha = i > n - fade ? Math.max(0.04, ((n - i) / fade) * 0.5) : (0.3 + 0.15 * Math.sin(i * 0.25));
+      mctx.lineWidth = baseW * (1.1 + 0.5 * Math.sin(i * 0.18));
+      mctx.globalAlpha = alpha;
+      mctx.beginPath(); mctx.moveTo(p0.x, p0.y); mctx.lineTo(p1.x, p1.y); mctx.stroke();
+      // 물 고임(pooling): 가끔 큰 반투명 웅덩이
+      if (rnd() < 0.07) {
+        mctx.globalAlpha = alpha * 0.6;
+        mctx.beginPath();
+        mctx.arc(p1.x + (rnd() - 0.5) * baseW, p1.y + (rnd() - 0.5) * baseW, baseW * (0.7 + rnd() * 0.8), 0, Math.PI * 2);
+        mctx.fill();
+      }
+    }
+
+  } else if (brushType === "crayon") {
+    // ─ 크레용: 왁스 질감 — 두 겹 어긋난 선 + 군데군데 안 발리는 부분 ─
+    mctx.lineCap = "butt"; mctx.lineJoin = "round";
+    mctx.shadowBlur = 0;
+    for (let layer = 0; layer < 2; layer++) {
+      const rndL = createSeededRandom(seed + layer * 4241);
+      const off = (layer - 0.5) * baseW * 0.3;
+      mctx.lineWidth = baseW * (0.4 + rndL() * 0.15);
+      for (let i = 1; i <= n; i++) {
+        // 왁스가 안 발리는 빈 구간 (종이 요철)
+        if (rndL() < 0.18) continue;
+        const p0 = path[i - 1], p1 = path[i];
+        const alpha = i > n - fade ? Math.max(0.06, (n - i) / fade) : (0.55 + rndL() * 0.45);
+        const dx = p1.x - p0.x, dy = p1.y - p0.y;
+        const len2 = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = -dy / len2, ny = dx / len2;
+        mctx.globalAlpha = alpha;
+        mctx.beginPath();
+        mctx.moveTo(p0.x + nx * off, p0.y + ny * off);
+        mctx.lineTo(p1.x + nx * off, p1.y + ny * off);
+        mctx.stroke();
+      }
+    }
   }
 
   mctx.globalAlpha = 1;

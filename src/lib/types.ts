@@ -21,7 +21,9 @@ export type ImageStatus = "pending" | "done" | "error";
 export type VoiceProvider = "elevenlabs" | "openai";
 export type VoiceTier = "free" | "premium";
 export type TextStrategy = "in-image" | "overlay" | "hybrid";
-export type BrushType = "round" | "dry" | "flat" | "bristle" | "ink";
+export type BrushType =
+  | "round" | "dry" | "flat" | "bristle" | "ink"
+  | "pencil" | "charcoal" | "watercolor" | "crayon";
 
 export interface UserDoc {
   email: string;

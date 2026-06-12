@@ -13,11 +13,15 @@ const HAND_TOOLS: { id: string; name: string; desc: string }[] = [
 ];
 
 const BRUSH_TYPES: { id: BrushType; name: string; desc: string }[] = [
-  { id: "round",   name: "둥근 붓",     desc: "부드럽고 일반적인 붓" },
-  { id: "dry",     name: "드라이브러시", desc: "군데군데 끊기는 거친 질감" },
-  { id: "flat",    name: "평붓",         desc: "넓고 납작한 터치" },
-  { id: "bristle", name: "강모붓",       desc: "여러 가닥이 갈라지는 붓" },
-  { id: "ink",     name: "먹/캘리",      desc: "속도따라 굵기가 극적으로 변화" },
+  { id: "round",      name: "둥근 붓",     desc: "부드럽고 일반적인 붓" },
+  { id: "dry",        name: "드라이브러시", desc: "군데군데 끊기는 거친 질감" },
+  { id: "flat",       name: "평붓",         desc: "넓고 납작한 터치" },
+  { id: "bristle",    name: "강모붓",       desc: "여러 가닥이 갈라지는 붓" },
+  { id: "ink",        name: "먹/캘리",      desc: "속도따라 굵기가 극적으로 변화" },
+  { id: "pencil",     name: "연필",         desc: "가는 심 + 미세 떨림, 가볍고 건조" },
+  { id: "charcoal",   name: "목탄",         desc: "본선 주변 분진 입자, 거친 스케치" },
+  { id: "watercolor", name: "수채",         desc: "넓고 투명한 번짐, 물 고임" },
+  { id: "crayon",     name: "크레용",       desc: "왁스 질감, 군데군데 안 발림" },
 ];
 
 const STYLES: { id: StylePackId; name: string }[] = [
