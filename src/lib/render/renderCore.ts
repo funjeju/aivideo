@@ -71,9 +71,10 @@ function scratch(ref: Cv, w: number, h: number): HTMLCanvasElement {
 // 이미지 "전체"를 한 번에 분석(엣지)하고, 각 점을 의미 객체 정확히 하나에 배정한다.
 // (bbox가 겹쳐도 점은 한 번만 그려짐 → 같은 곳 재방문/뭉침/순서 붕괴 제거)
 interface Pt { x: number; y: number }
-interface SceneItem { obj: RevealObject; path: Pt[] }
-// path만 캐시 — obj(startAt/endAt)는 항상 현재 sceneSpec 값 사용
-const scenePathCache = new Map<string, Pt[][]>();
+interface SceneItem { obj: RevealObject; path: Pt[]; region: HTMLCanvasElement | null }
+// path/region만 캐시 — obj(startAt/endAt)는 항상 현재 sceneSpec 값 사용
+interface SceneGeo { paths: Pt[][]; regions: (HTMLCanvasElement | null)[] }
+const scenePathCache = new Map<string, SceneGeo>();
 
 /** 점들을 TSP(최근접 이웃)로 잇고 이동평균 스무딩 */
 function orderAndSmooth(pts: Pt[]): Pt[] {
@@ -116,10 +117,10 @@ function computeScenePaths(
 ): SceneItem[] {
   // 키: 이미지 크기 + 각 객체의 id/bbox. startAt/endAt은 포함 안 함 (path는 위치만 의존).
   const key = `${sceneKey}|${objects.map((o) => o.id + o.bbox.join(",")).join(";")}|${Math.round(fit.drawW)}x${Math.round(fit.drawH)}`;
-  const cachedPaths = scenePathCache.get(key);
-  if (cachedPaths) {
-    // 경로만 캐시 히트 — obj는 현재 값(최신 startAt/endAt) 사용
-    return objects.map((obj, i) => ({ obj, path: cachedPaths[i] ?? [] }));
+  const cached = scenePathCache.get(key);
+  if (cached) {
+    // 기하(경로·영역)만 캐시 히트 — obj는 현재 값(최신 startAt/endAt) 사용
+    return objects.map((obj, i) => ({ obj, path: cached.paths[i] ?? [], region: cached.regions[i] ?? null }));
   }
 
   const rnd = createSeededRandom(hashSeed(key));
@@ -214,10 +215,50 @@ function computeScenePaths(
 
     // 5) 객체별 TSP + 스무딩 (그리는 순서 그대로)
     const paths = objects.map((_, i) => orderAndSmooth(buckets[i]));
-    scenePathCache.set(key, paths);
-    items = objects.map((obj, i) => ({ obj, path: paths[i] }));
+
+    // 6) 픽셀 영역 분할: 이미지의 "모든" 픽셀(다운샘플 그리드)을 점과 같은 규칙으로
+    //    정확히 한 객체에 배정 → 객체별 영역 마스크. 영역 합집합 = 이미지 전체.
+    //    각 객체는 자기 시간창 안에서 자기 영역을 100% 완성 → 전역 채움 패스 불필요.
+    const RG = 3; // 영역 그리드 셀(px, 다운샘플 좌표) — 거칠어도 업스케일+blur로 부드러워짐
+    const rw = Math.ceil(dw / RG), rh = Math.ceil(dh / RG);
+    const regionData = objects.map(() => new Uint8ClampedArray(rw * rh * 4));
+    for (let ry = 0; ry < rh; ry++) {
+      for (let rx = 0; rx < rw; rx++) {
+        // 셀 중심의 표시 좌표
+        const px = fit.offsetX + ((rx + 0.5) * RG / dw) * fit.drawW;
+        const py = fit.offsetY + ((ry + 0.5) * RG / dh) * fit.drawH;
+        let owner = -1, ownerArea = Infinity;
+        for (let i = 0; i < boxes.length; i++) {
+          const b = boxes[i];
+          if (px >= b.x1 && px <= b.x2 && py >= b.y1 && py <= b.y2 && b.area < ownerArea) {
+            owner = i; ownerArea = b.area;
+          }
+        }
+        if (owner < 0) {
+          let bestD = Infinity;
+          for (let i = 0; i < boxes.length; i++) {
+            const d = (boxes[i].cx - px) ** 2 + (boxes[i].cy - py) ** 2;
+            if (d < bestD) { bestD = d; owner = i; }
+          }
+        }
+        if (owner >= 0) {
+          const o = (ry * rw + rx) * 4;
+          regionData[owner][o] = 255; regionData[owner][o + 1] = 255;
+          regionData[owner][o + 2] = 255; regionData[owner][o + 3] = 255;
+        }
+      }
+    }
+    const regions = objects.map((_, i) => {
+      const cv = document.createElement("canvas");
+      cv.width = rw; cv.height = rh;
+      cv.getContext("2d")!.putImageData(new ImageData(regionData[i], rw, rh), 0, 0);
+      return cv;
+    });
+
+    scenePathCache.set(key, { paths, regions });
+    items = objects.map((obj, i) => ({ obj, path: paths[i], region: regions[i] }));
   } catch {
-    // CORS tainted 등 → 전체 지그재그를 첫 객체에 폴백
+    // CORS tainted 등 → 전체 지그재그를 첫 객체에 폴백 (영역 없음 → bbox 채움 폴백)
     const points: Pt[] = [];
     const rows = 10;
     for (let r = 0; r < rows; r++) {
@@ -226,8 +267,9 @@ function computeScenePaths(
       else { points.push({ x: fit.offsetX + fit.drawW, y }); points.push({ x: fit.offsetX, y }); }
     }
     const fallbackPaths = objects.map((_, i) => i === 0 ? points : []);
-    scenePathCache.set(key, fallbackPaths);
-    items = objects.map((obj, i) => ({ obj, path: fallbackPaths[i] }));
+    const noRegions = objects.map(() => null);
+    scenePathCache.set(key, { paths: fallbackPaths, regions: noRegions });
+    items = objects.map((obj, i) => ({ obj, path: fallbackPaths[i], region: null }));
   }
 
   return items;
@@ -460,7 +502,9 @@ export function renderSceneFrame(
           return { ...it, s, e };
         });
         const maxEnd = Math.max(win, ...sched.map((x) => x.e));
-        const tEff = t * brushSpeed; // 영상: speed=1(나레이션 절대시각). 테스트: 슬라이더 가속.
+        // 나레이션 동기 모드(객체에 startAt 존재) = 절대시각. 슬라이더 가속은 폴백 모드에서만.
+        const synced = sched.some((x) => x.obj.startAt != null);
+        const tEff = synced ? t : t * brushSpeed;
 
         if (tEff >= maxEnd && !opts.noFinalImage) {
           ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH); // 완성본
@@ -493,45 +537,44 @@ export function renderSceneFrame(
               }
             }
 
-            // 채움 패스: 붓이 궤적을 45%쯤 그리면 그 공간이 뒤따라 서서히 페이드인.
-            // 가장자리가 투명으로 사라지는 타원 방사 그라데이션(먹 번짐) — 직선 모서리 없음.
-            if (prog > 0.45) {
-              const a = ease(clamp01((prog - 0.45) / 0.5));
-              const bx1 = it.obj.bbox[0] * fit.bScaleX + fit.offsetX;
-              const by1 = it.obj.bbox[1] * fit.bScaleY + fit.offsetY;
-              const bx2 = it.obj.bbox[2] * fit.bScaleX + fit.offsetX;
-              const by2 = it.obj.bbox[3] * fit.bScaleY + fit.offsetY;
-              const cx = (bx1 + bx2) / 2, cy = (by1 + by2) / 2;
-              // 반경을 넉넉히 키우고 페이드 구간을 길게 — 윤곽이 식별되지 않고 녹아들게
-              const rx = ((bx2 - bx1) / 2) * 1.35 + baseW * 2;
-              const ry = ((by2 - by1) / 2) * 1.35 + baseW * 2;
+            // 채움 패스: 이 객체에 "배정된 영역"이 붓 뒤를 따라 페이드인.
+            // prog=1(=endAt)에 완전 불투명 → 자기 시간창 안에 100% 완성 보장.
+            // 영역 합집합 = 화면 전체이므로 마지막 객체가 끝나면 그림이 자연히 완성됨.
+            if (prog > 0.3) {
+              const a = ease(clamp01((prog - 0.3) / 0.65)); // 0.3→0.95 동안 차오름, 0.95에 완성
               mctx.save();
               mctx.globalAlpha = a;
-              mctx.translate(cx, cy);
-              mctx.scale(Math.max(rx, 1), Math.max(ry, 1));
-              const g = mctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-              g.addColorStop(0, "rgba(255,255,255,1)");
-              g.addColorStop(0.35, "rgba(255,255,255,0.95)");
-              g.addColorStop(0.6, "rgba(255,255,255,0.65)");
-              g.addColorStop(0.82, "rgba(255,255,255,0.25)");
-              g.addColorStop(1, "rgba(255,255,255,0)");
-              mctx.fillStyle = g;
-              mctx.beginPath();
-              mctx.arc(0, 0, 1, 0, Math.PI * 2);
-              mctx.fill();
+              if (it.region) {
+                // 저해상 영역 마스크 업스케일 + blur → 경계가 먹 번지듯 부드럽게
+                mctx.filter = `blur(${Math.max(baseW * 0.6, 8)}px)`;
+                mctx.drawImage(it.region, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
+                mctx.filter = "none";
+              } else {
+                // 영역 없음(CORS 폴백): bbox 방사 그라데이션
+                const bx1 = it.obj.bbox[0] * fit.bScaleX + fit.offsetX;
+                const by1 = it.obj.bbox[1] * fit.bScaleY + fit.offsetY;
+                const bx2 = it.obj.bbox[2] * fit.bScaleX + fit.offsetX;
+                const by2 = it.obj.bbox[3] * fit.bScaleY + fit.offsetY;
+                const cx = (bx1 + bx2) / 2, cy = (by1 + by2) / 2;
+                const rx = ((bx2 - bx1) / 2) * 1.35 + baseW * 2;
+                const ry = ((by2 - by1) / 2) * 1.35 + baseW * 2;
+                mctx.translate(cx, cy);
+                mctx.scale(Math.max(rx, 1), Math.max(ry, 1));
+                const g = mctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+                g.addColorStop(0, "rgba(255,255,255,1)");
+                g.addColorStop(0.6, "rgba(255,255,255,0.75)");
+                g.addColorStop(1, "rgba(255,255,255,0)");
+                mctx.fillStyle = g;
+                mctx.beginPath();
+                mctx.arc(0, 0, 1, 0, Math.PI * 2);
+                mctx.fill();
+              }
               mctx.restore();
             }
           }
 
-          // 최종 패스: 전체 진행 92%부터 캔버스 전체를 서서히 공개.
-          // 붓이 못 간 어떤 빈 곳도 끝에는 반드시 채워짐 (측정 불필요한 전역 보증).
-          const gp = clamp01(tEff / Math.max(maxEnd, 0.01));
-          if (gp > 0.92) {
-            mctx.globalAlpha = ease((gp - 0.92) / 0.08);
-            mctx.fillStyle = "#fff";
-            mctx.fillRect(0, 0, width, height);
-            mctx.globalAlpha = 1;
-          }
+          // (전역 채움 패스 제거 — 객체별 영역 채움이 prog=1에 100% 완성을 보장하므로
+          //  갑자기 전체가 나타나는 점프가 없다. 영역 합집합 = 화면 전체.)
 
           // masked = 원본 ∩ 마스크 (destination-in)
           const masked = scratch(_masked, width, height);
