@@ -97,23 +97,31 @@ function strokeReveal(
   const fullBands = Math.floor(totalProg);   // 완전히 칠해진 줄 수
   const frac = totalProg - fullBands;        // 현재 줄 진행도 0..1
 
+  // 줄마다 손그림식 미세 불규칙 (결정적). 시작 위치·길이·높이를 살짝 흔든다.
+  const jit = (b: number, k: number) => (createSeededRandom(hashSeed(`${obj.id}:${b}:${k}`))() - 0.5);
+  const overshoot = realBandH * 0.9; // 줄을 조금 두껍게 겹쳐 빈틈 제거 + 붓 번짐 느낌
+
   const rects: [number, number, number, number][] = [];
   // 완성된 줄
   for (let b = 0; b < fullBands && b < numBands; b++) {
-    rects.push([x1, y1 + b * realBandH, w, realBandH + 0.5]);
+    const dx = jit(b, 0) * realBandH * 0.5;
+    const dw = jit(b, 1) * realBandH * 0.7;
+    const dy = jit(b, 2) * realBandH * 0.25;
+    rects.push([x1 + dx, y1 + b * realBandH + dy, w + Math.abs(dw) + 2, realBandH + overshoot]);
   }
 
   let pen: { x: number; y: number } | null = null;
   if (fullBands < numBands && frac > 0) {
     const b = fullBands;
-    const yTop = y1 + b * realBandH;
+    const dy = jit(b, 2) * realBandH * 0.25;
+    const yTop = y1 + b * realBandH + dy;
     const ltr = b % 2 === 0; // 짝수 줄 좌→우, 홀수 줄 우→좌
     const cw = w * frac;
     if (ltr) {
-      rects.push([x1, yTop, cw, realBandH + 0.5]);
+      rects.push([x1, yTop, cw, realBandH + overshoot]);
       pen = { x: x1 + cw, y: yTop + realBandH / 2 };
     } else {
-      rects.push([x1 + w - cw, yTop, cw, realBandH + 0.5]);
+      rects.push([x1 + w - cw, yTop, cw, realBandH + overshoot]);
       pen = { x: x1 + w - cw, y: yTop + realBandH / 2 };
     }
   } else if (fullBands >= numBands) {
@@ -252,7 +260,7 @@ export function renderSceneFrame(
         ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
       }
     } else {
-      // 스트로크 공개: 각 객체를 손글씨식으로 그려나감
+      // 스트로크 공개: 사각형이 아니라 둥근 붓 자국(캡슐)으로 칠해나감 → 사각 경계 제거
       ctx.save();
       ctx.beginPath();
       let any = false;
@@ -261,7 +269,12 @@ export function renderSceneFrame(
         const end = obj.endAt ?? start + 1;
         const progress = clamp01((t - start) / Math.max(end - start, 0.01));
         const { rects } = strokeReveal(obj, progress, fit, bandH);
-        for (const r of rects) { ctx.rect(r[0], r[1], r[2], r[3]); any = true; }
+        for (const r of rects) {
+          // 캡슐(양끝 둥근) = 붓이 지나간 자국. 반경은 줄 높이 절반.
+          const radius = Math.min(r[2], r[3]) / 2;
+          ctx.roundRect(r[0], r[1], r[2], r[3], radius);
+          any = true;
+        }
       }
       if (any) {
         ctx.clip();
