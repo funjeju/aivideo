@@ -45,15 +45,17 @@ export default function BrushPlayer({
     if (!ctx) return;
     const c = ctx;
 
-    const dur = scene.durationSec || 6;
     // hand.size를 슬라이더 값으로 덮어써 즉시 반영
     const liveScene: SceneSpec = { ...scene, hand: { ...(scene.hand ?? { enabled: true, asset: "brush" }), enabled: showBrush, size: brushSize, count: brushCount, speed: brushSpeed } };
+    // 테스트: 시간 제한 없이 작업량만큼 그림 (pace=초당 점수). 완성본 점프 없음.
+    const renderOpts = { pace: 240, noFinalImage: true };
+    const LOOP = 60; // 충분히 길게 두고, 다 그린 뒤엔 그대로 유지하다 리셋
 
     function frame(now: number) {
       if (!startRef.current) startRef.current = now;
       let t = (now - startRef.current) / 1000;
-      if (t > dur + 1.2) { startRef.current = now; t = 0; } // 루프 (완성본 1.2초 보여주고 반복)
-      renderSceneFrame(c, liveScene, image ?? undefined as never, t, size);
+      if (t > LOOP) { startRef.current = now; t = 0; }
+      renderSceneFrame(c, liveScene, image ?? undefined as never, t, size, renderOpts);
       rafRef.current = requestAnimationFrame(frame);
     }
 
@@ -62,7 +64,7 @@ export default function BrushPlayer({
       rafRef.current = requestAnimationFrame(frame);
     } else {
       // 정지: 완성본 표시
-      renderSceneFrame(c, liveScene, image ?? undefined as never, dur + 1, size);
+      renderSceneFrame(c, liveScene, image ?? undefined as never, 999, size, renderOpts);
     }
     return () => cancelAnimationFrame(rafRef.current);
   }, [scene, image, playing, brushSize, brushCount, brushSpeed, showBrush, size]);

@@ -31,6 +31,10 @@ interface RenderOptions {
   brushSize?: number;
   brushCount?: number;
   brushSpeed?: number;
+  /** 테스트용: 초당 그리는 점 수. 주면 durationSec 무시하고 작업량 기준으로 그림 (시간 제한 없음) */
+  pace?: number;
+  /** 테스트용: 완성본으로 점프하지 않고 path 드로잉만 유지 */
+  noFinalImage?: boolean;
 }
 
 function ease(t: number): number {
@@ -328,11 +332,13 @@ export function renderSceneFrame(
           return { ...it, brush: b, s, e };
         });
         const makespan = Math.max(1, ...brushEnd);
-        // 속도: 전체 완성 시간 조절 (영상 길이 내로 클램프). 붓 많으면 makespan↓ → 자동 빨라짐
-        const effective = Math.min(scene.durationSec * 0.96, drawWindow / brushSpeed);
+        // 그리기 완성 시각. 테스트(pace)면 작업량 기준(시간 제한 없음), 영상이면 오디오 길이 내로 클램프.
+        const effective = opts.pace
+          ? makespan / opts.pace / brushSpeed
+          : Math.min(scene.durationSec * 0.96, drawWindow / brushSpeed);
         const scaleT = effective / makespan;
 
-        if (t >= effective) {
+        if (t >= effective && !opts.noFinalImage) {
           ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH); // 완성본
         } else {
           const mask = scratch(_mask, width, height);
