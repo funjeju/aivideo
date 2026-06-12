@@ -372,6 +372,26 @@ export function renderSceneFrame(
             if (prog <= 0) continue;
             const cnt = Math.max(1, Math.floor(it.path.length * ease(prog)));
             strokePathOnMask(mctx, it.path, cnt, baseW, hashSeed(it.obj.id));
+
+            // 마무리 패스: 객체 진행 70%부터 붓이 못 간 빈 부분을 부드럽게 채움
+            // (붓질 흔적/구멍 없이 자연스럽게 완성 — 100%면 완전 공개)
+            if (prog > 0.7) {
+              const a = ease((prog - 0.7) / 0.3);
+              const bx1 = it.obj.bbox[0] * fit.bScaleX + fit.offsetX;
+              const by1 = it.obj.bbox[1] * fit.bScaleY + fit.offsetY;
+              const bx2 = it.obj.bbox[2] * fit.bScaleX + fit.offsetX;
+              const by2 = it.obj.bbox[3] * fit.bScaleY + fit.offsetY;
+              const pad = baseW * 0.5;
+              mctx.save();
+              mctx.globalAlpha = a;
+              mctx.fillStyle = "#fff";
+              mctx.shadowColor = "#fff";
+              mctx.shadowBlur = baseW;
+              mctx.beginPath();
+              mctx.roundRect(bx1 - pad, by1 - pad, (bx2 - bx1) + pad * 2, (by2 - by1) + pad * 2, baseW);
+              mctx.fill();
+              mctx.restore();
+            }
             // 현재 그리는 중인 객체에만 펜 (붓당 1개 → 동시 최대 brushCount, 끊김 없이 순환)
             if (prog < 1 && it.path.length >= 2) {
               const idx = Math.min(cnt, it.path.length - 1);
