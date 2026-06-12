@@ -67,6 +67,7 @@ export interface RevealObject {
   flowDirection?: string;
   startAt?: number;
   endAt?: number;
+  caption?: string;
 }
 
 export interface SceneSpec {
@@ -88,7 +89,7 @@ export interface SceneSpec {
   };
   camera?: Array<{ at: number; scale: number; x: number; y: number }>;
   overlays?: Array<{ type: string; asset: string; opacity?: number; pos?: [number, number]; trigger?: string }>;
-  hand?: { enabled: boolean; asset: string };
+  hand?: { enabled: boolean; asset: string; size?: number };
 }
 
 export interface SceneDoc {

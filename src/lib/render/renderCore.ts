@@ -33,6 +33,8 @@ type ImageSource = CanvasImageSource & { width: number; height: number };
 interface RenderOptions {
   /** 손 애니메이션 표시 여부 (프리뷰에서 끌 수 있음) */
   showHand?: boolean;
+  /** 붓 크기 배수 (기본 1). scene.hand.size가 우선. */
+  brushSize?: number;
 }
 
 /** easeInOutCubic */
@@ -63,87 +65,101 @@ function computeFit(canvas: CanvasSize, img?: ImageSource) {
   };
 }
 
-/** flowDirection + progress로 객체 bbox 안에서 공개된 사각 영역 계산 */
-function revealedRect(
-  obj: RevealObject,
-  progress: number,
-  fit: ReturnType<typeof computeFit>
-): [number, number, number, number] | null {
-  if (progress <= 0) return null;
-  const p = ease(clamp01(progress));
+interface ObjBox { x1: number; y1: number; w: number; h: number }
 
+function objBox(obj: RevealObject, fit: ReturnType<typeof computeFit>): ObjBox {
   const x1 = obj.bbox[0] * fit.bScaleX + fit.offsetX;
   const y1 = obj.bbox[1] * fit.bScaleY + fit.offsetY;
   const x2 = obj.bbox[2] * fit.bScaleX + fit.offsetX;
   const y2 = obj.bbox[3] * fit.bScaleY + fit.offsetY;
-  const w = x2 - x1;
-  const h = y2 - y1;
-
-  switch (obj.flowDirection) {
-    case "right-to-left":
-      return [x2 - w * p, y1, w * p, h];
-    case "top-to-bottom":
-      return [x1, y1, w, h * p];
-    case "bottom-to-top":
-      return [x1, y2 - h * p, w, h * p];
-    case "center-out": {
-      const cw = w * p;
-      const ch = h * p;
-      return [x1 + (w - cw) / 2, y1 + (h - ch) / 2, cw, ch];
-    }
-    case "left-to-right":
-    default:
-      return [x1, y1, w * p, h];
-  }
+  return { x1, y1, w: x2 - x1, h: y2 - y1 };
 }
 
-/** 손(붓/펜/분필) 위치 = 현재 활성 객체의 공개 엣지 */
+/**
+ * 손글씨식 스트로크 리빌.
+ * bbox를 수평 밴드로 나눠 위→아래로 한 줄씩 긋되, 각 줄은 좌우 교대(부메랑)로 칠한다.
+ * 펜이 실제로 줄을 그어 내려가는 궤적을 만든다 (단순 한 방향 마스크 아님).
+ * @returns 공개된 사각 영역들 + 현재 펜 끝점
+ */
+function strokeReveal(
+  obj: RevealObject,
+  progress: number,
+  fit: ReturnType<typeof computeFit>,
+  bandH: number
+): { rects: [number, number, number, number][]; pen: { x: number; y: number } | null } {
+  if (progress <= 0) return { rects: [], pen: null };
+  const { x1, y1, w, h } = objBox(obj, fit);
+  const p = clamp01(progress);
+
+  const numBands = Math.max(1, Math.round(h / bandH));
+  const realBandH = h / numBands;
+  const totalProg = p * numBands;            // 0..numBands
+  const fullBands = Math.floor(totalProg);   // 완전히 칠해진 줄 수
+  const frac = totalProg - fullBands;        // 현재 줄 진행도 0..1
+
+  const rects: [number, number, number, number][] = [];
+  // 완성된 줄
+  for (let b = 0; b < fullBands && b < numBands; b++) {
+    rects.push([x1, y1 + b * realBandH, w, realBandH + 0.5]);
+  }
+
+  let pen: { x: number; y: number } | null = null;
+  if (fullBands < numBands && frac > 0) {
+    const b = fullBands;
+    const yTop = y1 + b * realBandH;
+    const ltr = b % 2 === 0; // 짝수 줄 좌→우, 홀수 줄 우→좌
+    const cw = w * frac;
+    if (ltr) {
+      rects.push([x1, yTop, cw, realBandH + 0.5]);
+      pen = { x: x1 + cw, y: yTop + realBandH / 2 };
+    } else {
+      rects.push([x1 + w - cw, yTop, cw, realBandH + 0.5]);
+      pen = { x: x1 + w - cw, y: yTop + realBandH / 2 };
+    }
+  } else if (fullBands >= numBands) {
+    pen = null; // 완성
+  } else {
+    pen = { x: x1, y: y1 };
+  }
+
+  return { rects, pen };
+}
+
+/** 현재 그려지고 있는(활성) 객체의 펜 끝점 */
 function handPosition(
   objects: RevealObject[],
   t: number,
-  fit: ReturnType<typeof computeFit>
+  fit: ReturnType<typeof computeFit>,
+  bandH: number
 ): { x: number; y: number } | null {
-  // 가장 최근에 활성(startAt<=t<endAt)인 객체
   const active = objects
     .filter((o) => (o.startAt ?? 0) <= t && t < (o.endAt ?? 0))
     .sort((a, b) => (b.startAt ?? 0) - (a.startAt ?? 0))[0];
   if (!active) return null;
-
   const start = active.startAt ?? 0;
   const end = active.endAt ?? start + 1;
   const progress = clamp01((t - start) / Math.max(end - start, 0.01));
-  const rect = revealedRect(active, progress, fit);
-  if (!rect) return null;
-
-  // 리빌 진행 엣지의 끝점
-  const [rx, ry, rw, rh] = rect;
-  switch (active.flowDirection) {
-    case "right-to-left":
-      return { x: rx, y: ry + rh / 2 };
-    case "top-to-bottom":
-      return { x: rx + rw / 2, y: ry + rh };
-    case "bottom-to-top":
-      return { x: rx + rw / 2, y: ry };
-    case "center-out":
-      return { x: rx + rw, y: ry + rh };
-    case "left-to-right":
-    default:
-      return { x: rx + rw, y: ry + rh / 2 };
-  }
+  return strokeReveal(active, progress, fit, bandH).pen;
 }
 
 function drawHand(
   ctx: CanvasRenderingContext2D,
   pos: { x: number; y: number },
-  tool: string
+  tool: string,
+  scale: number
 ) {
   ctx.save();
-  // 손/도구 단순 표현: 끝점에 작은 원 + 손잡이 선
+  // 끝점에 잉크 자국
+  ctx.fillStyle = "rgba(42,42,46,0.5)";
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, 3 * scale, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.translate(pos.x, pos.y);
   ctx.rotate(-Math.PI / 4);
 
   // 도구 몸통
-  const len = 90;
+  const len = 90 * scale;
   const grad = ctx.createLinearGradient(0, 0, 0, len);
   if (tool === "brush") {
     grad.addColorStop(0, "#2A2A2E");
@@ -155,21 +171,22 @@ function drawHand(
     grad.addColorStop(0, "#e8e0d0");
     grad.addColorStop(1, "#cbbf9a");
   }
+  const bw = 6 * scale;
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.moveTo(-6, 8);
-  ctx.lineTo(6, 8);
-  ctx.lineTo(4, len);
-  ctx.lineTo(-4, len);
+  ctx.moveTo(-bw, 8 * scale);
+  ctx.lineTo(bw, 8 * scale);
+  ctx.lineTo(bw * 0.66, len);
+  ctx.lineTo(-bw * 0.66, len);
   ctx.closePath();
   ctx.fill();
 
   // 펜촉
   ctx.fillStyle = "#2A2A2E";
   ctx.beginPath();
-  ctx.moveTo(-3, 0);
-  ctx.lineTo(3, 0);
-  ctx.lineTo(0, 10);
+  ctx.moveTo(-3 * scale, 0);
+  ctx.lineTo(3 * scale, 0);
+  ctx.lineTo(0, 10 * scale);
   ctx.closePath();
   ctx.fill();
 
@@ -212,19 +229,30 @@ export function renderSceneFrame(
 
   if (image) {
     const objects = scene.reveal?.objects ?? [];
+    // 붓 크기 (어드민/스타일 설정). 1=기본. 밴드 높이·펜 크기에 반영.
+    const brushSize = scene.hand?.size ?? opts.brushSize ?? 1;
+    const bandH = Math.max(18, 46 * brushSize) * (canvasSize.height / 1920);
 
-    if (objects.length === 0) {
-      // 객체 정보 없으면 전체를 좌→우로 점진 공개
-      const progress = clamp01(t / Math.max(scene.durationSec, 0.5));
-      const w = fit.drawW * ease(progress);
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(fit.offsetX, fit.offsetY, w, fit.drawH);
-      ctx.clip();
-      ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
-      ctx.restore();
+    // 모든 reveal이 끝나는 시각. 이후엔 완성본 전체를 보여준다 (끝까지 다 그린 뒤 유지).
+    const maxEnd = objects.length
+      ? Math.max(...objects.map((o) => o.endAt ?? 0))
+      : Math.max(scene.durationSec * 0.85, 0.5);
+
+    if (t >= maxEnd || objects.length === 0) {
+      // reveal 완료(또는 객체 없음) → 전체 이미지. 객체가 없으면 좌→우 점진.
+      if (objects.length === 0 && t < maxEnd) {
+        const w = fit.drawW * ease(clamp01(t / maxEnd));
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(fit.offsetX, fit.offsetY, w, fit.drawH);
+        ctx.clip();
+        ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
+        ctx.restore();
+      } else {
+        ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
+      }
     } else {
-      // 공개된 모든 영역을 union clip 후 이미지 그리기
+      // 스트로크 공개: 각 객체를 손글씨식으로 그려나감
       ctx.save();
       ctx.beginPath();
       let any = false;
@@ -232,23 +260,20 @@ export function renderSceneFrame(
         const start = obj.startAt ?? 0;
         const end = obj.endAt ?? start + 1;
         const progress = clamp01((t - start) / Math.max(end - start, 0.01));
-        const rect = revealedRect(obj, progress, fit);
-        if (rect) {
-          ctx.rect(rect[0], rect[1], rect[2], rect[3]);
-          any = true;
-        }
+        const { rects } = strokeReveal(obj, progress, fit, bandH);
+        for (const r of rects) { ctx.rect(r[0], r[1], r[2], r[3]); any = true; }
       }
       if (any) {
         ctx.clip();
         ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
       }
       ctx.restore();
-    }
 
-    // 손 애니메이션
-    if (opts.showHand !== false && scene.hand?.enabled) {
-      const pos = handPosition(objects, t, fit);
-      if (pos) drawHand(ctx, pos, scene.hand.asset);
+      // 펜 애니메이션
+      if (opts.showHand !== false && scene.hand?.enabled) {
+        const pos = handPosition(objects, t, fit, bandH);
+        if (pos) drawHand(ctx, pos, scene.hand.asset, Math.max(0.6, brushSize) * (canvasSize.height / 1920) * 1.2);
+      }
     }
   }
 

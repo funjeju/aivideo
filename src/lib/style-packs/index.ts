@@ -7,8 +7,8 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     description: "깔끔한 설명 영상 기본기. 교수 세그먼트 디폴트.",
     imagePrompt: {
       template:
-        "whiteboard explainer illustration, {subject}, clean black marker lines on white background, simple bold strokes, minimal detail, educational diagram style, no color, no shading",
-      negative: "photorealistic, 3d render, color, complex background, cluttered",
+        "whiteboard explainer illustration, {subject}, clean black marker lines on white background, simple bold strokes, educational diagram style, no color, no shading. IMPORTANT: arrange distinct elements with generous empty space between them, each element clearly separated and not overlapping, so they can be drawn one by one",
+      negative: "photorealistic, 3d render, color, complex background, cluttered, overlapping elements, dense layout",
       model: "gpt-image-2",
       quality: "high",
       size: "1024x1536",

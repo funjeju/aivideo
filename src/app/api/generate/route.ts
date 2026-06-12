@@ -102,8 +102,8 @@ export async function POST(req: NextRequest) {
             }
 
             if (imageUrl) {
-              // Step 5: Vision (최대 60초) → Step 6: Planner (최대 60초)
-              await fetchWithTimeout(`${origin}/api/vision`, { projectId, sceneId, imageUrl }, 60000);
+              // Step 5: Vision (의미 매칭, 최대 60초) → Step 6: Planner (최대 60초)
+              await fetchWithTimeout(`${origin}/api/vision`, { projectId, sceneId, imageUrl, narration: scene.narration }, 60000);
               await fetchWithTimeout(`${origin}/api/planner`, { projectId, sceneId }, 60000);
             }
           } catch (e) {
