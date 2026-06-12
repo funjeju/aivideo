@@ -275,9 +275,14 @@ function computeSceneGeo(
       }
     }
     if (owner < 0) {
+      // 어떤 bbox에도 안 들어가면: "박스 테두리까지의 거리"가 가장 가까운 객체.
+      // (중심점 거리를 쓰면 큰 박스가 멀리 있는 획까지 빨아들여 엉뚱한 객체에 배정됨)
       let bestD = Infinity;
       for (let i = 0; i < boxes.length; i++) {
-        const d = (boxes[i].cx - px) ** 2 + (boxes[i].cy - py) ** 2;
+        const b = boxes[i];
+        const dx = px < b.x1 ? b.x1 - px : px > b.x2 ? px - b.x2 : 0;
+        const dy = py < b.y1 ? b.y1 - py : py > b.y2 ? py - b.y2 : 0;
+        const d = dx * dx + dy * dy;
         if (d < bestD) { bestD = d; owner = i; }
       }
     }
@@ -345,11 +350,17 @@ function computeSceneGeo(
       });
     }
 
-    // 5) 획 → 객체 배정 (획 중간점의 소유자) + 객체 내 펜 이동 최소화 정렬
+    // 5) 획 → 객체 배정: 시작/중간/끝 3점 투표 (한 점 우연으로 엉뚱한 객체에 가지 않게)
     const buckets: Pt[][][] = objects.map(() => []);
     for (const line of polys) {
-      const mid = line[Math.floor(line.length / 2)];
-      const owner = ownerOf(mid.x, mid.y);
+      const samples = [line[0], line[Math.floor(line.length / 2)], line[line.length - 1]];
+      const votes = new Map<number, number>();
+      for (const p of samples) {
+        const o = ownerOf(p.x, p.y);
+        if (o >= 0) votes.set(o, (votes.get(o) ?? 0) + 1);
+      }
+      let owner = -1, best = 0;
+      for (const [o, v] of votes) if (v > best) { best = v; owner = o; }
       if (owner >= 0) buckets[owner].push(line);
     }
     // 객체 bbox 좌상단을 anchor로 — 첫 붓이 그 객체의 좌상단에서 시작 (중앙 진입 방지)
