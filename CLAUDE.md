@@ -97,4 +97,5 @@ Sonnet 4.6  →  막히면 Opus 4.8  →  그래도 안 되면 Fable 5
 - 현재 상태: **Phase 0~4 완료 + 배포 전체 동작**(Vercel + Cloud Run Worker + 규칙/인덱스/인증/과금/어드민) + **드로잉 엔진 v15 "판서"**(잉크 이진화→Zhang-Suen 세선화→획 추출→객체별 획 순서 드로잉 + 영역 분할 채움). 어드민 `/admin/brush`에서 비용 0 즉시 테스트.
 - 최근 결정: 드로잉=골격 획(stroke) 단위로 실제 선을 따라 그림(판서 느낌, TSP 점구름 폐기) / 객체별 영역 채움이 endAt에 100% 완성 보장(전역 92% 채움 삭제) / 나레이션 동기 모드(startAt 존재)에선 brushSpeed 무시 / 과금 토글 OFF 기본(naggu1999 면제)
 - 주의: `transpilePackages:["firebase-admin"]` 제거 금지(Vercel ESM) / renderCore 수정 시 worker sceneHash v 증가+worker 재배포로 캐시 무효화 / env 변경 시 dev 재시작 / gcloud=funjejuai 계정
-- 다음 할 일: ①붓 기본값 확정→시스템설정 저장 ②배포본에서 실전 영상 1편(~$2) 품질 검증 ③백로그(`todo.md`)
+- 다음 할 일: ①붓 테스트에서 조합 확정 후 "기본값으로 저장" 클릭(버튼 구현 완료, settings/global→planner 자동 반영) ②배포본에서 실전 영상 1편(~$2) 품질 검증 ③백로그(`todo.md`)
+- 붓 자동화: 붓 9종+도구 5종+흐름 2종 전부 settings/global로 저장→자동 생성에 적용. worker v25 배포됨(00017-rv5)
