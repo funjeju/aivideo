@@ -21,7 +21,10 @@ export const ASPECT_SIZES: Record<string, CanvasSize> = {
 };
 
 const PAPER_COLORS: Record<string, string> = { white: "#FFFFFF", "paper-hanji": "#FAF8F4" };
-const SRC_IMG_W = 1024;
+// bbox 좌표계: 정규화 0~1000 (이미지 왼쪽=0 오른쪽=1000, 위=0 아래=1000).
+// 이미지의 실제 비율(9:16 생성본·16:9·1:1·임의 업로드)과 무관하게 비례 변환되므로 항상 정확.
+const BBOX_NORM = 1000;
+const SRC_IMG_W = 1024; // 이미지 없을 때 fit 폴백 비율용
 const SRC_IMG_H = 1536;
 
 type ImageSource = CanvasImageSource & { width: number; height: number };
@@ -50,8 +53,8 @@ function computeFit(canvas: CanvasSize, img?: ImageSource) {
     scale, drawW, drawH,
     offsetX: (canvas.width - drawW) / 2,
     offsetY: (canvas.height - drawH) / 2,
-    bScaleX: drawW / SRC_IMG_W,
-    bScaleY: drawH / SRC_IMG_H,
+    bScaleX: drawW / BBOX_NORM,
+    bScaleY: drawH / BBOX_NORM,
   };
 }
 

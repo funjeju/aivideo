@@ -17,7 +17,8 @@ function visionPrompt(narration: string): string {
 
 각 시각 요소(제목/라벨/그림/화살표/도형)에 대해:
 - id: "obj_1" ...
-- bbox: [x1,y1,x2,y2] (이미지 1024x1536 기준, 요소를 여유있게 감싸되 잘리지 않게)
+- bbox: [x1,y1,x2,y2] — 정규화 좌표. 이미지 왼쪽 끝=0, 오른쪽 끝=1000, 위=0, 아래=1000.
+  (이미지의 실제 가로세로 비율과 무관하게 항상 0~1000. 요소를 여유있게 감싸되 잘리지 않게)
 - role: "title"|"label"|"illustration"|"arrow"|"shape"
 - revealOrder: 나레이션 흐름상 등장 순서(1부터). 먼저 언급되는 개념의 요소가 먼저.
 - anchorText: 이 요소가 대응하는 나레이션 속 구절을 원문 그대로 복사.
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
       max_tokens: 1200,
     });
     const parsed = JSON.parse(res.choices[0].message.content ?? "{}");
+    // bbox는 정규화 0~1000 그대로 — 렌더러(BBOX_NORM)가 실제 그려지는 크기에 비례 변환
     const objects: RevealObject[] = parsed.objects ?? [];
 
     // Planner: 의미 순서 + 시간 동기화로 sceneSpec 생성

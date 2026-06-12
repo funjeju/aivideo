@@ -61,6 +61,7 @@ export interface ProjectDoc {
 
 export interface RevealObject {
   id: string;
+  /** 정규화 0~1000 좌표 [x1,y1,x2,y2] — 이미지 비율 무관 (renderCore BBOX_NORM과 정합) */
   bbox: [number, number, number, number];
   role: "title" | "label" | "illustration" | "arrow" | "shape";
   revealOrder?: number;

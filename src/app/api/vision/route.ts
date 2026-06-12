@@ -15,7 +15,7 @@ function buildVisionPrompt(narration: string): string {
 
 각 시각 요소(제목, 라벨, 그림, 화살표, 도형)에 대해:
 - id: "obj_1", "obj_2" ...
-- bbox: [x1, y1, x2, y2] — 이미지 크기 1024x1536 기준. **요소 전체를 빠짐없이 감싸되 여유를 약간 둬라**(텍스트가 잘리지 않게 상하좌우 여백 포함).
+- bbox: [x1, y1, x2, y2] — 정규화 좌표. 이미지 왼쪽 끝=0, 오른쪽 끝=1000, 위=0, 아래=1000 (실제 가로세로 비율과 무관하게 항상 0~1000). **요소 전체를 빠짐없이 감싸되 여유를 약간 둬라**(텍스트가 잘리지 않게 상하좌우 여백 포함).
 - role: "title" | "label" | "illustration" | "arrow" | "shape"
 - revealOrder: 나레이션 흐름상 등장 순서(1부터).
 - anchorText: **이 요소가 대응하는 나레이션 속 핵심 구절을, 나레이션 원문에서 그대로 복사해 적어라**(반드시 위 나레이션에 실제로 들어있는 연속된 문자열). 이 구절이 발화되는 순간 이 요소가 그려지기 시작한다. 예) 나레이션이 "사과를 하나 먹으면 만족스럽죠"이고 사과 그림이면 anchorText는 "사과를 하나".
@@ -23,7 +23,7 @@ function buildVisionPrompt(narration: string): string {
 출력 형식 (JSON만, 설명 없이):
 {
   "objects": [
-    { "id": "obj_1", "bbox": [100, 200, 500, 800], "role": "illustration", "revealOrder": 1, "anchorText": "나레이션에서 그대로 복사한 구절" }
+    { "id": "obj_1", "bbox": [100, 200, 500, 520], "role": "illustration", "revealOrder": 1, "anchorText": "나레이션에서 그대로 복사한 구절" }
   ]
 }`;
 }
