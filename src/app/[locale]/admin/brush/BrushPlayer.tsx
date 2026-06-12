@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { SceneSpec } from "@/lib/types";
 import { renderSceneFrame, ASPECT_SIZES } from "@/lib/render/renderCore";
 
@@ -24,7 +24,17 @@ export default function BrushPlayer({
   const rafRef = useRef<number>(0);
   const startRef = useRef<number>(0);
 
-  const size = ASPECT_SIZES[scene?.canvas?.aspect ?? "9:16"] ?? ASPECT_SIZES["9:16"];
+  // 테스트 모드: 캔버스를 업로드 이미지의 실제 비율에 맞춤 (이미지가 꽉 차게)
+  const size = useMemo(() => {
+    if (image && image.width > 0 && image.height > 0) {
+      const LONG = 1600;
+      const r = image.width / image.height;
+      return r >= 1
+        ? { width: LONG, height: Math.round(LONG / r) }
+        : { width: Math.round(LONG * r), height: LONG };
+    }
+    return ASPECT_SIZES[scene?.canvas?.aspect ?? "9:16"] ?? ASPECT_SIZES["9:16"];
+  }, [image, scene?.canvas?.aspect]);
 
   useEffect(() => {
     if (!scene || !canvasRef.current) return;
@@ -61,7 +71,7 @@ export default function BrushPlayer({
         ref={canvasRef}
         width={size.width}
         height={size.height}
-        className="max-h-[70vh] w-auto rounded shadow-lg bg-white"
+        className="max-h-[70vh] max-w-full w-auto h-auto object-contain rounded shadow-lg bg-white"
         style={{ aspectRatio: `${size.width}/${size.height}` }}
       />
     </div>
