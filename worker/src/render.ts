@@ -66,7 +66,7 @@ interface RenderResult {
 /** 장면 입력의 결정적 해시 — 바뀌면 세그먼트 재렌더 */
 function sceneHash(spec: unknown, imageUrl: string, audioUrl: string): string {
   return createHash("sha256")
-    .update(JSON.stringify({ spec, imageUrl, audioUrl, fps: FPS, v: 18 }))
+    .update(JSON.stringify({ spec, imageUrl, audioUrl, fps: FPS, v: 19 }))
     .digest("hex")
     .slice(0, 16);
 }

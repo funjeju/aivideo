@@ -67,63 +67,189 @@ function scratch(ref: Cv, w: number, h: number): HTMLCanvasElement {
   return ref.c;
 }
 
-// ── 장면 전체 경로 생성 ──────────────────────────────────────────
-// 이미지 "전체"를 한 번에 분석(엣지)하고, 각 점을 의미 객체 정확히 하나에 배정한다.
-// (bbox가 겹쳐도 점은 한 번만 그려짐 → 같은 곳 재방문/뭉침/순서 붕괴 제거)
+// ── 장면 기하: 골격(스켈레톤) 추출 → "획(stroke)" 단위 드로잉 ─────────
+// 점구름 TSP가 아니라, 그림의 선 자체를 1px 골격으로 세선화하고 끝점에서부터
+// 따라 걸어 폴리라인(획)으로 추출한다. 붓이 실제 선 위를 한 획씩 따라가므로
+// 사람이 판서하듯 "슥슥" 그려진다. (VideoScribe/Golpo류 핵심 기법)
 interface Pt { x: number; y: number }
-interface SceneItem { obj: RevealObject; path: Pt[]; region: HTMLCanvasElement | null }
-// path/region만 캐시 — obj(startAt/endAt)는 항상 현재 sceneSpec 값 사용
-interface SceneGeo { paths: Pt[][]; regions: (HTMLCanvasElement | null)[] }
-const scenePathCache = new Map<string, SceneGeo>();
+interface SceneItem {
+  obj: RevealObject;
+  strokes: Pt[][];   // 그리는 순서의 획 목록 (펜 이동 최소화 정렬)
+  lens: number[];    // 획별 길이(px)
+  total: number;     // 총 획 길이
+  region: HTMLCanvasElement | null; // 이 객체에 배정된 픽셀 영역 (채움 패스)
+}
+// 기하만 캐시 — obj(startAt/endAt)는 항상 현재 sceneSpec 값 사용
+interface SceneGeo { strokes: Pt[][][]; lens: number[][]; totals: number[]; regions: (HTMLCanvasElement | null)[] }
+const sceneGeoCache = new Map<string, SceneGeo>();
 
-/** 점들을 TSP(최근접 이웃)로 잇고 이동평균 스무딩 */
-function orderAndSmooth(pts: Pt[]): Pt[] {
-  if (pts.length === 0) return [];
-  const ordered: Pt[] = [];
-  const used = new Array(pts.length).fill(false);
-  let cur = 0;
-  for (let i = 1; i < pts.length; i++) if (pts[i].y < pts[cur].y) cur = i; // 위에서 시작
-  used[cur] = true; ordered.push(pts[cur]);
-  for (let k = 1; k < pts.length; k++) {
-    let best = -1, bestD = Infinity;
-    const p = pts[cur];
-    for (let i = 0; i < pts.length; i++) {
-      if (used[i]) continue;
-      const d = (pts[i].x - p.x) ** 2 + (pts[i].y - p.y) ** 2;
-      if (d < bestD) { bestD = d; best = i; }
+/** Zhang-Suen 세선화: 이진 잉크 마스크 → 1px 골격 */
+function thinSkeleton(ink: Uint8Array, w: number, h: number): Uint8Array {
+  const img = ink.slice();
+  const toDel: number[] = [];
+  for (let iter = 0; iter < 80; iter++) {
+    let changed = false;
+    for (let pass = 0; pass < 2; pass++) {
+      toDel.length = 0;
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const i = y * w + x;
+          if (!img[i]) continue;
+          const p2 = img[i - w], p3 = img[i - w + 1], p4 = img[i + 1], p5 = img[i + w + 1];
+          const p6 = img[i + w], p7 = img[i + w - 1], p8 = img[i - 1], p9 = img[i - w - 1];
+          const B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+          if (B < 2 || B > 6) continue;
+          let A = 0;
+          if (!p2 && p3) A++; if (!p3 && p4) A++; if (!p4 && p5) A++; if (!p5 && p6) A++;
+          if (!p6 && p7) A++; if (!p7 && p8) A++; if (!p8 && p9) A++; if (!p9 && p2) A++;
+          if (A !== 1) continue;
+          if (pass === 0) { if (p2 * p4 * p6 !== 0 || p4 * p6 * p8 !== 0) continue; }
+          else { if (p2 * p4 * p8 !== 0 || p2 * p6 * p8 !== 0) continue; }
+          toDel.push(i);
+        }
+      }
+      if (toDel.length) { changed = true; for (const i of toDel) img[i] = 0; }
     }
-    if (best < 0) break;
-    used[best] = true; ordered.push(pts[best]); cur = best;
+    if (!changed) break;
   }
-  const sm: Pt[] = [];
-  const W = 2;
-  for (let i = 0; i < ordered.length; i++) {
-    let sx = 0, sy = 0, n = 0;
-    for (let j = Math.max(0, i - W); j <= Math.min(ordered.length - 1, i + W); j++) { sx += ordered[j].x; sy += ordered[j].y; n++; }
-    sm.push({ x: sx / n, y: sy / n });
+  return img;
+}
+
+/** 골격을 끝점부터 따라 걸으며 획(폴리라인) 추출 — 직진 우선(사람 손처럼) */
+function traceStrokes(skel: Uint8Array, w: number, h: number): Pt[][] {
+  const NB = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
+  const deg = new Uint8Array(w * h);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      if (!skel[i]) continue;
+      let d = 0;
+      for (const [dx, dy] of NB) if (skel[(y + dy) * w + x + dx]) d++;
+      deg[i] = d;
+    }
   }
+  const used = new Uint8Array(w * h);
+  const cap = (i: number) => (deg[i] >= 3 ? deg[i] : 1); // 교차점은 가지 수만큼 통과 허용
+  const out: Pt[][] = [];
+
+  const walk = (sx: number, sy: number) => {
+    const line: Pt[] = [{ x: sx, y: sy }];
+    used[sy * w + sx]++;
+    let cx = sx, cy = sy, pdx = 0, pdy = 0;
+    for (let step = 0; step < 4000; step++) {
+      let bx = -1, by = -1, bestScore = -Infinity;
+      for (const [dx, dy] of NB) {
+        const nx = cx + dx, ny = cy + dy;
+        if (nx < 1 || ny < 1 || nx >= w - 1 || ny >= h - 1) continue;
+        const i = ny * w + nx;
+        if (!skel[i] || used[i] >= cap(i)) continue;
+        const score = (pdx || pdy) ? dx * pdx + dy * pdy : 0; // 진행 방향 유지 우선
+        if (score > bestScore) { bestScore = score; bx = nx; by = ny; }
+      }
+      if (bx < 0) break;
+      used[by * w + bx]++;
+      pdx = Math.sign(bx - cx); pdy = Math.sign(by - cy);
+      cx = bx; cy = by;
+      line.push({ x: cx, y: cy });
+    }
+    return line;
+  };
+
+  // 1) 끝점(deg=1)에서 시작 — 획의 자연스러운 시작점
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      if (skel[i] && deg[i] === 1 && !used[i]) {
+        const l = walk(x, y);
+        if (l.length >= 3) out.push(l);
+      }
+    }
+  }
+  // 2) 남은 폐곡선(원 등)
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      if (skel[i] && !used[i]) {
+        const l = walk(x, y);
+        if (l.length >= 3) out.push(l);
+      }
+    }
+  }
+  return out;
+}
+
+/** 이동평균 스무딩 (끝점 보존) */
+function smoothLine(pts: Pt[]): Pt[] {
+  if (pts.length < 5) return pts;
+  const sm: Pt[] = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    sm.push({
+      x: (pts[i - 1].x + pts[i].x + pts[i + 1].x) / 3,
+      y: (pts[i - 1].y + pts[i].y + pts[i + 1].y) / 3,
+    });
+  }
+  sm.push(pts[pts.length - 1]);
   return sm;
 }
 
+function lineLen(pts: Pt[]): number {
+  let L = 0;
+  for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  return L;
+}
+
+/** 펜 이동 최소화 획 정렬: 좌상단 획부터, 가까운 끝점을 잇고 필요시 획 반전 */
+function orderStrokes(strokes: Pt[][]): Pt[][] {
+  if (strokes.length <= 1) return strokes;
+  const remaining = strokes.slice();
+  const ordered: Pt[][] = [];
+  // 시작: 시작점이 가장 좌상단인 획
+  let bi = 0, bv = Infinity;
+  for (let i = 0; i < remaining.length; i++) {
+    const p = remaining[i][0];
+    const v = p.y * 2 + p.x;
+    if (v < bv) { bv = v; bi = i; }
+  }
+  let cur = remaining.splice(bi, 1)[0];
+  ordered.push(cur);
+  while (remaining.length) {
+    const pen = cur[cur.length - 1];
+    let best = 0, bestD = Infinity, rev = false;
+    for (let i = 0; i < remaining.length; i++) {
+      const s = remaining[i];
+      const d0 = (s[0].x - pen.x) ** 2 + (s[0].y - pen.y) ** 2;
+      const d1 = (s[s.length - 1].x - pen.x) ** 2 + (s[s.length - 1].y - pen.y) ** 2;
+      if (d0 < bestD) { bestD = d0; best = i; rev = false; }
+      if (d1 < bestD) { bestD = d1; best = i; rev = true; }
+    }
+    cur = remaining.splice(best, 1)[0];
+    if (rev) cur = cur.slice().reverse();
+    ordered.push(cur);
+  }
+  return ordered;
+}
+
 /**
- * 장면 경로 계산: 전체 이미지 엣지 → 점→객체 배정 → 객체별 TSP 경로.
+ * 장면 기하 계산: 잉크 이진화 → 세선화 → 획 추출 → 획→객체 배정 → 영역 분할.
  * objects는 그리는 순서(reveal order)로 정렬되어 전달된다.
  */
-function computeScenePaths(
+function computeSceneGeo(
   image: ImageSource,
   objects: RevealObject[],
   fit: ReturnType<typeof computeFit>,
   sceneKey: string
 ): SceneItem[] {
-  // 키: 이미지 크기 + 각 객체의 id/bbox. startAt/endAt은 포함 안 함 (path는 위치만 의존).
   const key = `${sceneKey}|${objects.map((o) => o.id + o.bbox.join(",")).join(";")}|${Math.round(fit.drawW)}x${Math.round(fit.drawH)}`;
-  const cached = scenePathCache.get(key);
+  const cached = sceneGeoCache.get(key);
   if (cached) {
-    // 기하(경로·영역)만 캐시 히트 — obj는 현재 값(최신 startAt/endAt) 사용
-    return objects.map((obj, i) => ({ obj, path: cached.paths[i] ?? [], region: cached.regions[i] ?? null }));
+    return objects.map((obj, i) => ({
+      obj,
+      strokes: cached.strokes[i] ?? [],
+      lens: cached.lens[i] ?? [],
+      total: cached.totals[i] ?? 0,
+      region: cached.regions[i] ?? null,
+    }));
   }
-
-  const rnd = createSeededRandom(hashSeed(key));
 
   // 표시 좌표계 객체 박스 (배정용)
   const boxes = objects.map((o) => {
@@ -133,12 +259,29 @@ function computeScenePaths(
     const y2 = o.bbox[3] * fit.bScaleY + fit.offsetY;
     return { x1, y1, x2, y2, area: Math.max(1, (x2 - x1) * (y2 - y1)), cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
   });
+  const ownerOf = (px: number, py: number): number => {
+    let owner = -1, ownerArea = Infinity;
+    for (let i = 0; i < boxes.length; i++) {
+      const b = boxes[i];
+      if (px >= b.x1 && px <= b.x2 && py >= b.y1 && py <= b.y2 && b.area < ownerArea) {
+        owner = i; ownerArea = b.area;
+      }
+    }
+    if (owner < 0) {
+      let bestD = Infinity;
+      for (let i = 0; i < boxes.length; i++) {
+        const d = (boxes[i].cx - px) ** 2 + (boxes[i].cy - py) ** 2;
+        if (d < bestD) { bestD = d; owner = i; }
+      }
+    }
+    return owner;
+  };
 
   let items: SceneItem[];
 
   try {
-    // 1) 전체 이미지 다운샘플 (긴 변 ~460px — 선 디테일 추적용 고해상)
-    const DS = 460;
+    // 1) 다운샘플 (긴 변 ~520px — 골격이 글자 디테일을 살릴 만큼)
+    const DS = 520;
     const s = Math.min(DS / image.width, DS / image.height, 1);
     const dw = Math.max(16, Math.round(image.width * s));
     const dh = Math.max(16, Math.round(image.height * s));
@@ -153,94 +296,68 @@ function computeScenePaths(
       gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
     }
 
-    // 2) 소벨 엣지 + 그리드 양자화(셀당 1점) + 빈 셀 노이즈
-    const cell = 2; // 촘촘하게 — 선의 디테일을 따라가도록
-    const cols = Math.ceil(dw / cell);
-    const seen = new Set<number>();
-    const raw: Pt[] = [];
-    for (let y = 1; y < dh - 1; y++) {
-      for (let x = 1; x < dw - 1; x++) {
-        const gx =
-          -gray[(y - 1) * dw + x - 1] - 2 * gray[y * dw + x - 1] - gray[(y + 1) * dw + x - 1] +
-           gray[(y - 1) * dw + x + 1] + 2 * gray[y * dw + x + 1] + gray[(y + 1) * dw + x + 1];
-        const gy =
-          -gray[(y - 1) * dw + x - 1] - 2 * gray[(y - 1) * dw + x] - gray[(y - 1) * dw + x + 1] +
-           gray[(y + 1) * dw + x - 1] + 2 * gray[(y + 1) * dw + x] + gray[(y + 1) * dw + x + 1];
-        if (Math.sqrt(gx * gx + gy * gy) > 90) {
-          const ck = Math.floor(y / cell) * cols + Math.floor(x / cell);
-          if (!seen.has(ck)) { seen.add(ck); raw.push({ x, y }); }
+    // 2) 잉크 이진화: 어두운 픽셀 = 판서 선. 선이 너무 적으면(연한 그림) 소벨 엣지로 보강.
+    const ink = new Uint8Array(dw * dh);
+    let inkCnt = 0;
+    for (let i = 0; i < dw * dh; i++) {
+      if (gray[i] < 150) { ink[i] = 1; inkCnt++; }
+    }
+    if (inkCnt < dw * dh * 0.004) {
+      for (let y = 1; y < dh - 1; y++) {
+        for (let x = 1; x < dw - 1; x++) {
+          const gx =
+            -gray[(y - 1) * dw + x - 1] - 2 * gray[y * dw + x - 1] - gray[(y + 1) * dw + x - 1] +
+             gray[(y - 1) * dw + x + 1] + 2 * gray[y * dw + x + 1] + gray[(y + 1) * dw + x + 1];
+          const gy =
+            -gray[(y - 1) * dw + x - 1] - 2 * gray[(y - 1) * dw + x] - gray[(y - 1) * dw + x + 1] +
+             gray[(y + 1) * dw + x - 1] + 2 * gray[(y + 1) * dw + x] + gray[(y + 1) * dw + x + 1];
+          if (Math.sqrt(gx * gx + gy * gy) > 80) ink[y * dw + x] = 1;
         }
       }
     }
-    for (let gy = 0; gy < dh; gy += cell) {
-      for (let gx = 0; gx < dw; gx += cell) {
-        const ck = Math.floor(gy / cell) * cols + Math.floor(gx / cell);
-        if (!seen.has(ck) && rnd() < 0.025) { seen.add(ck); raw.push({ x: gx + cell / 2, y: gy + cell / 2 }); }
-      }
+
+    // 3) 세선화 → 획 추출 (다운샘플 좌표)
+    const skel = thinSkeleton(ink, dw, dh);
+    const rawStrokes = traceStrokes(skel, dw, dh);
+
+    // 4) 표시 좌표 변환 + 스무딩 + 총 점 수 상한 (성능)
+    const sx = fit.drawW / dw, sy = fit.drawH / dh;
+    let polys = rawStrokes.map((line) =>
+      smoothLine(line.map((p) => ({ x: fit.offsetX + p.x * sx, y: fit.offsetY + p.y * sy })))
+    );
+    const totalPts = polys.reduce((n, l) => n + l.length, 0);
+    const MAXPTS = 2600;
+    if (totalPts > MAXPTS) {
+      const stride = Math.ceil(totalPts / MAXPTS);
+      polys = polys.map((line) => {
+        if (line.length <= 2) return line;
+        const out: Pt[] = [];
+        for (let i = 0; i < line.length; i += stride) out.push(line[i]);
+        if (out[out.length - 1] !== line[line.length - 1]) out.push(line[line.length - 1]);
+        return out;
+      });
     }
 
-    // 3) 표시 좌표 변환 + 성능 상한
-    let pts = raw.map((p) => ({
-      x: fit.offsetX + (p.x / dw) * fit.drawW,
-      y: fit.offsetY + (p.y / dh) * fit.drawH,
-    }));
-    const MAX = 1700;
-    if (pts.length > MAX) {
-      const step = pts.length / MAX;
-      const reduced: Pt[] = [];
-      for (let i = 0; i < pts.length; i += step) reduced.push(pts[Math.floor(i)]);
-      pts = reduced;
+    // 5) 획 → 객체 배정 (획 중간점의 소유자) + 객체 내 펜 이동 최소화 정렬
+    const buckets: Pt[][][] = objects.map(() => []);
+    for (const line of polys) {
+      const mid = line[Math.floor(line.length / 2)];
+      const owner = ownerOf(mid.x, mid.y);
+      if (owner >= 0) buckets[owner].push(line);
     }
+    const strokes = buckets.map((b) => orderStrokes(b));
+    const lens = strokes.map((b) => b.map(lineLen));
+    const totals = lens.map((b) => Math.max(b.reduce((a, x) => a + x, 0), 1));
 
-    // 4) 점 → 객체 배정: 포함하는 bbox 중 면적이 가장 작은(가장 구체적인) 객체.
-    //    아무 bbox에도 안 들어가면 가장 가까운 중심의 객체로 (전체 커버, 점은 정확히 1회).
-    const buckets: Pt[][] = objects.map(() => []);
-    for (const p of pts) {
-      let owner = -1, ownerArea = Infinity;
-      for (let i = 0; i < boxes.length; i++) {
-        const b = boxes[i];
-        if (p.x >= b.x1 && p.x <= b.x2 && p.y >= b.y1 && p.y <= b.y2 && b.area < ownerArea) {
-          owner = i; ownerArea = b.area;
-        }
-      }
-      if (owner < 0) {
-        let bestD = Infinity;
-        for (let i = 0; i < boxes.length; i++) {
-          const d = (boxes[i].cx - p.x) ** 2 + (boxes[i].cy - p.y) ** 2;
-          if (d < bestD) { bestD = d; owner = i; }
-        }
-      }
-      if (owner >= 0) buckets[owner].push(p);
-    }
-
-    // 5) 객체별 TSP + 스무딩 (그리는 순서 그대로)
-    const paths = objects.map((_, i) => orderAndSmooth(buckets[i]));
-
-    // 6) 픽셀 영역 분할: 이미지의 "모든" 픽셀(다운샘플 그리드)을 점과 같은 규칙으로
-    //    정확히 한 객체에 배정 → 객체별 영역 마스크. 영역 합집합 = 이미지 전체.
-    //    각 객체는 자기 시간창 안에서 자기 영역을 100% 완성 → 전역 채움 패스 불필요.
-    const RG = 3; // 영역 그리드 셀(px, 다운샘플 좌표) — 거칠어도 업스케일+blur로 부드러워짐
+    // 6) 픽셀 영역 분할 (채움 패스용 — 영역 합집합 = 이미지 전체)
+    const RG = 3;
     const rw = Math.ceil(dw / RG), rh = Math.ceil(dh / RG);
     const regionData = objects.map(() => new Uint8ClampedArray(rw * rh * 4));
     for (let ry = 0; ry < rh; ry++) {
       for (let rx = 0; rx < rw; rx++) {
-        // 셀 중심의 표시 좌표
         const px = fit.offsetX + ((rx + 0.5) * RG / dw) * fit.drawW;
         const py = fit.offsetY + ((ry + 0.5) * RG / dh) * fit.drawH;
-        let owner = -1, ownerArea = Infinity;
-        for (let i = 0; i < boxes.length; i++) {
-          const b = boxes[i];
-          if (px >= b.x1 && px <= b.x2 && py >= b.y1 && py <= b.y2 && b.area < ownerArea) {
-            owner = i; ownerArea = b.area;
-          }
-        }
-        if (owner < 0) {
-          let bestD = Infinity;
-          for (let i = 0; i < boxes.length; i++) {
-            const d = (boxes[i].cx - px) ** 2 + (boxes[i].cy - py) ** 2;
-            if (d < bestD) { bestD = d; owner = i; }
-          }
-        }
+        const owner = ownerOf(px, py);
         if (owner >= 0) {
           const o = (ry * rw + rx) * 4;
           regionData[owner][o] = 255; regionData[owner][o + 1] = 255;
@@ -255,10 +372,10 @@ function computeScenePaths(
       return cv;
     });
 
-    scenePathCache.set(key, { paths, regions });
-    items = objects.map((obj, i) => ({ obj, path: paths[i], region: regions[i] }));
+    sceneGeoCache.set(key, { strokes, lens, totals, regions });
+    items = objects.map((obj, i) => ({ obj, strokes: strokes[i], lens: lens[i], total: totals[i], region: regions[i] }));
   } catch {
-    // CORS tainted 등 → 전체 지그재그를 첫 객체에 폴백 (영역 없음 → bbox 채움 폴백)
+    // CORS tainted 등 → 지그재그 한 획을 첫 객체에 폴백
     const points: Pt[] = [];
     const rows = 10;
     for (let r = 0; r < rows; r++) {
@@ -266,10 +383,12 @@ function computeScenePaths(
       if (r % 2 === 0) { points.push({ x: fit.offsetX, y }); points.push({ x: fit.offsetX + fit.drawW, y }); }
       else { points.push({ x: fit.offsetX + fit.drawW, y }); points.push({ x: fit.offsetX, y }); }
     }
-    const fallbackPaths = objects.map((_, i) => i === 0 ? points : []);
-    const noRegions = objects.map(() => null);
-    scenePathCache.set(key, { paths: fallbackPaths, regions: noRegions });
-    items = objects.map((obj, i) => ({ obj, path: fallbackPaths[i], region: null }));
+    const strokes = objects.map((_, i) => (i === 0 ? [points] : []));
+    const lens = strokes.map((b) => b.map(lineLen));
+    const totals = lens.map((b) => Math.max(b.reduce((a, x) => a + x, 0), 1));
+    const regions = objects.map(() => null);
+    sceneGeoCache.set(key, { strokes, lens, totals, regions });
+    items = objects.map((obj, i) => ({ obj, strokes: strokes[i], lens: lens[i], total: totals[i], region: null }));
   }
 
   return items;
@@ -298,10 +417,11 @@ function drawHand(ctx: CanvasRenderingContext2D, pos: Pt, angle: number, tool: s
   ctx.restore();
 }
 
-/** 마스크에 경로 0..count 까지 붓 타입별로 흰색 스트로크 */
+/** 마스크에 경로 0..count 까지 붓 타입별로 흰색 스트로크.
+ *  fadeTip: 그리는 중인 획만 끝부분을 옅게 (완료된 획은 false로 또렷하게) */
 function strokePathOnMask(
   mctx: CanvasRenderingContext2D, path: Pt[], count: number, baseW: number, seed: number,
-  brushType: BrushType = "round"
+  brushType: BrushType = "round", fadeTip = true
 ) {
   if (count < 1 || path.length < 2) {
     if (path.length) { mctx.fillStyle = "#fff"; mctx.beginPath(); mctx.arc(path[0].x, path[0].y, baseW / 2, 0, Math.PI * 2); mctx.fill(); }
@@ -309,7 +429,7 @@ function strokePathOnMask(
   }
   const rnd = createSeededRandom(seed);
   const n = Math.min(count, path.length - 1);
-  const fade = 12;
+  const fade = fadeTip ? 12 : 0;
   mctx.strokeStyle = "#fff";
   mctx.fillStyle = "#fff";
 
@@ -480,8 +600,8 @@ export function renderSceneFrame(
       const sorted = [...objects].sort(
         (a, b) => (a.startAt ?? a.revealOrder ?? 0) - (b.startAt ?? b.revealOrder ?? 0)
       );
-      const items = computeScenePaths(image, sorted, fit, scene.sceneId ?? "s")
-        .filter((it) => it.path.length > 0);
+      const items = computeSceneGeo(image, sorted, fit, scene.sceneId ?? "s")
+        .filter((it) => it.strokes.length > 0);
 
       if (items.length === 0) {
         ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
@@ -518,22 +638,47 @@ export function renderSceneFrame(
             const prog = clamp01((tEff - it.s) / Math.max(it.e - it.s, 0.01));
             if (prog <= 0) continue;
             const eased = ease(prog);
-            const path = it.path;
 
-            // 붓 개수: 한 객체를 brushCount 갈래로 나눠 동시에 그림 (펜이 설정 개수만큼 보임 + 빨라짐)
-            const seg = Math.ceil(path.length / brushCount);
+            // 붓 개수: 획 목록을 누적 길이 기준 brushCount 그룹으로 나눠 동시 진행.
+            // 각 그룹 안에서는 획을 순서대로 — 한 획씩 선을 따라 슥슥 그려진다.
+            const per = it.total / brushCount;
+            let acc = 0;
+            const groups: { strokes: Pt[][]; lens: number[]; total: number }[] =
+              Array.from({ length: brushCount }, () => ({ strokes: [], lens: [], total: 0 }));
+            for (let si = 0; si < it.strokes.length; si++) {
+              const g = Math.min(brushCount - 1, Math.floor(acc / Math.max(per, 1e-6)));
+              groups[g].strokes.push(it.strokes[si]);
+              groups[g].lens.push(it.lens[si]);
+              groups[g].total += it.lens[si];
+              acc += it.lens[si];
+            }
+
             for (let c = 0; c < brushCount; c++) {
-              const s0 = c * seg;
-              if (s0 >= path.length) break;
-              const sub = path.slice(s0, Math.min(path.length, (c + 1) * seg + 1));
-              if (sub.length < 1) continue;
-              const cnt = Math.max(1, Math.floor(sub.length * eased));
-              strokePathOnMask(mctx, sub, cnt, baseW, hashSeed(it.obj.id + ":" + c), brushType);
-              if (prog < 1 && sub.length >= 2) {
-                const idx = Math.min(cnt, sub.length - 1);
-                const pos = sub[idx];
-                const prev = sub[Math.max(0, idx - 1)];
-                pens.push({ pos, angle: Math.atan2(pos.y - prev.y, pos.x - prev.x) });
+              const grp = groups[c];
+              if (grp.strokes.length === 0) continue;
+              const targetL = grp.total * eased;
+              let drawn = 0;
+              for (let si = 0; si < grp.strokes.length; si++) {
+                const line = grp.strokes[si];
+                const len = grp.lens[si];
+                const seed = hashSeed(it.obj.id + ":" + c + ":" + si);
+                if (drawn + len <= targetL) {
+                  // 이 획은 완료 — 전체를 또렷하게
+                  strokePathOnMask(mctx, line, line.length - 1, baseW, seed, brushType, false);
+                  drawn += len;
+                } else {
+                  // 현재 그리는 중인 획 — 부분 긋기 + 펜 위치
+                  const frac = clamp01((targetL - drawn) / Math.max(len, 1e-6));
+                  const cnt = Math.max(1, Math.floor((line.length - 1) * frac));
+                  strokePathOnMask(mctx, line, cnt, baseW, seed, brushType);
+                  if (prog < 1 && line.length >= 2) {
+                    const idx = Math.min(cnt, line.length - 1);
+                    const pos = line[idx];
+                    const prev = line[Math.max(0, idx - 1)];
+                    pens.push({ pos, angle: Math.atan2(pos.y - prev.y, pos.x - prev.x) });
+                  }
+                  break;
+                }
               }
             }
 
