@@ -8,18 +8,21 @@ const ref = () => adminDb().collection("settings").doc("global");
 export async function GET(req: NextRequest) {
   const me = await getAuthedUser(req);
   if (!me || !isAdmin(me.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  const snap = await ref().get();
-  return NextResponse.json({ billingEnabled: snap.exists ? snap.data()?.billingEnabled === true : false });
+  const d = (await ref().get()).data() ?? {};
+  return NextResponse.json({
+    billingEnabled: d.billingEnabled === true,
+    brushSize: d.brushSize ?? 1,
+  });
 }
 
 export async function POST(req: NextRequest) {
   const me = await getAuthedUser(req);
   if (!me || !isSuperAdmin(me.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const { billingEnabled } = await req.json();
-  await ref().set(
-    { billingEnabled: !!billingEnabled, updatedAt: FieldValue.serverTimestamp() },
-    { merge: true }
-  );
-  return NextResponse.json({ ok: true, billingEnabled: !!billingEnabled });
+  const body = await req.json();
+  const patch: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+  if (typeof body.billingEnabled === "boolean") patch.billingEnabled = body.billingEnabled;
+  if (typeof body.brushSize === "number") patch.brushSize = Math.min(3, Math.max(0.3, body.brushSize));
+  await ref().set(patch, { merge: true });
+  return NextResponse.json({ ok: true });
 }

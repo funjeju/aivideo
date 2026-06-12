@@ -10,10 +10,11 @@ interface PlannerInput {
   objects: RevealObject[];
   stylePack: StylePackDoc;
   aspect: "9:16" | "16:9" | "1:1";
+  brushSize?: number;
 }
 
 export function buildSceneSpec(input: PlannerInput): SceneSpec {
-  const { sceneId, order, narration, durationSec, audioUrl, imageUrl, objects, stylePack, aspect } = input;
+  const { sceneId, order, narration, durationSec, audioUrl, imageUrl, objects, stylePack, aspect, brushSize } = input;
   const defaults = stylePack.plannerDefaults;
 
   // Reveal Planner: revealOrder가 이미 지정돼 있으면(=LLM 의미 매칭) 그 순서, 없으면 role 순서
@@ -61,6 +62,6 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     image: { url: imageUrl, fit: "contain" },
     reveal: { objects: revealObjects },
     overlays: stylePack.overlays.map((o) => ({ ...o })),
-    hand: { enabled: true, asset: defaults.handTool },
+    hand: { enabled: true, asset: defaults.handTool, size: brushSize ?? 1 },
   };
 }

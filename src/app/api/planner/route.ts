@@ -34,6 +34,10 @@ export async function POST(req: NextRequest) {
 
     const aspect = (project.aspect ?? "9:16") as "9:16" | "16:9" | "1:1";
 
+    // 전역 붓 크기 설정 (어드민 시스템설정)
+    const settings = (await db.collection("settings").doc("global").get()).data() ?? {};
+    const brushSize = (settings.brushSize as number) ?? 1;
+
     const sceneSpec = buildSceneSpec({
       sceneId,
       order: scene.order,
@@ -44,6 +48,7 @@ export async function POST(req: NextRequest) {
       objects,
       stylePack,
       aspect,
+      brushSize,
     });
 
     await db.collection("projects").doc(projectId).collection("scenes").doc(sceneId).update({

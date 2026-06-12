@@ -6,7 +6,9 @@ import { useAuth } from "@/components/providers/AuthProvider";
 export default function AdminSettingsPage() {
   const { userDoc } = useAuth();
   const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null);
+  const [brushSize, setBrushSize] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [brushSaved, setBrushSaved] = useState(false);
   const isSuper = userDoc?.role === "superadmin";
 
   useEffect(() => {
@@ -16,22 +18,39 @@ export default function AdminSettingsPage() {
       const res = await fetch("/api/admin/settings", { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       setBillingEnabled(data.billingEnabled ?? false);
+      setBrushSize(data.brushSize ?? 1);
     })().catch(() => setBillingEnabled(false));
   }, []);
+
+  async function post(body: object) {
+    const { getIdToken } = await import("@/lib/clientAuth");
+    const token = await getIdToken();
+    return fetch("/api/admin/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+  }
 
   async function toggle() {
     if (!isSuper || billingEnabled === null) return;
     setSaving(true);
     try {
-      const { getIdToken } = await import("@/lib/clientAuth");
-      const token = await getIdToken();
       const next = !billingEnabled;
-      const res = await fetch("/api/admin/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ billingEnabled: next }),
-      });
+      const res = await post({ billingEnabled: next });
       if (res.ok) setBillingEnabled(next);
+      else alert("변경 실패");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveBrush() {
+    if (!isSuper) return;
+    setSaving(true);
+    try {
+      const res = await post({ brushSize });
+      if (res.ok) { setBrushSaved(true); setTimeout(() => setBrushSaved(false), 2000); }
       else alert("변경 실패");
     } finally {
       setSaving(false);
@@ -80,6 +99,34 @@ export default function AdminSettingsPage() {
         {!isSuper && (
           <p className="text-xs text-[var(--ink-faint)] mt-3">변경은 슈퍼관리자만 가능합니다.</p>
         )}
+      </div>
+
+      {/* 붓 설정 */}
+      <div className="bg-[var(--paper-raised)] border border-[var(--line)] rounded-[var(--radius)] p-5 max-w-xl mt-5">
+        <p className="font-medium text-[var(--ink)]">붓 크기</p>
+        <p className="text-sm text-[var(--ink-soft)] mt-1 mb-4">
+          드로잉 시 펜/붓의 굵기와 한 번에 칠하는 줄 높이. 클수록 굵고 빠르게, 작을수록 섬세하게 그립니다.
+          <br />
+          <span className="text-[var(--ink-faint)]">변경 후 영상을 다시 렌더링하면 반영됩니다.</span>
+        </p>
+        <div className="flex items-center gap-4">
+          <input
+            type="range" min={0.3} max={3} step={0.1}
+            value={brushSize}
+            onChange={(e) => setBrushSize(Number(e.target.value))}
+            disabled={!isSuper}
+            className="flex-1 accent-[var(--accent)]"
+          />
+          <span className="text-sm text-[var(--ink)] tabular-nums w-12 text-right">{brushSize.toFixed(1)}×</span>
+          <button
+            onClick={saveBrush}
+            disabled={!isSuper || saving}
+            className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm disabled:opacity-50"
+          >
+            저장
+          </button>
+        </div>
+        {brushSaved && <p className="text-xs text-green-600 mt-2">저장됨</p>}
       </div>
     </div>
   );
