@@ -157,6 +157,14 @@
 
 Phase 4 사실상 완료. 남은 건 결제 연동(수동 크레딧 지급은 가능), 부가 고도화(Phase 5).
 
+### Vercel 배포 디버깅 (2026-06-12 오후)
+- 사용자: INTERNAL_API_SECRET 추가 + Firestore 인덱스 2개 생성 완료
+- **배포본 전 서버 API 500의 근본 원인**: firebase-admin이 Next 기본 serverExternalPackages에 포함 → Vercel 런타임이 require()로 로드 → v14 ESM이라 ERR_REQUIRE_ESM
+  - 시도1 serverExternalPackages 제거(효과없음, 기본목록이라) → 시도2 Node 22 고정(require(esm)으로도 실패, TLA 추정) → **시도3 transpilePackages:["firebase-admin"] 강제 번들 = 성공**
+  - /api/health 임시 진단 엔드포인트로 규명 후 제거
+- 보이스 미리듣기: 302 redirect → 오디오 바이트 직접 반환으로 수정 (audio 태그 호환)
+- 배포본 검증: health FIRESTORE/STORAGE ok, voice-preview 200 audio/mpeg ✅
+
 ---
 
 ## 대화 기록
