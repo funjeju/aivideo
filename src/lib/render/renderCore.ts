@@ -385,14 +385,18 @@ export function renderSceneFrame(
               const bx2 = it.obj.bbox[2] * fit.bScaleX + fit.offsetX;
               const by2 = it.obj.bbox[3] * fit.bScaleY + fit.offsetY;
               const cx = (bx1 + bx2) / 2, cy = (by1 + by2) / 2;
-              const rx = (bx2 - bx1) / 2 + baseW, ry = (by2 - by1) / 2 + baseW;
+              // 반경을 넉넉히 키우고 페이드 구간을 길게 — 윤곽이 식별되지 않고 녹아들게
+              const rx = ((bx2 - bx1) / 2) * 1.35 + baseW * 2;
+              const ry = ((by2 - by1) / 2) * 1.35 + baseW * 2;
               mctx.save();
               mctx.globalAlpha = a;
               mctx.translate(cx, cy);
               mctx.scale(Math.max(rx, 1), Math.max(ry, 1));
               const g = mctx.createRadialGradient(0, 0, 0, 0, 0, 1);
               g.addColorStop(0, "rgba(255,255,255,1)");
-              g.addColorStop(0.72, "rgba(255,255,255,1)");
+              g.addColorStop(0.35, "rgba(255,255,255,0.95)");
+              g.addColorStop(0.6, "rgba(255,255,255,0.65)");
+              g.addColorStop(0.82, "rgba(255,255,255,0.25)");
               g.addColorStop(1, "rgba(255,255,255,0)");
               mctx.fillStyle = g;
               mctx.beginPath();
