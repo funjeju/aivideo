@@ -399,15 +399,22 @@ function computeSceneGeo(
   return items;
 }
 
-// ── 펜 ─────────────────────────────────────────────────────────
+// ── 펜/손 ───────────────────────────────────────────────────────
+// tool: "brush" | "marker" | "pen" | "hand-brush" | "hand-pen" | "hand-marker"
 function drawHand(ctx: CanvasRenderingContext2D, pos: Pt, angle: number, tool: string, scale: number) {
+  const isHand = tool.startsWith("hand-");
+  const base = isHand ? tool.slice(5) : tool;
+
   ctx.save();
   ctx.translate(pos.x, pos.y);
   ctx.rotate(angle + Math.PI / 2); // 진행 방향으로 펜을 눕힘
+
+  // 도구 몸체
   const len = 90 * scale;
   const grad = ctx.createLinearGradient(0, 0, 0, len);
-  if (tool === "brush") { grad.addColorStop(0, "#2A2A2E"); grad.addColorStop(1, "#8a5a2b"); }
-  else if (tool === "marker") { grad.addColorStop(0, "#1e1e22"); grad.addColorStop(1, "#444"); }
+  if (base === "brush") { grad.addColorStop(0, "#2A2A2E"); grad.addColorStop(1, "#8a5a2b"); }
+  else if (base === "marker") { grad.addColorStop(0, "#1e1e22"); grad.addColorStop(1, "#444"); }
+  else if (base === "pen") { grad.addColorStop(0, "#16233f"); grad.addColorStop(1, "#3b5bdb"); }
   else { grad.addColorStop(0, "#e8e0d0"); grad.addColorStop(1, "#cbbf9a"); }
   const bw = 6 * scale;
   ctx.fillStyle = grad;
@@ -415,10 +422,42 @@ function drawHand(ctx: CanvasRenderingContext2D, pos: Pt, angle: number, tool: s
   ctx.moveTo(-bw, 8 * scale); ctx.lineTo(bw, 8 * scale);
   ctx.lineTo(bw * 0.66, len); ctx.lineTo(-bw * 0.66, len);
   ctx.closePath(); ctx.fill();
+  // 촉
   ctx.fillStyle = "#2A2A2E";
   ctx.beginPath();
   ctx.moveTo(-3 * scale, 0); ctx.lineTo(3 * scale, 0); ctx.lineTo(0, 10 * scale);
   ctx.closePath(); ctx.fill();
+
+  // 손 (펜대를 감싸 쥔 주먹 — 스타일라이즈드)
+  if (isHand) {
+    const s = scale;
+    const skin = "#E9BC93";
+    const lineC = "rgba(120, 80, 50, 0.5)";
+    ctx.fillStyle = skin;
+    ctx.strokeStyle = lineC;
+    ctx.lineWidth = 1.5 * s;
+    // 손바닥/주먹 덩어리
+    ctx.beginPath();
+    ctx.ellipse(3 * s, 48 * s, 18 * s, 24 * s, -0.3, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    // 손가락 4개 — 펜대를 가로질러 감김
+    for (let f = 0; f < 4; f++) {
+      const fy = (30 + f * 9) * s;
+      ctx.beginPath();
+      ctx.ellipse(-7 * s, fy, 11.5 * s, 4.6 * s, -0.12, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+    // 엄지 — 반대편에서 펜대를 누름
+    ctx.beginPath();
+    ctx.ellipse(10 * s, 31 * s, 6 * s, 13 * s, 0.55, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    // 소매 힌트
+    ctx.fillStyle = "#7a8aa0";
+    ctx.beginPath();
+    ctx.ellipse(6 * s, 76 * s, 17 * s, 12 * s, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   ctx.restore();
 }
 

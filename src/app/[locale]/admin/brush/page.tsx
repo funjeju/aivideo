@@ -4,6 +4,14 @@ import { useRef, useState } from "react";
 import { SceneSpec, RevealObject, StylePackId, BrushType } from "@/lib/types";
 import BrushPlayer from "./BrushPlayer";
 
+const HAND_TOOLS: { id: string; name: string; desc: string }[] = [
+  { id: "brush",      name: "붓",     desc: "붓 단독" },
+  { id: "marker",     name: "마커",   desc: "마커 단독" },
+  { id: "pen",        name: "펜",     desc: "파란 펜 단독" },
+  { id: "hand-pen",   name: "손+펜",  desc: "손이 펜을 쥐고 그림" },
+  { id: "hand-brush", name: "손+붓",  desc: "손이 붓을 쥐고 그림" },
+];
+
 const BRUSH_TYPES: { id: BrushType; name: string; desc: string }[] = [
   { id: "round",   name: "둥근 붓",     desc: "부드럽고 일반적인 붓" },
   { id: "dry",     name: "드라이브러시", desc: "군데군데 끊기는 거친 질감" },
@@ -25,6 +33,7 @@ export default function BrushTestPage() {
   const [narration, setNarration] = useState("");
   const [stylePackId, setStylePackId] = useState<StylePackId>("ink-wash");
   const [brushType, setBrushType] = useState<BrushType>("round");
+  const [handAsset, setHandAsset] = useState("brush");
   const [brushSize, setBrushSize] = useState(1);
   const [brushCount, setBrushCount] = useState(1);
   const [brushSpeed, setBrushSpeed] = useState(1);
@@ -175,6 +184,26 @@ export default function BrushTestPage() {
           </div>
 
           <div>
+            <label className="text-sm font-medium text-[var(--ink)]">도구 모양</label>
+            <div className="grid grid-cols-5 gap-1 mt-1">
+              {HAND_TOOLS.map((t2) => (
+                <button
+                  key={t2.id}
+                  title={t2.desc}
+                  onClick={() => setHandAsset(t2.id)}
+                  className={`px-2 py-1.5 rounded text-xs border transition-colors ${
+                    handAsset === t2.id
+                      ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                      : "border-[var(--line)] text-[var(--ink)] hover:border-[var(--accent)]"
+                  }`}
+                >
+                  {t2.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
             <label className="text-sm font-medium text-[var(--ink)]">붓 종류</label>
             <div className="grid grid-cols-5 gap-1 mt-1">
               {BRUSH_TYPES.map((b) => (
@@ -273,6 +302,7 @@ export default function BrushTestPage() {
             showBrush={showBrush}
             audioUrl={audioUrl}
             brushType={brushType}
+            handAsset={handAsset}
           />
         </div>
       </div>

@@ -14,6 +14,7 @@ export default function BrushPlayer({
   showBrush,
   audioUrl,
   brushType,
+  handAsset,
 }: {
   scene: SceneSpec | null;
   image: HTMLImageElement | null;
@@ -24,6 +25,7 @@ export default function BrushPlayer({
   showBrush: boolean;
   audioUrl?: string;
   brushType?: BrushType;
+  handAsset?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
@@ -70,6 +72,7 @@ export default function BrushPlayer({
       hand: {
         ...(scene.hand ?? { enabled: true, asset: "brush" }),
         enabled: showBrush,
+        asset: handAsset ?? scene.hand?.asset ?? "brush",
         size: brushSize,
         count: brushCount,
         speed: brushSpeed,
@@ -113,7 +116,7 @@ export default function BrushPlayer({
       cancelAnimationFrame(rafRef.current);
       audioRef.current?.pause();
     };
-  }, [scene, image, playing, brushSize, brushCount, brushSpeed, showBrush, brushType, size]);
+  }, [scene, image, playing, brushSize, brushCount, brushSpeed, showBrush, brushType, handAsset, size]);
 
   return (
     <div className="bg-[var(--stage-bg)] rounded-[var(--radius)] p-4 flex items-center justify-center">
