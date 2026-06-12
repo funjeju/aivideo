@@ -1,8 +1,85 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
+import { ProjectDoc } from "@/lib/types";
+
+interface VideoRow extends ProjectDoc {
+  id: string;
+  outputUrl?: string;
+  costLog?: { imageCostUsd?: number; llmCostUsd?: number; ttsCostUsd?: number };
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: "초안", script_ready: "원고검토", approved: "생성대기",
+  generating: "생성중", rendering: "렌더중", done: "완성", error: "오류",
+};
+const STYLE_LABEL: Record<string, string> = {
+  whiteboard: "화이트보드", "ink-wash": "수묵담채", minhwa: "민화",
+};
+const LENGTH_LABEL: Record<number, string> = { 50: "50초", 180: "3분", 600: "10분" };
+
 export default function AdminVideosPage() {
+  const [rows, setRows] = useState<VideoRow[] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const snap = await getDocs(collection(db, "projects"));
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as VideoRow));
+      list.sort((a, b) => {
+        const at = (a.createdAt as { seconds?: number })?.seconds ?? 0;
+        const bt = (b.createdAt as { seconds?: number })?.seconds ?? 0;
+        return bt - at;
+      });
+      setRows(list);
+    })().catch((e) => { console.error(e); setRows([]); });
+  }, []);
+
   return (
     <div>
       <h1 className="text-2xl font-semibold text-[var(--ink)] mb-6">영상 관리</h1>
-      <p className="text-[var(--ink-soft)]">Phase 4에서 구현됩니다.</p>
+      {!rows ? (
+        <div className="h-40 rounded-[var(--radius)] bg-[var(--paper-sunken)] animate-pulse" />
+      ) : rows.length === 0 ? (
+        <p className="text-[var(--ink-soft)]">생성된 영상이 없습니다.</p>
+      ) : (
+        <div className="overflow-x-auto border border-[var(--line)] rounded-[var(--radius)]">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--line)] bg-[var(--paper-sunken)] text-left text-[var(--ink-soft)]">
+                <th className="px-4 py-3 font-medium">제목</th>
+                <th className="px-4 py-3 font-medium">화풍</th>
+                <th className="px-4 py-3 font-medium">길이</th>
+                <th className="px-4 py-3 font-medium">상태</th>
+                <th className="px-4 py-3 font-medium text-right">원가</th>
+                <th className="px-4 py-3 font-medium text-right">영상</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const cost = (r.costLog?.imageCostUsd ?? 0) + (r.costLog?.llmCostUsd ?? 0) + (r.costLog?.ttsCostUsd ?? 0);
+                return (
+                  <tr key={r.id} className="border-b border-[var(--line)] last:border-0">
+                    <td className="px-4 py-3 text-[var(--ink)] max-w-xs truncate">{r.title || "(제목 없음)"}</td>
+                    <td className="px-4 py-3 text-[var(--ink-soft)]">{STYLE_LABEL[r.stylePackId] ?? r.stylePackId}</td>
+                    <td className="px-4 py-3 text-[var(--ink-soft)]">{LENGTH_LABEL[r.targetLength] ?? "-"}</td>
+                    <td className="px-4 py-3 text-[var(--ink-soft)]">{STATUS_LABEL[r.status] ?? r.status}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-[var(--ink)]">${cost.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right">
+                      {r.outputUrl ? (
+                        <a href={r.outputUrl} target="_blank" rel="noreferrer" className="text-xs text-[var(--accent)] hover:underline">재생</a>
+                      ) : (
+                        <span className="text-xs text-[var(--ink-faint)]">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
