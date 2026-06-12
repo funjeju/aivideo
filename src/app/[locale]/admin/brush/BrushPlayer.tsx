@@ -1,22 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import { SceneSpec, BrushType } from "@/lib/types";
 import { renderSceneFrame, ASPECT_SIZES } from "@/lib/render/renderCore";
 
-export default function BrushPlayer({
-  scene,
-  image,
-  playing,
-  brushSize,
-  brushCount,
-  brushSpeed,
-  showBrush,
-  audioUrl,
-  brushType,
-  handAsset,
-  showBoxes,
-}: {
+export interface BrushPlayerHandle {
+  /** 재생을 처음부터 녹화해 webm(영상+나레이션)으로 다운로드 */
+  record(): Promise<void>;
+}
+
+const BrushPlayer = forwardRef<BrushPlayerHandle, {
   scene: SceneSpec | null;
   image: HTMLImageElement | null;
   playing: boolean;
@@ -28,7 +21,19 @@ export default function BrushPlayer({
   brushType?: BrushType;
   handAsset?: string;
   showBoxes?: boolean;
-}) {
+}>(function BrushPlayer({
+  scene,
+  image,
+  playing,
+  brushSize,
+  brushCount,
+  brushSpeed,
+  showBrush,
+  audioUrl,
+  brushType,
+  handAsset,
+  showBoxes,
+}, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const startRef = useRef<number>(0);
@@ -120,6 +125,64 @@ export default function BrushPlayer({
     };
   }, [scene, image, playing, brushSize, brushCount, brushSpeed, showBrush, brushType, handAsset, showBoxes, size]);
 
+  // 녹화: 캔버스 스트림 + 나레이션 오디오 → webm 다운로드
+  useImperativeHandle(ref, () => ({
+    async record() {
+      const canvas = canvasRef.current;
+      if (!canvas || !scene) return;
+
+      // 처음부터 재생 재시작 (메인 오디오는 멈추고 녹화 전용 오디오 사용 —
+      // createMediaElementSource는 엘리먼트당 1회 제한이라 매번 새로 만든다)
+      audioRef.current?.pause();
+      startRef.current = 0;
+
+      const canvasStream = canvas.captureStream(30);
+      let stream = canvasStream;
+      let ac: AudioContext | null = null;
+      let recAudio: HTMLAudioElement | null = null;
+
+      if (audioUrl) {
+        recAudio = new Audio(audioUrl);
+        ac = new AudioContext();
+        const src = ac.createMediaElementSource(recAudio);
+        const dest = ac.createMediaStreamDestination();
+        src.connect(dest);
+        src.connect(ac.destination); // 녹화 중에도 들리게
+        stream = new MediaStream([
+          ...canvasStream.getVideoTracks(),
+          ...dest.stream.getAudioTracks(),
+        ]);
+      }
+
+      const mime = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"]
+        .find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      const stopped = new Promise<void>((res) => { rec.onstop = () => res(); });
+
+      rec.start(250);
+      recAudio?.play().catch(() => {});
+
+      // 장면 길이 + 여유 0.8초 녹화
+      const durMs = ((scene.durationSec || 8) + 0.8) * 1000;
+      await new Promise((r) => setTimeout(r, durMs));
+
+      rec.stop();
+      await stopped;
+      recAudio?.pause();
+      ac?.close();
+
+      const blob = new Blob(chunks, { type: "video/webm" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `brush-test-${Date.now()}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+  }), [scene, audioUrl]);
+
   return (
     <div className="bg-[var(--stage-bg)] rounded-[var(--radius)] p-4 flex items-center justify-center">
       <canvas
@@ -131,4 +194,6 @@ export default function BrushPlayer({
       />
     </div>
   );
-}
+});
+
+export default BrushPlayer;

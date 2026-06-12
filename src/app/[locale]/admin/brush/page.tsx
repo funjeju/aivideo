@@ -2,7 +2,7 @@
 
 import { useRef, useState, useMemo } from "react";
 import { SceneSpec, RevealObject, StylePackId, BrushType } from "@/lib/types";
-import BrushPlayer from "./BrushPlayer";
+import BrushPlayer, { BrushPlayerHandle } from "./BrushPlayer";
 
 const HAND_TOOLS: { id: string; name: string; desc: string }[] = [
   { id: "brush",      name: "붓",     desc: "붓 단독" },
@@ -46,7 +46,21 @@ export default function BrushTestPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string>("");
   const [error, setError] = useState("");
+  const [recording, setRecording] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const playerRef = useRef<BrushPlayerHandle>(null);
+
+  async function downloadRecording() {
+    if (!scene || recording) return;
+    setRecording(true);
+    try {
+      setPlaying(true); // 재생 상태에서 캔버스가 갱신돼야 captureStream에 프레임이 들어옴
+      await new Promise((r) => setTimeout(r, 120));
+      await playerRef.current?.record();
+    } finally {
+      setRecording(false);
+    }
+  }
 
   // 위→아래 모드: 나레이션 anchor 무시, 객체를 화면 상단부터 순서대로 완성하며 내려감.
   // startAt 제거 → 렌더러가 균등 슬롯 폴백 사용 (전체 시간은 durationSec = 나레이션 길이 유지)
@@ -315,6 +329,16 @@ export default function BrushTestPage() {
                 {playing ? "⏸ 정지" : "▶ 재생"}
               </button>
             )}
+            {scene && (
+              <button
+                onClick={downloadRecording}
+                disabled={recording}
+                title="처음부터 재생하며 녹화해 webm(영상+나레이션)으로 저장"
+                className="px-5 py-2.5 rounded-[var(--radius)] border border-[var(--line)] text-sm font-medium disabled:opacity-50"
+              >
+                {recording ? "녹화 중..." : "⬇ 영상 다운로드"}
+              </button>
+            )}
           </div>
           {error && <p className="text-sm text-[var(--accent)]">{error}</p>}
 
@@ -342,6 +366,7 @@ export default function BrushTestPage() {
         {/* 우: 미리보기 */}
         <div>
           <BrushPlayer
+            ref={playerRef}
             scene={playScene}
             image={image}
             playing={playing}
