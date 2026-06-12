@@ -25,25 +25,41 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     return (roleOrder[a.role] ?? 5) - (roleOrder[b.role] ?? 5);
   });
 
-  // Sync Planner: 전체 객체를 durationSec의 앞 80% 안에 다 그리고, 마지막 20%는 완성본 유지.
-  // 줄 단위 스트로크라 객체별 시간을 bbox 높이(작업량)에 비례 배분.
-  const DRAW_WINDOW = durationSec * 0.8;
-  const weights = sorted.map((o) => Math.max(0.4, (o.bbox[3] - o.bbox[1]) / 1536));
-  const wSum = weights.reduce((s, w) => s + w, 0) || 1;
+  // Sync Planner: 나레이션-시각 시간 동기화.
+  // anchorText(나레이션 구절)가 발화되는 시점에 객체를 그리기 시작한다.
+  // 나레이션은 글자수에 비례해 균일 속도로 읽힌다고 보고, anchor 위치 비율 × durationSec = startAt.
+  const DRAW_WINDOW = durationSec * 0.85;
+  const narrLen = Math.max(narration.length, 1);
 
-  let cursor = 0;
-  const revealObjects: RevealObject[] = sorted.map((obj, i) => {
-    const span = (weights[i] / wSum) * DRAW_WINDOW;
-    const startAt = parseFloat(cursor.toFixed(2));
-    // 다음 객체와 살짝 겹치도록 endAt은 span의 1.15배 (단 DRAW_WINDOW 초과 금지)
-    const endAt = parseFloat(Math.min(cursor + span * 1.15, DRAW_WINDOW).toFixed(2));
-    cursor += span;
+  // 각 객체의 앵커 시각 계산 (anchorText를 나레이션에서 찾아 위치 비율)
+  type Timed = RevealObject & { _anchor: number };
+  const timed: Timed[] = sorted.map((obj, i) => {
+    let anchor: number;
+    const at = obj.anchorText?.trim();
+    const idx = at ? narration.indexOf(at) : -1;
+    if (idx >= 0) {
+      anchor = (idx / narrLen) * DRAW_WINDOW;
+    } else {
+      // 앵커 못 찾으면 순서 기반 균등 폴백
+      anchor = (i / Math.max(sorted.length, 1)) * DRAW_WINDOW;
+    }
+    return { ...obj, _anchor: anchor };
+  });
 
+  // 앵커 시각 순으로 정렬 (실제 발화 순서)
+  timed.sort((a, b) => a._anchor - b._anchor);
+
+  const revealObjects: RevealObject[] = timed.map((obj, i) => {
+    const { _anchor, ...rest } = obj;
+    const startAt = parseFloat(Math.min(_anchor, DRAW_WINDOW).toFixed(2));
+    // 그리기 종료 = 다음 객체 시작 시각(겹침 약간) 또는 DRAW_WINDOW
+    const nextStart = i + 1 < timed.length ? timed[i + 1]._anchor : DRAW_WINDOW;
+    const endAt = parseFloat(Math.min(Math.max(nextStart + 0.4, startAt + 0.6), durationSec).toFixed(2));
     return {
-      ...obj,
+      ...rest,
       revealOrder: i + 1,
-      strokeStyle: (obj.strokeStyle ?? defaults.strokeStyle) as RevealObject["strokeStyle"],
-      flowDirection: obj.flowDirection ?? defaults.flowDirection,
+      strokeStyle: (rest.strokeStyle ?? defaults.strokeStyle) as RevealObject["strokeStyle"],
+      flowDirection: rest.flowDirection ?? defaults.flowDirection,
       startAt,
       endAt,
     };

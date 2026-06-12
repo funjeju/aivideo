@@ -68,6 +68,8 @@ export interface RevealObject {
   startAt?: number;
   endAt?: number;
   caption?: string;
+  /** 이 객체가 대응하는 나레이션 구절 (시간 동기화 앵커) */
+  anchorText?: string;
 }
 
 export interface SceneSpec {
