@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
         {
           role: "user",
           content: [
-            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+            { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
             { type: "text", text: buildVisionPrompt(narration ?? "") },
           ],
         },

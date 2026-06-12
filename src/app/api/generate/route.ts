@@ -7,18 +7,22 @@ import { isBillingEnabled } from "@/lib/billing";
 // Vercel(Pro/fluid) 최대 실행 시간 — 이미지 N장 생성이 길어 기본 한도를 넘김
 export const maxDuration = 800;
 
-/** 내부 호출 + 타임아웃 (응답 없는 외부 API로 인한 영구 행 방지) */
-async function fetchWithTimeout(url: string, body: object, ms: number): Promise<Response | null> {
-  try {
-    return await fetch(url, {
-      method: "POST",
-      headers: internalHeaders(),
-      signal: AbortSignal.timeout(ms),
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return null; // 타임아웃/네트워크 실패
+/** 내부 호출 + 타임아웃 + 재시도 (응답 없는 외부 API로 인한 영구 행/누락 방지) */
+async function fetchWithTimeout(url: string, body: object, ms: number, retries = 1): Promise<Response | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: internalHeaders(),
+        signal: AbortSignal.timeout(ms),
+        body: JSON.stringify(body),
+      });
+      if (res.ok) return res;
+    } catch {
+      // 타임아웃/네트워크 — 재시도
+    }
   }
+  return null;
 }
 
 /**
@@ -65,8 +69,8 @@ export async function POST(req: NextRequest) {
     let imageCostUsd = 0;
     let imageRegenerations = 0;
 
-    // 병렬 처리 (최대 4개 동시)
-    const BATCH = 4;
+    // 병렬 처리 (동시 2개 — rate limit/타임아웃 안정성)
+    const BATCH = 2;
     for (let i = 0; i < scenes.length; i += BATCH) {
       const batch = scenes.slice(i, i + BATCH);
       await Promise.all(
@@ -102,9 +106,10 @@ export async function POST(req: NextRequest) {
             }
 
             if (imageUrl) {
-              // Step 5: Vision (의미 매칭, 최대 60초) → Step 6: Planner (최대 60초)
-              await fetchWithTimeout(`${origin}/api/vision`, { projectId, sceneId, imageUrl, narration: scene.narration }, 60000);
-              await fetchWithTimeout(`${origin}/api/planner`, { projectId, sceneId }, 60000);
+              // Step 5: Vision (의미 매칭, 최대 90초, 1회 재시도) → Step 6: Planner
+              const vRes = await fetchWithTimeout(`${origin}/api/vision`, { projectId, sceneId, imageUrl, narration: scene.narration }, 90000, 1);
+              if (!vRes) console.error(`vision failed for scene ${sceneId}`);
+              await fetchWithTimeout(`${origin}/api/planner`, { projectId, sceneId }, 60000, 1);
             }
           } catch (e) {
             console.error(`Scene ${scene.id} failed:`, e);
