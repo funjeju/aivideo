@@ -1,17 +1,18 @@
 /**
- * 렌더 코어 — 프레임워크 독립.
- * Canvas 2D 컨텍스트만 받아 한 프레임을 그린다.
- * 브라우저 프리뷰와 Cloud Run Worker(headless Chromium / node-canvas)가 공유.
+ * 렌더 코어 — 프레임워크 독립. 브라우저 프리뷰와 Cloud Run Worker(headless Chromium)가 공유.
  *
- * 결정적: 같은 SceneSpec + 같은 t → 항상 같은 픽셀.
+ * 드로잉 방식: "펜이 색칠"이 아니라 "가려진 원본을 펜 궤적으로 긁어내어 보여주기(Reveal)".
+ * - 이미지의 엣지(소벨)를 따라 한붓그리기 경로(TSP)를 만들고
+ * - 그 경로를 시간에 따라 펜이 따라가며 마스크에 흰 궤적을 누적
+ * - destination-in 합성으로 펜이 지나간 자리만 원본이 나타남
+ * - 가변 두께(sin) + 잉크 튐(dabs) + 펜 회전(atan2)으로 아날로그 느낌
+ *
+ * 결정적: 같은 SceneSpec + 같은 t → 같은 픽셀 (랜덤은 seeded).
  */
 import { SceneSpec, RevealObject } from "@/lib/types";
 import { createSeededRandom, hashSeed } from "./seededRandom";
 
-export interface CanvasSize {
-  width: number;
-  height: number;
-}
+export interface CanvasSize { width: number; height: number }
 
 export const ASPECT_SIZES: Record<string, CanvasSize> = {
   "9:16": { width: 1080, height: 1920 },
@@ -19,196 +20,228 @@ export const ASPECT_SIZES: Record<string, CanvasSize> = {
   "1:1": { width: 1080, height: 1080 },
 };
 
-const PAPER_COLORS: Record<string, string> = {
-  white: "#FFFFFF",
-  "paper-hanji": "#FAF8F4",
-};
-
-// Scene Spec bbox 기준 이미지 좌표계 (GPT Image 2 출력 기준)
+const PAPER_COLORS: Record<string, string> = { white: "#FFFFFF", "paper-hanji": "#FAF8F4" };
 const SRC_IMG_W = 1024;
 const SRC_IMG_H = 1536;
 
 type ImageSource = CanvasImageSource & { width: number; height: number };
 
 interface RenderOptions {
-  /** 손 애니메이션 표시 여부 (프리뷰에서 끌 수 있음) */
   showHand?: boolean;
-  /** 붓 크기 배수 (기본 1). scene.hand.size가 우선. */
   brushSize?: number;
 }
 
-/** easeInOutCubic */
 function ease(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
+function clamp01(x: number): number { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
-function clamp01(x: number): number {
-  return x < 0 ? 0 : x > 1 ? 1 : x;
-}
-
-/** 이미지를 contain 배치했을 때의 변환 파라미터 */
 function computeFit(canvas: CanvasSize, img?: ImageSource) {
   const iw = img?.width ?? SRC_IMG_W;
   const ih = img?.height ?? SRC_IMG_H;
   const scale = Math.min(canvas.width / iw, canvas.height / ih);
-  const drawW = iw * scale;
-  const drawH = ih * scale;
+  const drawW = iw * scale, drawH = ih * scale;
   return {
-    scale,
+    scale, drawW, drawH,
     offsetX: (canvas.width - drawW) / 2,
     offsetY: (canvas.height - drawH) / 2,
-    drawW,
-    drawH,
-    // bbox(원본 1024x1536) → 표시 좌표 변환 비율
     bScaleX: drawW / SRC_IMG_W,
     bScaleY: drawH / SRC_IMG_H,
   };
 }
 
-interface ObjBox { x1: number; y1: number; w: number; h: number }
-
-function objBox(obj: RevealObject, fit: ReturnType<typeof computeFit>): ObjBox {
-  const x1 = obj.bbox[0] * fit.bScaleX + fit.offsetX;
-  const y1 = obj.bbox[1] * fit.bScaleY + fit.offsetY;
-  const x2 = obj.bbox[2] * fit.bScaleX + fit.offsetX;
-  const y2 = obj.bbox[3] * fit.bScaleY + fit.offsetY;
-  return { x1, y1, w: x2 - x1, h: y2 - y1 };
+// ── 오프스크린 스크래치 캔버스 (성능) ──────────────────────────────
+type Cv = { c: HTMLCanvasElement | null };
+const _mask: Cv = { c: null };
+const _masked: Cv = { c: null };
+const _tmp: Cv = { c: null };
+function scratch(ref: Cv, w: number, h: number): HTMLCanvasElement {
+  if (!ref.c) ref.c = document.createElement("canvas");
+  if (ref.c.width !== w) ref.c.width = w;
+  if (ref.c.height !== h) ref.c.height = h;
+  return ref.c;
 }
 
-/**
- * 손글씨식 스트로크 리빌.
- * bbox를 수평 밴드로 나눠 위→아래로 한 줄씩 긋되, 각 줄은 좌우 교대(부메랑)로 칠한다.
- * 펜이 실제로 줄을 그어 내려가는 궤적을 만든다 (단순 한 방향 마스크 아님).
- * @returns 공개된 사각 영역들 + 현재 펜 끝점
- */
-function strokeReveal(
-  obj: RevealObject,
-  progress: number,
-  fit: ReturnType<typeof computeFit>,
-  bandH: number
-): { rects: [number, number, number, number][]; pen: { x: number; y: number } | null } {
-  if (progress <= 0) return { rects: [], pen: null };
-  const { x1, y1, w, h } = objBox(obj, fit);
-  const p = clamp01(progress);
+// ── 경로 생성 (엣지 디텍션 + TSP + 스무딩), 객체별 캐시 ────────────
+interface Pt { x: number; y: number }
+const pathCache = new Map<string, Pt[]>();
 
-  const numBands = Math.max(1, Math.round(h / bandH));
-  const realBandH = h / numBands;
-  const totalProg = p * numBands;            // 0..numBands
-  const fullBands = Math.floor(totalProg);   // 완전히 칠해진 줄 수
-  const frac = totalProg - fullBands;        // 현재 줄 진행도 0..1
+function computeDrawPath(image: ImageSource, obj: RevealObject, fit: ReturnType<typeof computeFit>): Pt[] {
+  const key = `${obj.id}|${obj.bbox.join(",")}|${Math.round(fit.drawW)}x${Math.round(fit.drawH)}`;
+  const hit = pathCache.get(key);
+  if (hit) return hit;
 
-  // 줄마다 손그림식 미세 불규칙 (결정적). 시작 위치·길이·높이를 살짝 흔든다.
-  const jit = (b: number, k: number) => (createSeededRandom(hashSeed(`${obj.id}:${b}:${k}`))() - 0.5);
-  const overshoot = realBandH * 0.9; // 줄을 조금 두껍게 겹쳐 빈틈 제거 + 붓 번짐 느낌
+  // 표시 좌표계 bbox
+  const dispX = obj.bbox[0] * fit.bScaleX + fit.offsetX;
+  const dispY = obj.bbox[1] * fit.bScaleY + fit.offsetY;
+  const dispW = (obj.bbox[2] - obj.bbox[0]) * fit.bScaleX;
+  const dispH = (obj.bbox[3] - obj.bbox[1]) * fit.bScaleY;
 
-  const rects: [number, number, number, number][] = [];
-  // 완성된 줄
-  for (let b = 0; b < fullBands && b < numBands; b++) {
-    const dx = jit(b, 0) * realBandH * 0.5;
-    const dw = jit(b, 1) * realBandH * 0.7;
-    const dy = jit(b, 2) * realBandH * 0.25;
-    rects.push([x1 + dx, y1 + b * realBandH + dy, w + Math.abs(dw) + 2, realBandH + overshoot]);
-  }
+  // 원본 이미지 픽셀 좌표계 bbox
+  const ax = (obj.bbox[0] / SRC_IMG_W) * image.width;
+  const ay = (obj.bbox[1] / SRC_IMG_H) * image.height;
+  const aw = ((obj.bbox[2] - obj.bbox[0]) / SRC_IMG_W) * image.width;
+  const ah = ((obj.bbox[3] - obj.bbox[1]) / SRC_IMG_H) * image.height;
 
-  let pen: { x: number; y: number } | null = null;
-  if (fullBands < numBands && frac > 0) {
-    const b = fullBands;
-    const dy = jit(b, 2) * realBandH * 0.25;
-    const yTop = y1 + b * realBandH + dy;
-    const ltr = b % 2 === 0; // 짝수 줄 좌→우, 홀수 줄 우→좌
-    const cw = w * frac;
-    if (ltr) {
-      rects.push([x1, yTop, cw, realBandH + overshoot]);
-      pen = { x: x1 + cw, y: yTop + realBandH / 2 };
-    } else {
-      rects.push([x1 + w - cw, yTop, cw, realBandH + overshoot]);
-      pen = { x: x1 + w - cw, y: yTop + realBandH / 2 };
+  // 다운샘플 (긴 변 ~160px)
+  const DS = 160;
+  const s = Math.min(DS / Math.max(aw, 1), DS / Math.max(ah, 1), 1);
+  const dw = Math.max(8, Math.round(aw * s));
+  const dh = Math.max(8, Math.round(ah * s));
+
+  const rnd = createSeededRandom(hashSeed(key));
+  let points: Pt[] = [];
+
+  try {
+    const tmp = scratch(_tmp, dw, dh);
+    const tctx = tmp.getContext("2d", { willReadFrequently: true })!;
+    tctx.clearRect(0, 0, dw, dh);
+    tctx.drawImage(image, ax, ay, aw, ah, 0, 0, dw, dh);
+    const { data } = tctx.getImageData(0, 0, dw, dh);
+
+    // 그레이스케일
+    const gray = new Float32Array(dw * dh);
+    for (let i = 0; i < dw * dh; i++) {
+      gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
     }
-  } else if (fullBands >= numBands) {
-    pen = null; // 완성
-  } else {
-    pen = { x: x1, y: y1 };
+
+    // 소벨 엣지
+    const edges: Pt[] = [];
+    for (let y = 1; y < dh - 1; y++) {
+      for (let x = 1; x < dw - 1; x++) {
+        const gx =
+          -gray[(y - 1) * dw + x - 1] - 2 * gray[y * dw + x - 1] - gray[(y + 1) * dw + x - 1] +
+           gray[(y - 1) * dw + x + 1] + 2 * gray[y * dw + x + 1] + gray[(y + 1) * dw + x + 1];
+        const gy =
+          -gray[(y - 1) * dw + x - 1] - 2 * gray[(y - 1) * dw + x] - gray[(y - 1) * dw + x + 1] +
+           gray[(y + 1) * dw + x - 1] + 2 * gray[(y + 1) * dw + x] + gray[(y + 1) * dw + x + 1];
+        const mag = Math.sqrt(gx * gx + gy * gy);
+        if (mag > 90) edges.push({ x, y });
+      }
+    }
+
+    // 엣지가 너무 적으면(빈 그림) 그리드 점으로 보강
+    if (edges.length < 6) {
+      for (let y = 2; y < dh; y += 5) for (let x = 2; x < dw; x += 5) edges.push({ x, y });
+    }
+
+    // 노이즈 5% (여백도 칠해 빵꾸 방지)
+    const noiseN = Math.floor(edges.length * 0.05) + 4;
+    for (let i = 0; i < noiseN; i++) edges.push({ x: rnd() * dw, y: rnd() * dh });
+
+    // 너무 많으면 솎아내기 (성능)
+    const MAX = 360;
+    let pts = edges;
+    if (pts.length > MAX) {
+      const step = pts.length / MAX;
+      const reduced: Pt[] = [];
+      for (let i = 0; i < pts.length; i += step) reduced.push(pts[Math.floor(i)]);
+      pts = reduced;
+    }
+
+    // TSP 최근접 이웃 (좌상단 시작)
+    const ordered: Pt[] = [];
+    const used = new Array(pts.length).fill(false);
+    let cur = 0;
+    // 시작점: 가장 위(작은 y)
+    for (let i = 1; i < pts.length; i++) if (pts[i].y < pts[cur].y) cur = i;
+    used[cur] = true; ordered.push(pts[cur]);
+    for (let k = 1; k < pts.length; k++) {
+      let best = -1, bestD = Infinity;
+      const p = pts[cur];
+      for (let i = 0; i < pts.length; i++) {
+        if (used[i]) continue;
+        const d = (pts[i].x - p.x) ** 2 + (pts[i].y - p.y) ** 2;
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      if (best < 0) break;
+      used[best] = true; ordered.push(pts[best]); cur = best;
+    }
+
+    // 다운샘플 → 표시 좌표
+    const scaled = ordered.map((p) => ({ x: dispX + (p.x / dw) * dispW, y: dispY + (p.y / dh) * dispH }));
+
+    // 이동 평균 스무딩
+    const sm: Pt[] = [];
+    const W = 2;
+    for (let i = 0; i < scaled.length; i++) {
+      let sx = 0, sy = 0, n = 0;
+      for (let j = Math.max(0, i - W); j <= Math.min(scaled.length - 1, i + W); j++) { sx += scaled[j].x; sy += scaled[j].y; n++; }
+      sm.push({ x: sx / n, y: sy / n });
+    }
+    points = sm;
+  } catch {
+    // CORS tainted 등 → bbox 내 지그재그 폴백
+    const rows = 8;
+    for (let r = 0; r < rows; r++) {
+      const y = dispY + (dispH * r) / (rows - 1);
+      if (r % 2 === 0) { points.push({ x: dispX, y }); points.push({ x: dispX + dispW, y }); }
+      else { points.push({ x: dispX + dispW, y }); points.push({ x: dispX, y }); }
+    }
   }
 
-  return { rects, pen };
+  pathCache.set(key, points);
+  return points;
 }
 
-/** 현재 그려지고 있는(활성) 객체의 펜 끝점 */
-function handPosition(
-  objects: RevealObject[],
-  t: number,
-  fit: ReturnType<typeof computeFit>,
-  bandH: number
-): { x: number; y: number } | null {
-  const active = objects
-    .filter((o) => (o.startAt ?? 0) <= t && t < (o.endAt ?? 0))
-    .sort((a, b) => (b.startAt ?? 0) - (a.startAt ?? 0))[0];
-  if (!active) return null;
-  const start = active.startAt ?? 0;
-  const end = active.endAt ?? start + 1;
-  const progress = clamp01((t - start) / Math.max(end - start, 0.01));
-  return strokeReveal(active, progress, fit, bandH).pen;
-}
-
-function drawHand(
-  ctx: CanvasRenderingContext2D,
-  pos: { x: number; y: number },
-  tool: string,
-  scale: number
-) {
+// ── 펜 ─────────────────────────────────────────────────────────
+function drawHand(ctx: CanvasRenderingContext2D, pos: Pt, angle: number, tool: string, scale: number) {
   ctx.save();
-  // 끝점에 잉크 자국
-  ctx.fillStyle = "rgba(42,42,46,0.5)";
-  ctx.beginPath();
-  ctx.arc(pos.x, pos.y, 3 * scale, 0, Math.PI * 2);
-  ctx.fill();
-
   ctx.translate(pos.x, pos.y);
-  ctx.rotate(-Math.PI / 4);
-
-  // 도구 몸통
+  ctx.rotate(angle + Math.PI / 2); // 진행 방향으로 펜을 눕힘
   const len = 90 * scale;
   const grad = ctx.createLinearGradient(0, 0, 0, len);
-  if (tool === "brush") {
-    grad.addColorStop(0, "#2A2A2E");
-    grad.addColorStop(1, "#8a5a2b");
-  } else if (tool === "marker") {
-    grad.addColorStop(0, "#1e1e22");
-    grad.addColorStop(1, "#444");
-  } else {
-    grad.addColorStop(0, "#e8e0d0");
-    grad.addColorStop(1, "#cbbf9a");
-  }
+  if (tool === "brush") { grad.addColorStop(0, "#2A2A2E"); grad.addColorStop(1, "#8a5a2b"); }
+  else if (tool === "marker") { grad.addColorStop(0, "#1e1e22"); grad.addColorStop(1, "#444"); }
+  else { grad.addColorStop(0, "#e8e0d0"); grad.addColorStop(1, "#cbbf9a"); }
   const bw = 6 * scale;
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.moveTo(-bw, 8 * scale);
-  ctx.lineTo(bw, 8 * scale);
-  ctx.lineTo(bw * 0.66, len);
-  ctx.lineTo(-bw * 0.66, len);
-  ctx.closePath();
-  ctx.fill();
-
-  // 펜촉
+  ctx.moveTo(-bw, 8 * scale); ctx.lineTo(bw, 8 * scale);
+  ctx.lineTo(bw * 0.66, len); ctx.lineTo(-bw * 0.66, len);
+  ctx.closePath(); ctx.fill();
   ctx.fillStyle = "#2A2A2E";
   ctx.beginPath();
-  ctx.moveTo(-3 * scale, 0);
-  ctx.lineTo(3 * scale, 0);
-  ctx.lineTo(0, 10 * scale);
-  ctx.closePath();
-  ctx.fill();
-
+  ctx.moveTo(-3 * scale, 0); ctx.lineTo(3 * scale, 0); ctx.lineTo(0, 10 * scale);
+  ctx.closePath(); ctx.fill();
   ctx.restore();
 }
 
-/**
- * 한 장면의 시각 t(초) 프레임을 그린다.
- * @param ctx Canvas 2D 컨텍스트
- * @param scene SceneSpec
- * @param image 로드된 이미지 (없으면 종이 배경만)
- * @param t 장면 내 로컬 시간(초)
- * @param canvasSize 출력 캔버스 크기
- */
+/** 마스크에 경로 0..count 까지 가변 두께 + 잉크 튐으로 긋기 (흰색) */
+function strokePathOnMask(
+  mctx: CanvasRenderingContext2D, path: Pt[], count: number, baseW: number, seed: number
+) {
+  if (count < 1 || path.length < 2) {
+    if (path.length) { mctx.fillStyle = "#fff"; mctx.beginPath(); mctx.arc(path[0].x, path[0].y, baseW / 2, 0, Math.PI * 2); mctx.fill(); }
+    return;
+  }
+  const rnd = createSeededRandom(seed);
+  mctx.strokeStyle = "#fff";
+  mctx.fillStyle = "#fff";
+  mctx.lineCap = "round";
+  mctx.lineJoin = "round";
+  const n = Math.min(count, path.length - 1);
+  for (let i = 1; i <= n; i++) {
+    const p0 = path[i - 1], p1 = path[i];
+    // 동적 두께 (사인 압력 시뮬레이션)
+    const w = baseW * (0.75 + 0.45 * (0.5 + 0.5 * Math.sin(i * 0.35)));
+    mctx.lineWidth = w;
+    mctx.beginPath();
+    mctx.moveTo(p0.x, p0.y);
+    mctx.lineTo(p1.x, p1.y);
+    mctx.stroke();
+    // 잉크 튐 (dabs)
+    if (rnd() < 0.5) {
+      const r = baseW * (0.2 + rnd() * 0.45);
+      mctx.globalAlpha = 0.5 + rnd() * 0.5;
+      mctx.beginPath();
+      mctx.arc(p1.x + (rnd() - 0.5) * baseW, p1.y + (rnd() - 0.5) * baseW, r, 0, Math.PI * 2);
+      mctx.fill();
+      mctx.globalAlpha = 1;
+    }
+  }
+}
+
 export function renderSceneFrame(
   ctx: CanvasRenderingContext2D,
   scene: SceneSpec,
@@ -220,13 +253,11 @@ export function renderSceneFrame(
   const { width, height } = canvasSize;
   const paper = PAPER_COLORS[scene.canvas?.background] ?? "#FAF8F4";
 
-  // 배경 (종이)
   ctx.save();
   ctx.fillStyle = paper;
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
 
-  // 카메라 변환 (줌/패닝 키프레임 선형 보간)
   const cam = interpolateCamera(scene.camera, t);
   ctx.save();
   ctx.translate(width / 2, height / 2);
@@ -236,66 +267,68 @@ export function renderSceneFrame(
   const fit = computeFit(canvasSize, image);
 
   if (image) {
-    const objects = scene.reveal?.objects ?? [];
-    // 붓 크기 (어드민/스타일 설정). 1=기본. 밴드 높이·펜 크기에 반영.
+    const objects = (scene.reveal?.objects ?? []).filter((o) => o.bbox);
     const brushSize = scene.hand?.size ?? opts.brushSize ?? 1;
-    const bandH = Math.max(18, 46 * brushSize) * (canvasSize.height / 1920);
+    const baseW = Math.max(10, 42 * brushSize) * (height / 1920);
 
-    // 모든 reveal이 끝나는 시각. 이후엔 완성본 전체를 보여준다 (끝까지 다 그린 뒤 유지).
     const maxEnd = objects.length
       ? Math.max(...objects.map((o) => o.endAt ?? 0))
       : Math.max(scene.durationSec * 0.85, 0.5);
 
-    if (t >= maxEnd || objects.length === 0) {
-      // reveal 완료(또는 객체 없음) → 전체 이미지. 객체가 없으면 좌→우 점진.
-      if (objects.length === 0 && t < maxEnd) {
-        const w = fit.drawW * ease(clamp01(t / maxEnd));
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(fit.offsetX, fit.offsetY, w, fit.drawH);
-        ctx.clip();
-        ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
-        ctx.restore();
-      } else {
-        ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
-      }
+    if (objects.length === 0) {
+      // 객체 없음 → 좌→우 점진 (폴백)
+      const w = fit.drawW * ease(clamp01(t / maxEnd));
+      ctx.save(); ctx.beginPath(); ctx.rect(fit.offsetX, fit.offsetY, w, fit.drawH); ctx.clip();
+      ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH); ctx.restore();
+    } else if (t >= maxEnd) {
+      ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH); // 완성본
     } else {
-      // 스트로크 공개: 사각형이 아니라 둥근 붓 자국(캡슐)으로 칠해나감 → 사각 경계 제거
-      ctx.save();
-      ctx.beginPath();
-      let any = false;
+      // 마스킹 reveal
+      const mask = scratch(_mask, width, height);
+      const mctx = mask.getContext("2d")!;
+      mctx.clearRect(0, 0, width, height);
+
+      let penPos: Pt | null = null;
+      let penAngle = 0;
       for (const obj of objects) {
         const start = obj.startAt ?? 0;
         const end = obj.endAt ?? start + 1;
-        const progress = clamp01((t - start) / Math.max(end - start, 0.01));
-        const { rects } = strokeReveal(obj, progress, fit, bandH);
-        for (const r of rects) {
-          // 캡슐(양끝 둥근) = 붓이 지나간 자국. 반경은 줄 높이 절반.
-          const radius = Math.min(r[2], r[3]) / 2;
-          ctx.roundRect(r[0], r[1], r[2], r[3], radius);
-          any = true;
+        const prog = clamp01((t - start) / Math.max(end - start, 0.01));
+        if (prog <= 0) continue;
+        const path = computeDrawPath(image, obj, fit);
+        const eased = ease(prog);
+        const count = Math.max(1, Math.floor(path.length * eased));
+        strokePathOnMask(mctx, path, count, baseW, hashSeed(obj.id));
+        // 현재 활성 객체의 펜 위치/각도
+        if (prog < 1 && count >= 1 && path.length >= 2) {
+          const idx = Math.min(count, path.length - 1);
+          penPos = path[idx];
+          const prev = path[Math.max(0, idx - 1)];
+          penAngle = Math.atan2(penPos.y - prev.y, penPos.x - prev.x);
         }
       }
-      if (any) {
-        ctx.clip();
-        ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
-      }
-      ctx.restore();
 
-      // 펜 애니메이션
-      if (opts.showHand !== false && scene.hand?.enabled) {
-        const pos = handPosition(objects, t, fit, bandH);
-        if (pos) drawHand(ctx, pos, scene.hand.asset, Math.max(0.6, brushSize) * (canvasSize.height / 1920) * 1.2);
+      // masked = 원본 ∩ 마스크 (destination-in)
+      const masked = scratch(_masked, width, height);
+      const xctx = masked.getContext("2d")!;
+      xctx.clearRect(0, 0, width, height);
+      xctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
+      xctx.globalCompositeOperation = "destination-in";
+      xctx.drawImage(mask, 0, 0);
+      xctx.globalCompositeOperation = "source-over";
+
+      ctx.drawImage(masked, 0, 0);
+
+      if (opts.showHand !== false && scene.hand?.enabled && penPos) {
+        drawHand(ctx, penPos, penAngle, scene.hand.asset, Math.max(0.6, brushSize) * (height / 1920) * 1.2);
       }
     }
   }
 
   ctx.restore();
 
-  // 오버레이 (한지 텍스처 opacity 등은 에셋 로드가 필요하므로 색 틴트로 근사)
   for (const ov of scene.overlays ?? []) {
     if (ov.type === "texture" && ov.opacity) {
-      // 에셋 미로드 시 미세한 웜 틴트로 통일감만 부여 (결정적)
       ctx.save();
       ctx.globalAlpha = ov.opacity * 0.4;
       ctx.fillStyle = "#d9cdb0";
@@ -306,24 +339,12 @@ export function renderSceneFrame(
   }
 }
 
-function interpolateCamera(
-  camera: SceneSpec["camera"],
-  t: number
-): { scale: number; x: number; y: number } {
+function interpolateCamera(camera: SceneSpec["camera"], t: number): { scale: number; x: number; y: number } {
   if (!camera || camera.length === 0) return { scale: 1, x: 0, y: 0 };
-  if (camera.length === 1) {
-    const k = camera[0];
-    return { scale: k.scale, x: k.x, y: k.y };
-  }
-  // t를 포함하는 구간 찾기
-  let prev = camera[0];
-  let next = camera[camera.length - 1];
+  if (camera.length === 1) { const k = camera[0]; return { scale: k.scale, x: k.x, y: k.y }; }
+  let prev = camera[0], next = camera[camera.length - 1];
   for (let i = 0; i < camera.length - 1; i++) {
-    if (t >= camera[i].at && t <= camera[i + 1].at) {
-      prev = camera[i];
-      next = camera[i + 1];
-      break;
-    }
+    if (t >= camera[i].at && t <= camera[i + 1].at) { prev = camera[i]; next = camera[i + 1]; break; }
   }
   const span = next.at - prev.at;
   const p = span <= 0 ? 0 : ease(clamp01((t - prev.at) / span));
@@ -334,14 +355,7 @@ function interpolateCamera(
   };
 }
 
-/**
- * 여러 장면의 타임라인. globalT(초) → 어느 장면의 localT인지.
- */
-export interface TimelineEntry {
-  scene: SceneSpec;
-  startTime: number;
-  endTime: number;
-}
+export interface TimelineEntry { scene: SceneSpec; startTime: number; endTime: number }
 
 export function buildTimeline(scenes: SceneSpec[]): TimelineEntry[] {
   const entries: TimelineEntry[] = [];
@@ -358,16 +372,12 @@ export function totalDuration(scenes: SceneSpec[]): number {
   return scenes.reduce((sum, s) => sum + (s.durationSec || 1), 0);
 }
 
-export function findSceneAt(
-  timeline: TimelineEntry[],
-  globalT: number
-): { entry: TimelineEntry; localT: number } | null {
+export function findSceneAt(timeline: TimelineEntry[], globalT: number): { entry: TimelineEntry; localT: number } | null {
   for (const entry of timeline) {
     if (globalT >= entry.startTime && globalT < entry.endTime) {
       return { entry, localT: globalT - entry.startTime };
     }
   }
-  // 끝을 넘으면 마지막 장면 끝 프레임
   if (timeline.length > 0 && globalT >= timeline[timeline.length - 1].endTime) {
     const last = timeline[timeline.length - 1];
     return { entry: last, localT: last.endTime - last.startTime };
@@ -375,5 +385,4 @@ export function findSceneAt(
   return null;
 }
 
-// seed 유틸 재노출 (Worker에서 결정적 효과에 사용)
 export { createSeededRandom, hashSeed };
