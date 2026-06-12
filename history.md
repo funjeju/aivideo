@@ -149,7 +149,13 @@
 
 **⚠️ Vercel 환경변수 추가 필요: `INTERNAL_API_SECRET`** (랜덤 문자열 아무거나). 없으면 배포본에서 승인→생성, 사후편집의 내부 호출이 401로 깨짐.
 
-**남은 것:** 보이스 관리/시스템설정 어드민(데이터 시딩 필요), 크레딧 차감(과금), 멀티비율, 부분재렌더 최적화(현재 전체 재렌더).
+**Phase 4 후속 (전부 완료):**
+- 과금 시스템: settings/global.billingEnabled 토글 + users.billingExempt + 승인 게이트(402) + 완료 후 실비 차감. naggu1999 면제. 토글 OFF 기본(전원 무료).
+- 멀티 비율: ProjectDoc.aspect(9:16/16:9/1:1), create UI, imageSizeForAspect, planner/images 반영
+- 보이스 관리: voices 6종 시딩, 어드민 관리(노출/티어/미리듣기), create가 voices 컬렉션 사용
+- **부분 재렌더 최적화**: 세그먼트 캐시. 장면 해시 비교 → 변경분만 재렌더 + concat. 검증 28s→1.5s(19배).
+
+Phase 4 사실상 완료. 남은 건 결제 연동(수동 크레딧 지급은 가능), 부가 고도화(Phase 5).
 
 ---
 
