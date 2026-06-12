@@ -53,7 +53,8 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
 
   const revealObjects: RevealObject[] = timed.map((obj, i) => {
     const { _anchor, ...rest } = obj;
-    const startAt = parseFloat(Math.min(_anchor, DRAW_WINDOW).toFixed(2));
+    // 첫 객체는 나레이션 시작과 동시에 붓이 출발 (anchor가 늦어도 0초 시작)
+    const startAt = i === 0 ? 0 : parseFloat(Math.min(_anchor, DRAW_WINDOW).toFixed(2));
     // 그리기 종료 = 다음 객체 시작 시각(겹침 약간) 또는 DRAW_WINDOW
     const nextStart = i + 1 < timed.length ? timed[i + 1]._anchor : DRAW_WINDOW;
     const endAt = parseFloat(Math.min(Math.max(nextStart + 0.4, startAt + 0.6), durationSec).toFixed(2));

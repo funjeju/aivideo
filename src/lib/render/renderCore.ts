@@ -198,19 +198,23 @@ function lineLen(pts: Pt[]): number {
   return L;
 }
 
-/** 펜 이동 최소화 획 정렬: 좌상단 획부터, 가까운 끝점을 잇고 필요시 획 반전 */
-function orderStrokes(strokes: Pt[][]): Pt[][] {
-  if (strokes.length <= 1) return strokes;
+/** 펜 이동 최소화 획 정렬: anchor(객체 좌상단)에서 가장 가까운 끝점부터, 가까운 끝점을 잇고 필요시 획 반전 */
+function orderStrokes(strokes: Pt[][], anchor: Pt): Pt[][] {
+  if (strokes.length === 0) return strokes;
   const remaining = strokes.slice();
   const ordered: Pt[][] = [];
-  // 시작: 시작점이 가장 좌상단인 획
-  let bi = 0, bv = Infinity;
+  // 시작: 양 끝점 중 anchor(객체 bbox 좌상단)에 가장 가까운 획. 끝점이 더 가까우면 반전.
+  let bi = 0, bv = Infinity, brev = false;
   for (let i = 0; i < remaining.length; i++) {
-    const p = remaining[i][0];
-    const v = p.y * 2 + p.x;
-    if (v < bv) { bv = v; bi = i; }
+    const s = remaining[i];
+    const h = s[0], tl = s[s.length - 1];
+    const d0 = (h.x - anchor.x) ** 2 + (h.y - anchor.y) ** 2;
+    const d1 = (tl.x - anchor.x) ** 2 + (tl.y - anchor.y) ** 2;
+    if (d0 < bv) { bv = d0; bi = i; brev = false; }
+    if (d1 < bv) { bv = d1; bi = i; brev = true; }
   }
   let cur = remaining.splice(bi, 1)[0];
+  if (brev) cur = cur.slice().reverse();
   ordered.push(cur);
   while (remaining.length) {
     const pen = cur[cur.length - 1];
@@ -345,7 +349,8 @@ function computeSceneGeo(
       const owner = ownerOf(mid.x, mid.y);
       if (owner >= 0) buckets[owner].push(line);
     }
-    const strokes = buckets.map((b) => orderStrokes(b));
+    // 객체 bbox 좌상단을 anchor로 — 첫 붓이 그 객체의 좌상단에서 시작 (중앙 진입 방지)
+    const strokes = buckets.map((b, i) => orderStrokes(b, { x: boxes[i].x1, y: boxes[i].y1 }));
     const lens = strokes.map((b) => b.map(lineLen));
     const totals = lens.map((b) => Math.max(b.reduce((a, x) => a + x, 0), 1));
 
