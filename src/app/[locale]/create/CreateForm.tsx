@@ -133,10 +133,13 @@ export default function CreateForm() {
   }
 
   function previewVoice(v: { id: string }) {
-    if (audioRef.current) {
-      audioRef.current.src = `/api/voice-preview?voiceId=${v.id}`;
-      audioRef.current.play().catch(() => {});
-    }
+    const audio = audioRef.current;
+    if (!audio) return;
+    // src만 바꾸면 이전 소스가 이어 재생되는 브라우저가 있어 명시적으로 정지→교체→로드
+    audio.pause();
+    audio.src = `/api/voice-preview?voiceId=${v.id}&t=${Date.now()}`;
+    audio.load();
+    audio.play().catch(() => {});
   }
 
   return (

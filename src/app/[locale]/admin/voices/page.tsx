@@ -39,10 +39,12 @@ export default function AdminVoicesPage() {
   }
 
   function preview(id: string) {
-    if (audioRef.current) {
-      audioRef.current.src = `/api/voice-preview?voiceId=${id}`;
-      audioRef.current.play().catch(() => {});
-    }
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.src = `/api/voice-preview?voiceId=${id}&t=${Date.now()}`;
+    audio.load();
+    audio.play().catch(() => {});
   }
 
   return (
