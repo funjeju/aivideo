@@ -27,24 +27,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        const ref = doc(db, "users", firebaseUser.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          setUserDoc(snap.data() as UserDoc);
-        } else {
-          // 최초 로그인 — users 문서 생성 (Phase 0 데이터 모델)
-          const newDoc = {
-            email: firebaseUser.email ?? "",
-            displayName: firebaseUser.displayName ?? "",
-            plan: "free",
-            credits: 0,
-            role: "user" as const,
-            uiLocale: "ko" as const,
-            themePref: "light" as const,
-            createdAt: serverTimestamp(),
-          };
-          await setDoc(ref, newDoc, { merge: true });
-          setUserDoc(newDoc as unknown as UserDoc);
+        try {
+          const ref = doc(db, "users", firebaseUser.uid);
+          const snap = await getDoc(ref);
+          if (snap.exists()) {
+            setUserDoc(snap.data() as UserDoc);
+          } else {
+            // 최초 로그인 — users 문서 생성 (Phase 0 데이터 모델)
+            const newDoc = {
+              email: firebaseUser.email ?? "",
+              displayName: firebaseUser.displayName ?? "",
+              plan: "free",
+              credits: 0,
+              role: "user" as const,
+              uiLocale: "ko" as const,
+              themePref: "light" as const,
+              createdAt: serverTimestamp(),
+            };
+            await setDoc(ref, newDoc, { merge: true });
+            setUserDoc(newDoc as unknown as UserDoc);
+          }
+        } catch (e) {
+          // 보안 규칙 미적용 등으로 users 접근 실패해도 앱이 멈추지 않게 (로딩바 무한 회전 방지)
+          console.error("user doc load failed:", e);
+          setUserDoc(null);
         }
       } else {
         setUserDoc(null);

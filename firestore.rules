@@ -1,0 +1,65 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 로그인 여부 / 본인 여부 헬퍼
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    // staff/superadmin 여부 — 본인 users 문서의 role로 판단
+    function isStaff() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['staff', 'superadmin'];
+    }
+
+    // 회원: 본인 문서만. role/credits/plan은 클라이언트가 못 바꾸게 막음(서버 SDK로만).
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isStaff();
+      allow create: if isOwner(userId)
+        && request.resource.data.role == 'user'
+        && request.resource.data.credits == 0;
+      allow update: if isOwner(userId)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.credits == resource.data.credits
+        && request.resource.data.plan == resource.data.plan;
+      allow delete: if false;
+    }
+
+    // 프로젝트: 소유자만. 생성 시 ownerId는 본인이어야.
+    match /projects/{projectId} {
+      allow read: if isOwner(resource.data.ownerId) || isStaff();
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.ownerId);
+
+      // 장면 서브컬렉션: 부모 프로젝트 소유자만
+      match /scenes/{sceneId} {
+        function parentOwner() {
+          return get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId;
+        }
+        allow read: if isOwner(parentOwner()) || isStaff();
+        allow write: if isOwner(parentOwner());
+      }
+    }
+
+    // 렌더 작업: 소유자만 읽기. 쓰기는 서버(Worker, admin SDK)만 → 클라이언트 차단.
+    match /renderJobs/{jobId} {
+      allow read: if isOwner(resource.data.ownerId) || isStaff();
+      allow write: if false;
+    }
+
+    // Style Pack / 보이스: 로그인 사용자 읽기 공개. 쓰기는 admin SDK/콘솔만.
+    match /stylePacks/{packId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /voices/{voiceId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
