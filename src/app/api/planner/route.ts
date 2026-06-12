@@ -4,12 +4,19 @@ import { getStylePack } from "@/lib/style-packs";
 import { buildSceneSpec } from "@/lib/pipeline/planner";
 import { RevealObject } from "@/lib/types";
 import { FieldValue } from "firebase-admin/firestore";
+import { authorizeRequest, ownsProject } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await authorizeRequest(req);
+    if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
     const { projectId, sceneId } = await req.json();
     if (!projectId || !sceneId) {
       return NextResponse.json({ error: "projectId, sceneId required" }, { status: 400 });
+    }
+    if (!(await ownsProject(auth, projectId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     const db = adminDb();

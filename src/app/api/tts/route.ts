@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { authorizeRequest, ownsProject } from "@/lib/auth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -10,10 +11,16 @@ type OpenAIVoice = typeof OPENAI_VOICES[number];
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await authorizeRequest(req);
+    if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
     const { projectId, sceneId, narration, voiceId } = await req.json();
 
     if (!projectId || !sceneId || !narration) {
       return NextResponse.json({ error: "projectId, sceneId, narration required" }, { status: 400 });
+    }
+    if (!(await ownsProject(auth, projectId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     const voice: OpenAIVoice = OPENAI_VOICES.includes(voiceId as OpenAIVoice)

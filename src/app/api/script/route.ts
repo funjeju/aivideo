@@ -4,16 +4,24 @@ import { adminDb } from "@/lib/firebase/admin";
 import { buildScriptPrompt } from "@/lib/llm/prompts";
 import { ProjectMode, TargetLength } from "@/lib/types";
 import { FieldValue } from "firebase-admin/firestore";
+import { authorizeRequest, ownsProject } from "@/lib/auth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await authorizeRequest(req);
+    if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
     const { projectId, mode, topic, sourceText, targetLength, contentLocale } =
       await req.json();
 
     if (!projectId) {
       return NextResponse.json({ error: "projectId required" }, { status: 400 });
+    }
+
+    if (!(await ownsProject(auth, projectId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     const prompt = buildScriptPrompt({

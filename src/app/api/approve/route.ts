@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { authorizeRequest, ownsProject, internalHeaders } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await authorizeRequest(req);
+    if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
     const { projectId } = await req.json();
     if (!projectId) {
       return NextResponse.json({ error: "projectId required" }, { status: 400 });
+    }
+    if (!(await ownsProject(auth, projectId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     await adminDb()
@@ -18,11 +25,11 @@ export async function POST(req: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-    // 이미지 생성 파이프라인 비동기 트리거 (응답을 기다리지 않음)
+    // 이미지 생성 파이프라인 비동기 트리거 (내부 시크릿으로 인증)
     const origin = req.nextUrl.origin;
     fetch(`${origin}/api/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: internalHeaders(),
       body: JSON.stringify({ projectId }),
     }).catch(console.error);
 

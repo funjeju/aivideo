@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { authorizeRequest } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await authorizeRequest(req);
+    if (!auth || !auth.uid) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+    // ownerId는 클라이언트 값이 아니라 검증된 토큰의 uid를 사용
+    const ownerId = auth.uid;
+
     const formData = await req.formData();
-    const ownerId = formData.get("ownerId") as string;
     const mode = formData.get("mode") as string;
     const topic = formData.get("topic") as string | null;
     const targetLength = Number(formData.get("targetLength") ?? 180);
@@ -14,8 +21,8 @@ export async function POST(req: NextRequest) {
     const contentLocale = formData.get("contentLocale") as string ?? "ko";
     const file = formData.get("file") as File | null;
 
-    if (!ownerId || !mode) {
-      return NextResponse.json({ error: "ownerId, mode required" }, { status: 400 });
+    if (!mode) {
+      return NextResponse.json({ error: "mode required" }, { status: 400 });
     }
 
     let sourceText = "";

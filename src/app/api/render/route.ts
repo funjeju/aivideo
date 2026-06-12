@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { authorizeRequest, ownsProject } from "@/lib/auth";
 
 /**
  * 렌더 작업 등록. renderJobs 문서를 만들고 Worker를 트리거한다.
@@ -8,9 +9,15 @@ import { FieldValue } from "firebase-admin/firestore";
  */
 export async function POST(req: NextRequest) {
   try {
+    const auth = await authorizeRequest(req);
+    if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
     const { projectId } = await req.json();
     if (!projectId) {
       return NextResponse.json({ error: "projectId required" }, { status: 400 });
+    }
+    if (!(await ownsProject(auth, projectId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     const db = adminDb();

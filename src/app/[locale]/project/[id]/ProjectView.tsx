@@ -68,9 +68,11 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   async function handleRender() {
     setRendering(true);
     try {
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
       await fetch("/api/render", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ projectId }),
       });
       setDirty(false);
@@ -84,6 +86,10 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   async function handleApprove() {
     setApproving(true);
     try {
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
+      const authHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
       // 수정된 나레이션 저장
       for (const [sceneId, narration] of Object.entries(editedNarrations)) {
         await updateDoc(doc(db, "projects", projectId, "scenes", sceneId), { narration });
@@ -100,7 +106,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
         targetScenes.map(async (scene) => {
           await fetch("/api/tts", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: authHeaders,
             body: JSON.stringify({
               projectId,
               sceneId: scene.id,
@@ -116,7 +122,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
       // 승인
       await fetch("/api/approve", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders,
         body: JSON.stringify({ projectId }),
       });
     } catch (e) {

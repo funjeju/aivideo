@@ -67,14 +67,21 @@ export default function CreateForm() {
       if (mode === "generate") formData.append("topic", topic);
       if (mode === "faithful" && file) formData.append("file", file);
 
-      const projRes = await fetch("/api/projects", { method: "POST", body: formData });
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
+
+      const projRes = await fetch("/api/projects", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
       const { projectId, error: projErr } = await projRes.json();
       if (projErr) throw new Error(projErr);
 
       // 2. 원고 생성
       const scriptRes = await fetch("/api/script", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ projectId, mode, topic, targetLength, contentLocale: "ko" }),
       });
       const { error: scriptErr } = await scriptRes.json();

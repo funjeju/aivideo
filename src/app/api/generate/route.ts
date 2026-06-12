@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { authorizeRequest, ownsProject, internalHeaders } from "@/lib/auth";
 
 /**
  * 승인 후 이미지→Vision→Planner 파이프라인 오케스트레이션.
  * 각 장면을 병렬로 처리하고 progress를 Firestore에 기록.
  */
 export async function POST(req: NextRequest) {
+  const auth = await authorizeRequest(req);
+  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
   const { projectId } = await req.json();
   if (!projectId) {
     return NextResponse.json({ error: "projectId required" }, { status: 400 });
+  }
+  if (!(await ownsProject(auth, projectId))) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const origin = req.nextUrl.origin;
@@ -50,7 +57,7 @@ export async function POST(req: NextRequest) {
             // Step 4: 이미지 생성
             const imgRes = await fetch(`${origin}/api/images`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: internalHeaders(),
               body: JSON.stringify({
                 projectId,
                 sceneId: scene.id,
@@ -76,14 +83,14 @@ export async function POST(req: NextRequest) {
               // Step 5: Vision 분석
               await fetch(`${origin}/api/vision`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: internalHeaders(),
                 body: JSON.stringify({ projectId, sceneId: scene.id, imageUrl }),
               });
 
               // Step 6: Planner
               await fetch(`${origin}/api/planner`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: internalHeaders(),
                 body: JSON.stringify({ projectId, sceneId: scene.id }),
               });
             }

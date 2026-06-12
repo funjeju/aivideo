@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { getStylePack } from "@/lib/style-packs";
 import { FieldValue } from "firebase-admin/firestore";
+import { authorizeRequest, ownsProject } from "@/lib/auth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const MAX_RETRIES = 2;
@@ -12,6 +13,9 @@ export async function POST(req: NextRequest) {
   let projectId = "";
   let sceneId = "";
   try {
+    const auth = await authorizeRequest(req);
+    if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
     const body = await req.json();
     projectId = body.projectId;
     sceneId = body.sceneId;
@@ -19,6 +23,9 @@ export async function POST(req: NextRequest) {
 
     if (!projectId || !sceneId || !visualIntent) {
       return NextResponse.json({ error: "projectId, sceneId, visualIntent required" }, { status: 400 });
+    }
+    if (!(await ownsProject(auth, projectId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     const pack = getStylePack(stylePackId ?? "whiteboard");

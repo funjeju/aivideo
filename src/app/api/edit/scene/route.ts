@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { authorizeRequest, ownsProject, internalHeaders } from "@/lib/auth";
 
 /**
  * 장면 단위 사후 편집.
@@ -11,9 +12,15 @@ import { FieldValue } from "firebase-admin/firestore";
  */
 export async function POST(req: NextRequest) {
   try {
+    const auth = await authorizeRequest(req);
+    if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
     const { projectId, sceneId, action, narration, visualIntent } = await req.json();
     if (!projectId || !sceneId || !action) {
       return NextResponse.json({ error: "projectId, sceneId, action required" }, { status: 400 });
+    }
+    if (!(await ownsProject(auth, projectId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     const origin = req.nextUrl.origin;
@@ -30,14 +37,14 @@ export async function POST(req: NextRequest) {
       // 2. TTS 재합성 (durationSec 갱신)
       const ttsRes = await fetch(`${origin}/api/tts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: internalHeaders(),
         body: JSON.stringify({ projectId, sceneId, narration, voiceId: project.voiceId ?? "nova" }),
       });
       if (!ttsRes.ok) return NextResponse.json({ error: "tts failed" }, { status: 500 });
       // 3. Planner 재실행 (durationSec 변경 → startAt/endAt 재계산)
       await fetch(`${origin}/api/planner`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: internalHeaders(),
         body: JSON.stringify({ projectId, sceneId }),
       });
       return NextResponse.json({ ok: true });
@@ -53,7 +60,7 @@ export async function POST(req: NextRequest) {
       // 1. 이미지 재생성
       const imgRes = await fetch(`${origin}/api/images`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: internalHeaders(),
         body: JSON.stringify({ projectId, sceneId, visualIntent: intent, stylePackId: project.stylePackId }),
       });
       if (!imgRes.ok) return NextResponse.json({ error: "image failed" }, { status: 500 });
@@ -62,12 +69,12 @@ export async function POST(req: NextRequest) {
       if (imageUrl) {
         await fetch(`${origin}/api/vision`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders(),
           body: JSON.stringify({ projectId, sceneId, imageUrl }),
         });
         await fetch(`${origin}/api/planner`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders(),
           body: JSON.stringify({ projectId, sceneId }),
         });
       }

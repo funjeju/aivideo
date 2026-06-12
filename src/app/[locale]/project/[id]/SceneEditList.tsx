@@ -35,9 +35,11 @@ function SceneEditCard({
     setBusy(action === "update-text" ? "text" : "image");
     setDone("");
     try {
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
       const res = await fetch("/api/edit/scene", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           projectId,
           sceneId: scene.id,
