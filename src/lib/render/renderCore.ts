@@ -122,18 +122,34 @@ function computeDrawPath(image: ImageSource, obj: RevealObject, fit: ReturnType<
       }
     }
 
-    // 엣지가 너무 적으면(빈 그림) 그리드 점으로 보강
-    if (edges.length < 6) {
-      for (let y = 2; y < dh; y += 5) for (let x = 2; x < dw; x += 5) edges.push({ x, y });
+    // 그리드 셀당 점 1개로 양자화 — 같은 곳을 뭉쳐 칠하는 중복 제거
+    const cell = 3; // 다운샘플 px 단위 셀
+    const cols = Math.ceil(dw / cell);
+    const seen = new Set<number>();
+    let pts: Pt[] = [];
+    for (const p of edges) {
+      const key = Math.floor(p.y / cell) * cols + Math.floor(p.x / cell);
+      if (!seen.has(key)) { seen.add(key); pts.push(p); }
     }
 
-    // 노이즈 5% (여백도 칠해 빵꾸 방지)
-    const noiseN = Math.floor(edges.length * 0.05) + 4;
-    for (let i = 0; i < noiseN; i++) edges.push({ x: rnd() * dw, y: rnd() * dh });
+    // 빈 셀(아직 안 칠해질 여백)에만 노이즈 — 고르게 채우기
+    for (let gy = 0; gy < dh; gy += cell) {
+      for (let gx = 0; gx < dw; gx += cell) {
+        const key = Math.floor(gy / cell) * cols + Math.floor(gx / cell);
+        if (!seen.has(key) && rnd() < 0.06) {
+          seen.add(key);
+          pts.push({ x: gx + cell / 2, y: gy + cell / 2 });
+        }
+      }
+    }
+
+    // 점이 너무 적으면(빈 그림) 균등 그리드 보강
+    if (pts.length < 6) {
+      for (let y = 2; y < dh; y += 5) for (let x = 2; x < dw; x += 5) pts.push({ x, y });
+    }
 
     // 너무 많으면 솎아내기 (성능)
-    const MAX = 360;
-    let pts = edges;
+    const MAX = 420;
     if (pts.length > MAX) {
       const step = pts.length / MAX;
       const reduced: Pt[] = [];
