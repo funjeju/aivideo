@@ -1,0 +1,154 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { SceneSpec, RevealObject, StylePackId } from "@/lib/types";
+import BrushPlayer from "./BrushPlayer";
+
+const STYLES: { id: StylePackId; name: string }[] = [
+  { id: "whiteboard", name: "화이트보드" },
+  { id: "ink-wash", name: "수묵담채" },
+  { id: "minhwa", name: "민화" },
+];
+
+export default function BrushTestPage() {
+  const [imageBase64, setImageBase64] = useState<string>("");
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [narration, setNarration] = useState("");
+  const [stylePackId, setStylePackId] = useState<StylePackId>("ink-wash");
+  const [brushSize, setBrushSize] = useState(1);
+  const [scene, setScene] = useState<SceneSpec | null>(null);
+  const [objects, setObjects] = useState<RevealObject[]>([]);
+  const [playing, setPlaying] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function onFile(f: File | null) {
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setImageBase64(dataUrl);
+      const img = new Image();
+      img.onload = () => setImage(img);
+      img.src = dataUrl;
+      setScene(null);
+      setObjects([]);
+    };
+    reader.readAsDataURL(f);
+  }
+
+  async function analyze() {
+    if (!imageBase64) { setError("이미지를 업로드하세요"); return; }
+    setError("");
+    setAnalyzing(true);
+    setPlaying(false);
+    try {
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
+      const res = await fetch("/api/admin/brush-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "분석 실패"); return; }
+      setScene({ ...data.sceneSpec, image: { url: "local", fit: "contain" } });
+      setObjects(data.objects ?? []);
+      setPlaying(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "오류");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold text-[var(--ink)] mb-2">붓 테스트</h1>
+      <p className="text-sm text-[var(--ink-soft)] mb-6">
+        이미지를 올리고 나레이션을 입력하면, AI가 의미를 분석(OCR/Vision)해 그 순서대로 붓이 그려나가는 걸 미리 봅니다.
+        영상 생성 없이 이미지 1장으로 즉시 테스트합니다.
+      </p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 좌: 입력 */}
+        <div className="flex flex-col gap-4">
+          <div
+            onClick={() => fileRef.current?.click()}
+            className="border-2 border-dashed border-[var(--line)] rounded-[var(--radius)] p-6 text-center cursor-pointer hover:border-[var(--accent)]"
+          >
+            {imageBase64 ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageBase64} alt="업로드" className="max-h-48 mx-auto rounded" />
+            ) : (
+              <p className="text-sm text-[var(--ink-soft)]">이미지 클릭/드롭하여 업로드</p>
+            )}
+            <input ref={fileRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-[var(--ink)]">나레이션 (의미 매칭용)</label>
+            <textarea
+              value={narration}
+              onChange={(e) => setNarration(e.target.value)}
+              rows={3}
+              placeholder="예: 사과를 하나 먹으면 만족스럽지만, 두 번째는 덜하죠."
+              className="w-full mt-1 p-2 rounded border border-[var(--line)] bg-[var(--paper-sunken)] text-sm text-[var(--ink)]"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-[var(--ink)]">화풍</label>
+            <select value={stylePackId} onChange={(e) => setStylePackId(e.target.value as StylePackId)}
+              className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--paper-sunken)] text-sm">
+              {STYLES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-[var(--ink)] w-16">붓 크기</label>
+            <input type="range" min={0.3} max={3} step={0.1} value={brushSize}
+              onChange={(e) => setBrushSize(Number(e.target.value))}
+              className="flex-1 accent-[var(--accent)]" />
+            <span className="text-sm tabular-nums w-10 text-right">{brushSize.toFixed(1)}×</span>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={analyze} disabled={analyzing}
+              className="px-5 py-2.5 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium disabled:opacity-50">
+              {analyzing ? "분석 중..." : "분석하고 재생"}
+            </button>
+            {scene && (
+              <button onClick={() => setPlaying((p) => !p)}
+                className="px-5 py-2.5 rounded-[var(--radius)] border border-[var(--line)] text-sm">
+                {playing ? "정지" : "다시 재생"}
+              </button>
+            )}
+          </div>
+          {error && <p className="text-sm text-[var(--accent)]">{error}</p>}
+
+          {objects.length > 0 && (
+            <div className="text-xs text-[var(--ink-soft)] border border-[var(--line)] rounded p-3">
+              <p className="font-medium mb-1 text-[var(--ink)]">분석 결과 (그리는 순서)</p>
+              {objects
+                .slice()
+                .sort((a, b) => (a.revealOrder ?? 99) - (b.revealOrder ?? 99))
+                .map((o) => (
+                  <div key={o.id}>
+                    {o.revealOrder}. [{o.role}] {o.anchorText ? `"${o.anchorText}"` : "(앵커 없음)"}
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+
+        {/* 우: 미리보기 */}
+        <div>
+          <BrushPlayer scene={scene} image={image} playing={playing} brushSize={brushSize} />
+        </div>
+      </div>
+    </div>
+  );
+}

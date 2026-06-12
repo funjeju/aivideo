@@ -54,6 +54,7 @@ function AdminNav({ locale, t }: { locale: string; t: ReturnType<typeof useTrans
     { href: `/${locale}/admin/templates`, label: t("templates") },
     { href: `/${locale}/admin/videos`, label: t("videos") },
     { href: `/${locale}/admin/voices`, label: t("voices") },
+    { href: `/${locale}/admin/brush`, label: "붓 테스트" },
     { href: `/${locale}/admin/billing`, label: t("billing") },
     { href: `/${locale}/admin/settings`, label: t("settings") },
   ];
