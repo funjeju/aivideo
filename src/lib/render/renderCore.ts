@@ -132,8 +132,8 @@ function computeScenePaths(
   let items: SceneItem[];
 
   try {
-    // 1) 전체 이미지 다운샘플 (긴 변 ~300px)
-    const DS = 300;
+    // 1) 전체 이미지 다운샘플 (긴 변 ~460px — 선 디테일 추적용 고해상)
+    const DS = 460;
     const s = Math.min(DS / image.width, DS / image.height, 1);
     const dw = Math.max(16, Math.round(image.width * s));
     const dh = Math.max(16, Math.round(image.height * s));
@@ -149,7 +149,7 @@ function computeScenePaths(
     }
 
     // 2) 소벨 엣지 + 그리드 양자화(셀당 1점) + 빈 셀 노이즈
-    const cell = 3;
+    const cell = 2; // 촘촘하게 — 선의 디테일을 따라가도록
     const cols = Math.ceil(dw / cell);
     const seen = new Set<number>();
     const raw: Pt[] = [];
@@ -179,7 +179,7 @@ function computeScenePaths(
       x: fit.offsetX + (p.x / dw) * fit.drawW,
       y: fit.offsetY + (p.y / dh) * fit.drawH,
     }));
-    const MAX = 900;
+    const MAX = 1700;
     if (pts.length > MAX) {
       const step = pts.length / MAX;
       const reduced: Pt[] = [];
@@ -264,13 +264,14 @@ function strokePathOnMask(
   mctx.lineJoin = "round";
   // 잉크 번짐 — 마스크 가장자리를 부드럽게 (destination-in 시 원본이 페이드되며 나타남)
   mctx.shadowColor = "#fff";
-  mctx.shadowBlur = baseW * 0.55;
+  mctx.shadowBlur = baseW * 0.35;
   const n = Math.min(count, path.length - 1);
   const fade = 12; // 펜 끝 최근 구간은 옅게 시작 → 점점 진해짐 (끊김 방지)
   for (let i = 1; i <= n; i++) {
     const p0 = path[i - 1], p1 = path[i];
-    // 동적 두께 (사인 압력 시뮬레이션)
-    const w = baseW * (0.75 + 0.45 * (0.5 + 0.5 * Math.sin(i * 0.35)));
+    // 동적 두께 (사인 압력) — 얇게 유지해 선의 디테일을 따라가는 게 보이게.
+    // 못 덮은 여백은 마무리 패스(70% 타원/92% 전역)가 채우므로 얇아도 빵꾸 없음.
+    const w = baseW * (0.5 + 0.3 * (0.5 + 0.5 * Math.sin(i * 0.35)));
     mctx.lineWidth = w;
     mctx.globalAlpha = i > n - fade ? Math.max(0.08, (n - i) / fade) : 1;
     mctx.beginPath();
@@ -278,8 +279,8 @@ function strokePathOnMask(
     mctx.lineTo(p1.x, p1.y);
     mctx.stroke();
     // 잉크 튐 (dabs)
-    if (rnd() < 0.5) {
-      const r = baseW * (0.2 + rnd() * 0.45);
+    if (rnd() < 0.35) {
+      const r = baseW * (0.12 + rnd() * 0.3);
       mctx.globalAlpha = 0.5 + rnd() * 0.5;
       mctx.beginPath();
       mctx.arc(p1.x + (rnd() - 0.5) * baseW, p1.y + (rnd() - 0.5) * baseW, r, 0, Math.PI * 2);
