@@ -297,73 +297,83 @@ export function renderSceneFrame(
     const brushSpeed = Math.max(0.2, scene.hand?.speed ?? opts.brushSpeed ?? 1);
     const baseW = Math.max(10, 42 * brushSize) * (height / 1920);
 
-    const maxEnd = objects.length
-      ? Math.max(...objects.map((o) => o.endAt ?? 0))
-      : Math.max(scene.durationSec * 0.85, 0.5);
+    const drawWindow = Math.max(scene.durationSec * 0.85, 0.5);
 
     if (objects.length === 0) {
       // 객체 없음 → 좌→우 점진 (폴백)
-      const w = fit.drawW * ease(clamp01(t / maxEnd));
+      const w = fit.drawW * ease(clamp01((t / drawWindow) * brushSpeed));
       ctx.save(); ctx.beginPath(); ctx.rect(fit.offsetX, fit.offsetY, w, fit.drawH); ctx.clip();
       ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH); ctx.restore();
-    } else if (t >= maxEnd) {
-      ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH); // 완성본
     } else {
-      // 마스킹 reveal
-      const mask = scratch(_mask, width, height);
-      const mctx = mask.getContext("2d")!;
-      mctx.clearRect(0, 0, width, height);
-
-      // 객체를 그리는 순서대로 정렬 → 하나의 연속 경로로 연결 (펜 끊김 방지)
+      // 객체를 그리는 순서대로 정렬 + 각 객체 경로/작업량
       const sorted = [...objects].sort(
         (a, b) => (a.startAt ?? a.revealOrder ?? 0) - (b.startAt ?? b.revealOrder ?? 0)
       );
-      const fullPath: Pt[] = [];
-      for (const obj of sorted) {
-        const p = computeDrawPath(image, obj, fit);
-        for (const pt of p) fullPath.push(pt);
-      }
+      const items = sorted
+        .map((obj) => ({ obj, path: computeDrawPath(image, obj, fit) }))
+        .filter((it) => it.path.length > 0);
 
-      // 전체 진행도 (속도는 전체 배속 — 펜 개수와 무관)
-      const drawWindow = maxEnd > 0 ? maxEnd : Math.max(scene.durationSec * 0.85, 0.5);
-      const prog = clamp01((t / drawWindow) * brushSpeed);
-      const eased = ease(prog);
+      if (items.length === 0) {
+        ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
+      } else {
+        // 작업 분배 스케줄: N개 붓이 큐(객체)를 병렬 소비, 끝나면 다음 미완성 객체로 (greedy)
+        const brushEnd = new Array(brushCount).fill(0);
+        const sched = items.map((it) => {
+          let b = 0;
+          for (let i = 1; i < brushCount; i++) if (brushEnd[i] < brushEnd[b]) b = i;
+          const w = Math.max(1, it.path.length);
+          const s = brushEnd[b];
+          const e = s + w;
+          brushEnd[b] = e;
+          return { ...it, brush: b, s, e };
+        });
+        const makespan = Math.max(1, ...brushEnd);
+        // 속도: 전체 완성 시간 조절 (영상 길이 내로 클램프). 붓 많으면 makespan↓ → 자동 빨라짐
+        const effective = Math.min(scene.durationSec * 0.96, drawWindow / brushSpeed);
+        const scaleT = effective / makespan;
 
-      // 붓 개수: 연속 경로를 N등분, N개 펜이 각 구간을 끊김 없이 동시에 그림 (항상 N개)
-      const pens: { pos: Pt; angle: number }[] = [];
-      const total = fullPath.length;
-      const seg = Math.ceil(total / brushCount);
-      for (let c = 0; c < brushCount; c++) {
-        const s0 = c * seg;
-        if (s0 >= total) break;
-        const sub = fullPath.slice(s0, Math.min(total, (c + 1) * seg + 1));
-        if (sub.length < 1) continue;
-        const cnt = Math.max(1, Math.floor(sub.length * eased));
-        strokePathOnMask(mctx, sub, cnt, baseW, hashSeed(`${scene.sceneId}:${c}`));
-        if (prog < 1 && sub.length >= 2) {
-          const idx = Math.min(cnt, sub.length - 1);
-          const pos = sub[idx];
-          const prev = sub[Math.max(0, idx - 1)];
-          pens.push({ pos, angle: Math.atan2(pos.y - prev.y, pos.x - prev.x) });
-        }
-      }
+        if (t >= effective) {
+          ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH); // 완성본
+        } else {
+          const mask = scratch(_mask, width, height);
+          const mctx = mask.getContext("2d")!;
+          mctx.clearRect(0, 0, width, height);
 
-      // masked = 원본 ∩ 마스크 (destination-in)
-      const masked = scratch(_masked, width, height);
-      const xctx = masked.getContext("2d")!;
-      xctx.clearRect(0, 0, width, height);
-      xctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
-      xctx.globalCompositeOperation = "destination-in";
-      xctx.drawImage(mask, 0, 0);
-      xctx.globalCompositeOperation = "source-over";
+          const pens: { pos: Pt; angle: number }[] = [];
+          for (const it of sched) {
+            const sT = it.s * scaleT;
+            const eT = it.e * scaleT;
+            const prog = clamp01((t - sT) / Math.max(eT - sT, 0.01));
+            if (prog <= 0) continue;
+            const cnt = Math.max(1, Math.floor(it.path.length * ease(prog)));
+            strokePathOnMask(mctx, it.path, cnt, baseW, hashSeed(it.obj.id));
+            // 현재 그리는 중인 객체에만 펜 (붓당 1개 → 동시 최대 brushCount, 끊김 없이 순환)
+            if (prog < 1 && it.path.length >= 2) {
+              const idx = Math.min(cnt, it.path.length - 1);
+              const pos = it.path[idx];
+              const prev = it.path[Math.max(0, idx - 1)];
+              pens.push({ pos, angle: Math.atan2(pos.y - prev.y, pos.x - prev.x) });
+            }
+          }
 
-      ctx.drawImage(masked, 0, 0);
+          // masked = 원본 ∩ 마스크 (destination-in)
+          const masked = scratch(_masked, width, height);
+          const xctx = masked.getContext("2d")!;
+          xctx.clearRect(0, 0, width, height);
+          xctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
+          xctx.globalCompositeOperation = "destination-in";
+          xctx.drawImage(mask, 0, 0);
+          xctx.globalCompositeOperation = "source-over";
 
-      if (opts.showHand !== false && scene.hand?.enabled) {
-        const penScale = Math.max(0.6, brushSize) * (height / 1920) * 1.2;
-        for (const pen of pens) drawHand(ctx, pen.pos, pen.angle, scene.hand.asset, penScale);
-      }
-    }
+          ctx.drawImage(masked, 0, 0);
+
+          if (opts.showHand !== false && scene.hand?.enabled) {
+            const penScale = Math.max(0.6, brushSize) * (height / 1920) * 1.2;
+            for (const pen of pens) drawHand(ctx, pen.pos, pen.angle, scene.hand.asset, penScale);
+          }
+        } // end t < effective
+      } // end items > 0
+    } // end objects > 0
   }
 
   ctx.restore();
