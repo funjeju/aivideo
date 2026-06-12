@@ -314,31 +314,37 @@ export function renderSceneFrame(
       const mctx = mask.getContext("2d")!;
       mctx.clearRect(0, 0, width, height);
 
-      const pens: { pos: Pt; angle: number }[] = [];
-      for (const obj of objects) {
-        const start = obj.startAt ?? 0;
-        const end = obj.endAt ?? start + 1;
-        // 속도: 그리기 진행 배속 (빠르면 일찍 완성하고 완성본 유지)
-        const prog = clamp01(((t - start) / Math.max(end - start, 0.01)) * brushSpeed);
-        if (prog <= 0) continue;
-        const path = computeDrawPath(image, obj, fit);
-        const eased = ease(prog);
+      // 객체를 그리는 순서대로 정렬 → 하나의 연속 경로로 연결 (펜 끊김 방지)
+      const sorted = [...objects].sort(
+        (a, b) => (a.startAt ?? a.revealOrder ?? 0) - (b.startAt ?? b.revealOrder ?? 0)
+      );
+      const fullPath: Pt[] = [];
+      for (const obj of sorted) {
+        const p = computeDrawPath(image, obj, fit);
+        for (const pt of p) fullPath.push(pt);
+      }
 
-        // 붓 개수: 경로를 N등분해 동시에 여러 펜이 각 구간을 그림
-        const seg = Math.ceil(path.length / brushCount);
-        for (let c = 0; c < brushCount; c++) {
-          const s0 = c * seg;
-          if (s0 >= path.length) break;
-          const sub = path.slice(s0, Math.min(path.length, (c + 1) * seg + 1));
-          if (sub.length < 1) continue;
-          const cnt = Math.max(1, Math.floor(sub.length * eased));
-          strokePathOnMask(mctx, sub, cnt, baseW, hashSeed(obj.id + ":" + c));
-          if (prog < 1 && sub.length >= 2) {
-            const idx = Math.min(cnt, sub.length - 1);
-            const pos = sub[idx];
-            const prev = sub[Math.max(0, idx - 1)];
-            pens.push({ pos, angle: Math.atan2(pos.y - prev.y, pos.x - prev.x) });
-          }
+      // 전체 진행도 (속도는 전체 배속 — 펜 개수와 무관)
+      const drawWindow = maxEnd > 0 ? maxEnd : Math.max(scene.durationSec * 0.85, 0.5);
+      const prog = clamp01((t / drawWindow) * brushSpeed);
+      const eased = ease(prog);
+
+      // 붓 개수: 연속 경로를 N등분, N개 펜이 각 구간을 끊김 없이 동시에 그림 (항상 N개)
+      const pens: { pos: Pt; angle: number }[] = [];
+      const total = fullPath.length;
+      const seg = Math.ceil(total / brushCount);
+      for (let c = 0; c < brushCount; c++) {
+        const s0 = c * seg;
+        if (s0 >= total) break;
+        const sub = fullPath.slice(s0, Math.min(total, (c + 1) * seg + 1));
+        if (sub.length < 1) continue;
+        const cnt = Math.max(1, Math.floor(sub.length * eased));
+        strokePathOnMask(mctx, sub, cnt, baseW, hashSeed(`${scene.sceneId}:${c}`));
+        if (prog < 1 && sub.length >= 2) {
+          const idx = Math.min(cnt, sub.length - 1);
+          const pos = sub[idx];
+          const prev = sub[Math.max(0, idx - 1)];
+          pens.push({ pos, angle: Math.atan2(pos.y - prev.y, pos.x - prev.x) });
         }
       }
 
