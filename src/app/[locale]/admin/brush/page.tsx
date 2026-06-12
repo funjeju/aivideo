@@ -16,6 +16,7 @@ const STYLES: { id: StylePackId; name: string }[] = [
   { id: "whiteboard", name: "화이트보드" },
   { id: "ink-wash", name: "수묵담채" },
   { id: "minhwa", name: "민화" },
+  { id: "doodle-edu", name: "낙서 교육" },
 ];
 
 export default function BrushTestPage() {

@@ -69,6 +69,38 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     sortOrder: 2,
   },
 
+  "doodle-edu": {
+    id: "doodle-edu",
+    name: "낙서 교육",
+    description: "한국 교육 유튜브 특유의 두꺼운 마커 낙서체. 스틱피겨·말풍선·컬러 키워드 강조.",
+    imagePrompt: {
+      template:
+        "Korean educational YouTube whiteboard doodle style, {subject}, thick black marker outlines on pure white background, hand-drawn comic style with cloud-shaped thought bubbles, speech bubbles, simple stick figure characters, bold Korean-style typography with key words highlighted in blue or red, arrows connecting concepts, rounded boxy shapes, slightly imperfect wobble lines, cheerful educational infographic, flat 2D, no shading, no gradients. Distinct elements with clear empty space between them so they can be revealed one by one.",
+      negative: "photorealistic, 3d, watercolor, ink wash, traditional, complex texture, dark background, gradient, shadow, realistic proportions",
+      model: "gpt-image-2",
+      quality: "high",
+      size: "1024x1536",
+    },
+    textStrategy: "in-image",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "left-to-right",
+      strokeStyle: "outline",
+      flowDirection: "left-to-right",
+      rhythm: "fast-beat",
+      handTool: "marker",
+    },
+    palette: { ink: "#1A1A1A", accent: "#2563EB", paper: "#FFFFFF" },
+    userSliders: {
+      lineWeight: { min: 0, max: 1, default: 0.7 },
+    },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 4,
+  },
+
   minhwa: {
     id: "minhwa",
     name: "민화/조선",

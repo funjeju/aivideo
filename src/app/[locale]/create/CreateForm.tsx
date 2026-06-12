@@ -19,6 +19,7 @@ const TARGET_LENGTHS: { value: TargetLength; label: string }[] = [
 
 const STYLE_PACKS: { id: StylePackId; name: string; desc: string; emoji: string }[] = [
   { id: "whiteboard", name: "클래식 화이트보드", desc: "깔끔한 설명 영상 기본기", emoji: "✏️" },
+  { id: "doodle-edu", name: "낙서 교육", desc: "마커 낙서체, 한국 교육 유튜브 스타일", emoji: "🖊️" },
   { id: "ink-wash", name: "수묵담채", desc: "한지 위 먹선, 심리·철학·역사", emoji: "🖌️" },
   { id: "minhwa", name: "민화/조선", desc: "오방색 모티프, 한국사·문화", emoji: "🐯" },
 ];
