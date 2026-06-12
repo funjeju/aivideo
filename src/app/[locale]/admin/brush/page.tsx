@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import { SceneSpec, RevealObject, StylePackId, BrushType } from "@/lib/types";
 import BrushPlayer from "./BrushPlayer";
 
@@ -39,6 +39,7 @@ export default function BrushTestPage() {
   const [brushSpeed, setBrushSpeed] = useState(1);
   const [showBrush, setShowBrush] = useState(true);
   const [showBoxes, setShowBoxes] = useState(false);
+  const [flowMode, setFlowMode] = useState<"sync" | "topdown">("sync");
   const [scene, setScene] = useState<SceneSpec | null>(null);
   const [objects, setObjects] = useState<RevealObject[]>([]);
   const [playing, setPlaying] = useState(false);
@@ -46,6 +47,18 @@ export default function BrushTestPage() {
   const [audioUrl, setAudioUrl] = useState<string>("");
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 위→아래 모드: 나레이션 anchor 무시, 객체를 화면 상단부터 순서대로 완성하며 내려감.
+  // startAt 제거 → 렌더러가 균등 슬롯 폴백 사용 (전체 시간은 durationSec = 나레이션 길이 유지)
+  const playScene = useMemo<SceneSpec | null>(() => {
+    if (!scene) return null;
+    if (flowMode !== "topdown") return scene;
+    const objs = (scene.reveal?.objects ?? [])
+      .slice()
+      .sort((a, b) => (a.bbox[1] - b.bbox[1]) || (a.bbox[0] - b.bbox[0]))
+      .map((o, i) => ({ ...o, revealOrder: i + 1, startAt: undefined, endAt: undefined }));
+    return { ...scene, reveal: { objects: objs } };
+  }, [scene, flowMode]);
 
   function onFile(f: File | null) {
     if (!f) return;
@@ -185,6 +198,34 @@ export default function BrushTestPage() {
           </div>
 
           <div>
+            <label className="text-sm font-medium text-[var(--ink)]">그리기 흐름</label>
+            <div className="grid grid-cols-2 gap-1 mt-1">
+              <button
+                onClick={() => setFlowMode("sync")}
+                title="나레이션 구절이 발화되는 시점에 해당 요소를 그림"
+                className={`px-2 py-1.5 rounded text-xs border transition-colors ${
+                  flowMode === "sync"
+                    ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                    : "border-[var(--line)] text-[var(--ink)] hover:border-[var(--accent)]"
+                }`}
+              >
+                나레이션 동기
+              </button>
+              <button
+                onClick={() => setFlowMode("topdown")}
+                title="화면 위에서부터 차례로 완성하며 내려감 (전체 시간은 나레이션 길이)"
+                className={`px-2 py-1.5 rounded text-xs border transition-colors ${
+                  flowMode === "topdown"
+                    ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                    : "border-[var(--line)] text-[var(--ink)] hover:border-[var(--accent)]"
+                }`}
+              >
+                위→아래
+              </button>
+            </div>
+          </div>
+
+          <div>
             <label className="text-sm font-medium text-[var(--ink)]">도구 모양</label>
             <div className="grid grid-cols-5 gap-1 mt-1">
               {HAND_TOOLS.map((t2) => (
@@ -301,7 +342,7 @@ export default function BrushTestPage() {
         {/* 우: 미리보기 */}
         <div>
           <BrushPlayer
-            scene={scene}
+            scene={playScene}
             image={image}
             playing={playing}
             brushSize={brushSize}

@@ -674,10 +674,11 @@ export function renderSceneFrame(
           let s = it.obj.startAt;
           let e = it.obj.endAt;
           if (s == null || e == null) {
-            // 폴백(테스트/나레이션 없음): 순서대로 약간 겹치게 균등 배분
+            // 폴백(위→아래/나레이션 없음): 순서대로 균등 배분.
+            // 겹침 최소(1.15) — 쓰던 곳을 거의 끝내고 다음으로 이동
             const slot = win / N;
             s = i * slot;
-            e = s + slot * 1.4;
+            e = s + slot * 1.15;
           }
           return { ...it, s, e };
         });
