@@ -55,7 +55,8 @@ export async function POST(req: NextRequest) {
         {
           role: "user",
           content: [
-            { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
+            // high: bbox 좌표 정밀도 확보 (low는 박스가 뭉개져 드로잉 순서가 틀어짐)
+            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
             { type: "text", text: buildVisionPrompt(narration ?? "") },
           ],
         },

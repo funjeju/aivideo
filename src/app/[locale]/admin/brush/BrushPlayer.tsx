@@ -15,6 +15,7 @@ export default function BrushPlayer({
   audioUrl,
   brushType,
   handAsset,
+  showBoxes,
 }: {
   scene: SceneSpec | null;
   image: HTMLImageElement | null;
@@ -26,6 +27,7 @@ export default function BrushPlayer({
   audioUrl?: string;
   brushType?: BrushType;
   handAsset?: string;
+  showBoxes?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
@@ -79,7 +81,7 @@ export default function BrushPlayer({
         brushType: brushType ?? "round",
       },
     };
-    const renderOpts = { noFinalImage: true };
+    const renderOpts = { noFinalImage: true, debugBoxes: showBoxes };
     const LOOP = 120;
 
     cancelAnimationFrame(rafRef.current);
@@ -116,7 +118,7 @@ export default function BrushPlayer({
       cancelAnimationFrame(rafRef.current);
       audioRef.current?.pause();
     };
-  }, [scene, image, playing, brushSize, brushCount, brushSpeed, showBrush, brushType, handAsset, size]);
+  }, [scene, image, playing, brushSize, brushCount, brushSpeed, showBrush, brushType, handAsset, showBoxes, size]);
 
   return (
     <div className="bg-[var(--stage-bg)] rounded-[var(--radius)] p-4 flex items-center justify-center">

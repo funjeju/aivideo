@@ -37,6 +37,8 @@ interface RenderOptions {
   brushType?: BrushType;
   /** 테스트용: 완성본으로 점프하지 않고 path 드로잉만 유지 */
   noFinalImage?: boolean;
+  /** 디버그: 객체 bbox + 순번 + startAt 오버레이 */
+  debugBoxes?: boolean;
 }
 
 function ease(t: number): number {
@@ -797,6 +799,32 @@ export function renderSceneFrame(
         } // end t < effective
       } // end items > 0
     } // end objects > 0
+
+    // 디버그: bbox 오버레이 (그리는 순서·시간 검증용)
+    if (opts.debugBoxes) {
+      const objs = (scene.reveal?.objects ?? []).filter((o) => o.bbox);
+      const ordered = [...objs].sort((a, b) => (a.startAt ?? a.revealOrder ?? 0) - (b.startAt ?? b.revealOrder ?? 0));
+      ctx.save();
+      ctx.font = `bold ${Math.round(height / 60)}px sans-serif`;
+      ctx.textBaseline = "top";
+      for (let i = 0; i < ordered.length; i++) {
+        const o = ordered[i];
+        const x1 = o.bbox[0] * fit.bScaleX + fit.offsetX;
+        const y1 = o.bbox[1] * fit.bScaleY + fit.offsetY;
+        const x2 = o.bbox[2] * fit.bScaleX + fit.offsetX;
+        const y2 = o.bbox[3] * fit.bScaleY + fit.offsetY;
+        const hue = (i * 57) % 360;
+        ctx.strokeStyle = `hsl(${hue} 85% 45%)`;
+        ctx.lineWidth = Math.max(2, height / 500);
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        const label = `${i + 1} ${o.role} ${o.startAt != null ? o.startAt.toFixed(1) + "~" + (o.endAt ?? 0).toFixed(1) + "s" : ""}`;
+        ctx.fillStyle = `hsl(${hue} 85% 40%)`;
+        ctx.fillRect(x1, y1, ctx.measureText(label).width + 10, height / 50);
+        ctx.fillStyle = "#fff";
+        ctx.fillText(label, x1 + 5, y1 + 2);
+      }
+      ctx.restore();
+    }
   }
 
   ctx.restore();

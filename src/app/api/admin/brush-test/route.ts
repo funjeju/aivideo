@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
         {
           role: "user",
           content: [
-            { type: "image_url", image_url: { url: imageBase64, detail: "low" } },
+            // high: bbox 좌표 정밀도 확보 (low=512px 분석은 박스가 뭉개져 획 배정이 틀어짐)
+            { type: "image_url", image_url: { url: imageBase64, detail: "high" } },
             { type: "text", text: visionPrompt(narr) },
           ],
         },

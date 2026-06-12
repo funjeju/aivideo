@@ -38,6 +38,7 @@ export default function BrushTestPage() {
   const [brushCount, setBrushCount] = useState(1);
   const [brushSpeed, setBrushSpeed] = useState(1);
   const [showBrush, setShowBrush] = useState(true);
+  const [showBoxes, setShowBoxes] = useState(false);
   const [scene, setScene] = useState<SceneSpec | null>(null);
   const [objects, setObjects] = useState<RevealObject[]>([]);
   const [playing, setPlaying] = useState(false);
@@ -244,11 +245,18 @@ export default function BrushTestPage() {
               className="flex-1 accent-[var(--accent)]" />
             <span className="text-sm tabular-nums w-10 text-right">{brushSpeed.toFixed(1)}×</span>
           </div>
-          <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
-            <input type="checkbox" checked={showBrush} onChange={(e) => setShowBrush(e.target.checked)}
-              className="accent-[var(--accent)]" />
-            붓 표시
-          </label>
+          <div className="flex items-center gap-5">
+            <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
+              <input type="checkbox" checked={showBrush} onChange={(e) => setShowBrush(e.target.checked)}
+                className="accent-[var(--accent)]" />
+              붓 표시
+            </label>
+            <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
+              <input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)}
+                className="accent-[var(--accent)]" />
+              bbox 디버그 (분석 박스 표시)
+            </label>
+          </div>
 
           <div className="flex gap-2 flex-wrap">
             {/* 분석: 이미지+나레이션 바뀌었을 때만 다시 누름 */}
@@ -303,6 +311,7 @@ export default function BrushTestPage() {
             audioUrl={audioUrl}
             brushType={brushType}
             handAsset={handAsset}
+            showBoxes={showBoxes}
           />
         </div>
       </div>
