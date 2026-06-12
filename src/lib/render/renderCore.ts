@@ -339,18 +339,20 @@ export function renderSceneFrame(
       if (items.length === 0) {
         ctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
       } else {
-        // 작업 분배 스케줄: N개 붓이 큐(객체)를 병렬 소비, 끝나면 다음 미완성 객체로 (greedy)
-        const brushEnd = new Array(brushCount).fill(0);
-        const sched = items.map((it) => {
-          let b = 0;
-          for (let i = 1; i < brushCount; i++) if (brushEnd[i] < brushEnd[b]) b = i;
-          const w = Math.max(1, it.path.length);
-          const s = brushEnd[b];
-          const e = s + w;
-          brushEnd[b] = e;
-          return { ...it, brush: b, s, e };
-        });
-        const makespan = Math.max(1, ...brushEnd);
+        // 이어달리기 스케줄: 객체 i가 30% 그려지면 객체 i+1 붓이 등장 (cascade).
+        // 동시 활성 붓은 brushCount로 제한 — 초과 시 앞 붓이 끝날 때까지 대기.
+        const OVERLAP = 0.3;
+        const starts: number[] = [];
+        const endsArr: number[] = [];
+        for (let i = 0; i < items.length; i++) {
+          const w = Math.max(1, items[i].path.length);
+          let s = i === 0 ? 0 : starts[i - 1] + Math.max(1, items[i - 1].path.length) * OVERLAP;
+          if (i >= brushCount) s = Math.max(s, endsArr[i - brushCount]); // 붓 수 제한
+          starts.push(s);
+          endsArr.push(s + w);
+        }
+        const sched = items.map((it, i) => ({ ...it, s: starts[i], e: endsArr[i] }));
+        const makespan = Math.max(1, ...endsArr);
         // 그리기 완성 시각. 테스트(pace)면 작업량 기준(시간 제한 없음), 영상이면 오디오 길이 내로 클램프.
         const effective = opts.pace
           ? makespan / opts.pace / brushSpeed
@@ -405,6 +407,16 @@ export function renderSceneFrame(
               const prev = it.path[Math.max(0, idx - 1)];
               pens.push({ pos, angle: Math.atan2(pos.y - prev.y, pos.x - prev.x) });
             }
+          }
+
+          // 최종 패스: 전체 진행 92%부터 캔버스 전체를 서서히 공개.
+          // 붓이 못 간 어떤 빈 곳도 끝에는 반드시 채워짐 (측정 불필요한 전역 보증).
+          const gp = clamp01(t / Math.max(effective, 0.01));
+          if (gp > 0.92) {
+            mctx.globalAlpha = ease((gp - 0.92) / 0.08);
+            mctx.fillStyle = "#fff";
+            mctx.fillRect(0, 0, width, height);
+            mctx.globalAlpha = 1;
           }
 
           // masked = 원본 ∩ 마스크 (destination-in)
