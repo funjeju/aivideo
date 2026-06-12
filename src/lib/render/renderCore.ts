@@ -72,7 +72,8 @@ function scratch(ref: Cv, w: number, h: number): HTMLCanvasElement {
 // (bbox가 겹쳐도 점은 한 번만 그려짐 → 같은 곳 재방문/뭉침/순서 붕괴 제거)
 interface Pt { x: number; y: number }
 interface SceneItem { obj: RevealObject; path: Pt[] }
-const scenePathCache = new Map<string, SceneItem[]>();
+// path만 캐시 — obj(startAt/endAt)는 항상 현재 sceneSpec 값 사용
+const scenePathCache = new Map<string, Pt[][]>();
 
 /** 점들을 TSP(최근접 이웃)로 잇고 이동평균 스무딩 */
 function orderAndSmooth(pts: Pt[]): Pt[] {
@@ -113,9 +114,13 @@ function computeScenePaths(
   fit: ReturnType<typeof computeFit>,
   sceneKey: string
 ): SceneItem[] {
+  // 키: 이미지 크기 + 각 객체의 id/bbox. startAt/endAt은 포함 안 함 (path는 위치만 의존).
   const key = `${sceneKey}|${objects.map((o) => o.id + o.bbox.join(",")).join(";")}|${Math.round(fit.drawW)}x${Math.round(fit.drawH)}`;
-  const hit = scenePathCache.get(key);
-  if (hit) return hit;
+  const cachedPaths = scenePathCache.get(key);
+  if (cachedPaths) {
+    // 경로만 캐시 히트 — obj는 현재 값(최신 startAt/endAt) 사용
+    return objects.map((obj, i) => ({ obj, path: cachedPaths[i] ?? [] }));
+  }
 
   const rnd = createSeededRandom(hashSeed(key));
 
@@ -208,7 +213,9 @@ function computeScenePaths(
     }
 
     // 5) 객체별 TSP + 스무딩 (그리는 순서 그대로)
-    items = objects.map((obj, i) => ({ obj, path: orderAndSmooth(buckets[i]) }));
+    const paths = objects.map((_, i) => orderAndSmooth(buckets[i]));
+    scenePathCache.set(key, paths);
+    items = objects.map((obj, i) => ({ obj, path: paths[i] }));
   } catch {
     // CORS tainted 등 → 전체 지그재그를 첫 객체에 폴백
     const points: Pt[] = [];
@@ -218,10 +225,11 @@ function computeScenePaths(
       if (r % 2 === 0) { points.push({ x: fit.offsetX, y }); points.push({ x: fit.offsetX + fit.drawW, y }); }
       else { points.push({ x: fit.offsetX + fit.drawW, y }); points.push({ x: fit.offsetX, y }); }
     }
-    items = objects.map((obj, i) => ({ obj, path: i === 0 ? points : [] }));
+    const fallbackPaths = objects.map((_, i) => i === 0 ? points : []);
+    scenePathCache.set(key, fallbackPaths);
+    items = objects.map((obj, i) => ({ obj, path: fallbackPaths[i] }));
   }
 
-  scenePathCache.set(key, items);
   return items;
 }
 

@@ -86,13 +86,42 @@ export default function BrushTestPage() {
 
       const data = await brushRes.json();
       if (!brushRes.ok) { setError(data.error ?? "분석 실패"); return; }
-      setScene({ ...data.sceneSpec, image: { url: "local", fit: "contain" } });
-      setObjects(data.objects ?? []);
+
+      let sceneSpec = { ...data.sceneSpec, image: { url: "local", fit: "contain" } };
 
       if (ttsRes?.ok) {
         const blob = await ttsRes.blob();
-        setAudioUrl(URL.createObjectURL(blob));
+        const blobUrl = URL.createObjectURL(blob);
+        setAudioUrl(blobUrl);
+
+        // TTS 실제 길이를 측정해 sceneSpec.durationSec를 업데이트.
+        // 그러면 planner의 startAt/endAt이 실제 나레이션 시간에 맞게 재계산됨.
+        const ttsDuration = await new Promise<number>((resolve) => {
+          const a = new Audio(blobUrl);
+          a.onloadedmetadata = () => resolve(a.duration);
+          a.onerror = () => resolve(data.durationSec ?? 6);
+        });
+
+        if (ttsDuration > 0) {
+          // brush-test API를 durationSec 포함해 재호출 → planner가 실제 시간으로 재계산
+          const { getIdToken: gid } = await import("@/lib/clientAuth");
+          const tok = await gid();
+          const reRes = await fetch("/api/admin/brush-test", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+            body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, durationSec: ttsDuration }),
+          });
+          if (reRes.ok) {
+            const reData = await reRes.json();
+            sceneSpec = { ...reData.sceneSpec, image: { url: "local", fit: "contain" } };
+            setObjects(reData.objects ?? []);
+          }
+        }
+      } else {
+        setObjects(data.objects ?? []);
       }
+
+      setScene(sceneSpec);
       // 분석 완료 후 자동 재생 안 함 — 재생 버튼을 따로 눌러서 시작
     } catch (e) {
       setError(e instanceof Error ? e.message : "오류");
