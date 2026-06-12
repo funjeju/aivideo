@@ -1,15 +1,15 @@
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import puppeteer from "puppeteer";
+import puppeteer, { Page } from "puppeteer";
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const FPS = 30;
 const RENDER_PAGE_URL = process.env.RENDER_PAGE_URL ?? "http://localhost:3000/render";
-// 로컬 검증 시 PATH에 없으면 절대경로 지정 가능. Docker에선 PATH에 있어 기본값으로 충분.
 const FFMPEG = process.env.FFMPEG_PATH ?? "ffmpeg";
 const FFPROBE = process.env.FFPROBE_PATH ?? "ffprobe";
 
@@ -25,7 +25,6 @@ function admin() {
   return { db: getFirestore(), storage: getStorage() };
 }
 
-/** ffmpeg/ffprobe child_process 래퍼 */
 function run(cmd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args);
@@ -43,10 +42,8 @@ function run(cmd: string, args: string[]): Promise<string> {
 
 async function probeDuration(file: string): Promise<number> {
   const out = await run(FFPROBE, [
-    "-v", "error",
-    "-show_entries", "format=duration",
-    "-of", "default=noprint_wrappers=1:nokey=1",
-    file,
+    "-v", "error", "-show_entries", "format=duration",
+    "-of", "default=noprint_wrappers=1:nokey=1", file,
   ]);
   const dur = parseFloat(out.trim());
   return isNaN(dur) ? 0 : dur;
@@ -55,19 +52,71 @@ async function probeDuration(file: string): Promise<number> {
 async function download(url: string, dest: string): Promise<void> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`download failed ${res.status}: ${url}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  await writeFile(dest, buf);
+  await writeFile(dest, Buffer.from(await res.arrayBuffer()));
 }
 
 interface RenderResult {
   outputUrl: string;
   renderSeconds: number;
   frameCount: number;
+  reusedSegments: number;
+  renderedSegments: number;
+}
+
+/** 장면 입력의 결정적 해시 — 바뀌면 세그먼트 재렌더 */
+function sceneHash(spec: unknown, imageUrl: string, audioUrl: string): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ spec, imageUrl, audioUrl, fps: FPS, v: 1 }))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+/** 단일 장면 → 세그먼트 mp4 (프레임 캡처 + 오디오 합성) */
+async function renderSegment(
+  page: Page,
+  spec: Record<string, unknown>,
+  durationSec: number,
+  audioPath: string,
+  workDir: string,
+  framesDir: string,
+  outPath: string
+): Promise<number> {
+  // 페이지에 이 장면 하나만 주입
+  await page.evaluate(async (injected: object[]) => {
+    const w = window as unknown as { __loadScenes: (s: object[]) => Promise<unknown> };
+    await w.__loadScenes(injected);
+  }, [spec] as unknown as object[]);
+  await page.waitForFunction("window.__renderReady === true", { timeout: 120000 });
+
+  const frameCount = Math.max(1, Math.ceil(durationSec * FPS));
+  for (let i = 0; i < frameCount; i++) {
+    const t = i / FPS;
+    const dataUrl: string = await page.evaluate((tt: number) => {
+      const w = window as unknown as { __seek: (t: number) => void; __getFrame: () => string };
+      w.__seek(tt);
+      return w.__getFrame();
+    }, t);
+    const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+    await writeFile(join(framesDir, `f_${String(i).padStart(6, "0")}.png`), Buffer.from(base64, "base64"));
+  }
+
+  // 프레임 + 오디오 → 세그먼트 mp4 (동일 인코딩으로 concat copy 가능)
+  await run(FFMPEG, [
+    "-y",
+    "-framerate", String(FPS),
+    "-i", join(framesDir, "f_%06d.png"),
+    "-i", audioPath,
+    "-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p",
+    "-r", String(FPS),
+    "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+    "-shortest", outPath,
+  ]);
+  return frameCount;
 }
 
 /**
- * 메인 렌더: projectId의 모든 장면 → mp4.
- * @param onProgress 0~100 콜백
+ * 세그먼트 기반 렌더. 장면별로 해시를 비교해 변경된 장면만 재렌더,
+ * 나머지는 Storage 캐시 세그먼트를 재사용한 뒤 concat → 최종 mp4.
  */
 export async function renderProject(
   projectId: string,
@@ -75,17 +124,11 @@ export async function renderProject(
 ): Promise<RenderResult> {
   const startedAt = Date.now();
   const { db, storage } = admin();
-
-  // 1. 프로젝트 + 장면 로드
-  const projectSnap = await db.collection("projects").doc(projectId).get();
-  if (!projectSnap.exists) throw new Error("project not found");
+  const bucket = storage.bucket();
 
   const scenesSnap = await db
     .collection("projects").doc(projectId)
-    .collection("scenes")
-    .orderBy("order")
-    .get();
-
+    .collection("scenes").orderBy("order").get();
   const rawScenes = scenesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
   if (rawScenes.length === 0) throw new Error("no scenes");
 
@@ -93,126 +136,108 @@ export async function renderProject(
   const framesDir = join(workDir, "frames");
   await mkdir(framesDir, { recursive: true });
 
+  let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
+  let reusedSegments = 0;
+  let renderedSegments = 0;
+  let totalFrames = 0;
+
   try {
-    // 2. 오디오 다운로드 + 실제 길이 측정 → durationSec 보정
-    const audioFiles: string[] = [];
-    const specs = [];
+    const segmentLocalPaths: string[] = [];
+    const total = rawScenes.length;
+
     for (let i = 0; i < rawScenes.length; i++) {
       const s = rawScenes[i];
-      const spec = (s.sceneSpec as Record<string, unknown>) ?? {};
-      let durationSec = (s.durationSec as number) || (spec.durationSec as number) || 3;
+      const spec = ((s.sceneSpec as Record<string, unknown>) ?? {}) as Record<string, unknown>;
+      const imageUrl = (s.imageUrl as string) || ((spec.image as { url?: string })?.url ?? "");
+      const audioUrl = (s.audioUrl as string) || (spec.audioUrl as string) || "";
 
-      const audioUrl = (s.audioUrl as string) || (spec.audioUrl as string);
-      const audioPath = join(workDir, `audio_${String(i).padStart(3, "0")}.mp3`);
+      // 오디오 다운로드 + 실제 길이
+      const audioPath = join(workDir, `a_${i}.mp3`);
+      let durationSec = (s.durationSec as number) || (spec.durationSec as number) || 3;
       if (audioUrl) {
         await download(audioUrl, audioPath);
         const measured = await probeDuration(audioPath);
         if (measured > 0) durationSec = measured;
-        audioFiles.push(audioPath);
       } else {
-        // 무음 생성
         await run(FFMPEG, ["-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", String(durationSec), audioPath]);
-        audioFiles.push(audioPath);
       }
 
-      specs.push({
-        ...spec,
-        sceneId: s.id,
-        order: s.order,
-        narration: s.narration,
-        durationSec,
-        audioUrl,
-        image: (s.imageUrl as string) ? { url: s.imageUrl, fit: "contain" } : spec.image,
-      });
-    }
+      const fullSpec = { ...spec, durationSec, audioUrl, image: imageUrl ? { url: imageUrl, fit: "contain" } : (spec.image ?? undefined) };
+      const hash = sceneHash(fullSpec, imageUrl, audioUrl);
+      const segStoragePath = `projects/${projectId}/segments/${s.id}.mp4`;
+      const segFile = bucket.file(segStoragePath);
+      const localSeg = join(workDir, `seg_${String(i).padStart(3, "0")}.mp4`);
 
-    const total = specs.reduce((sum, s) => sum + (s.durationSec || 1), 0);
-    const frameCount = Math.max(1, Math.ceil(total * FPS));
+      const cachedHash = s.segmentHash as string | undefined;
+      const [segExists] = await segFile.exists();
 
-    // 3. Puppeteer로 렌더 페이지 열기
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-    });
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1080, height: 1920, deviceScaleFactor: 1 });
-    await page.goto(RENDER_PAGE_URL, { waitUntil: "networkidle0" });
+      if (cachedHash === hash && segExists) {
+        // 캐시 재사용
+        await segFile.download({ destination: localSeg });
+        reusedSegments++;
+      } else {
+        // 재렌더
+        if (!browser) {
+          browser = await puppeteer.launch({
+            headless: true,
+            args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+          });
+        }
+        const page = await browser.newPage();
+        await page.setViewport({ width: 1080, height: 1920, deviceScaleFactor: 1 });
+        await page.goto(RENDER_PAGE_URL, { waitUntil: "networkidle0" });
+        await page.waitForFunction("typeof window.__loadScenes === 'function'", { timeout: 60000 });
 
-    // React hydration으로 window API가 붙을 때까지 대기
-    await page.waitForFunction("typeof window.__loadScenes === 'function'", { timeout: 60000 });
+        // 프레임 디렉터리 비우고 재사용
+        await rm(framesDir, { recursive: true, force: true });
+        await mkdir(framesDir, { recursive: true });
 
-    // 장면 주입 + 이미지 프리로드 대기
-    await page.evaluate(async (injected: object[]) => {
-      const w = window as unknown as { __loadScenes: (s: object[]) => Promise<unknown> };
-      await w.__loadScenes(injected);
-    }, specs as unknown as object[]);
+        const fc = await renderSegment(page, fullSpec, durationSec, audioPath, workDir, framesDir, localSeg);
+        totalFrames += fc;
+        await page.close();
 
-    await page.waitForFunction("window.__renderReady === true", { timeout: 120000 });
-
-    // 4. 프레임 캡처
-    for (let i = 0; i < frameCount; i++) {
-      const t = i / FPS;
-      const dataUrl: string = await page.evaluate((tt: number) => {
-        const w = window as unknown as { __seek: (t: number) => void; __getFrame: () => string };
-        w.__seek(tt);
-        return w.__getFrame();
-      }, t);
-
-      const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
-      const framePath = join(framesDir, `frame_${String(i).padStart(6, "0")}.png`);
-      await writeFile(framePath, Buffer.from(base64, "base64"));
-
-      if (i % 10 === 0 && onProgress) {
-        // 프레임 캡처 = 전체의 70%까지
-        onProgress(Math.round((i / frameCount) * 70));
+        // Storage 업로드 + 해시 기록
+        await bucket.upload(localSeg, { destination: segStoragePath, metadata: { contentType: "video/mp4" } });
+        await db.collection("projects").doc(projectId).collection("scenes").doc(s.id as string)
+          .update({ segmentHash: hash });
+        renderedSegments++;
       }
+
+      segmentLocalPaths.push(localSeg);
+      if (onProgress) onProgress(Math.round(((i + 1) / total) * 85));
     }
 
-    await browser.close();
+    if (browser) { await browser.close(); browser = null; }
 
-    // 5. 오디오 합치기 (concat demuxer)
-    const listPath = join(workDir, "audio_list.txt");
-    await writeFile(
-      listPath,
-      audioFiles.map((f) => `file '${f.replace(/\\/g, "/")}'`).join("\n")
-    );
-    const mergedAudio = join(workDir, "audio.mp3");
-    await run(FFMPEG, ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", mergedAudio]);
-    if (onProgress) onProgress(80);
-
-    // 6. 프레임 + 오디오 → mp4
+    // 세그먼트 concat → 최종 mp4
+    const listPath = join(workDir, "segments.txt");
+    await writeFile(listPath, segmentLocalPaths.map((p) => `file '${p.replace(/\\/g, "/")}'`).join("\n"));
     const outPath = join(workDir, "out.mp4");
-    await run(FFMPEG, [
-      "-y",
-      "-framerate", String(FPS),
-      "-i", join(framesDir, "frame_%06d.png"),
-      "-i", mergedAudio,
-      "-c:v", "libx264",
-      "-preset", "medium",
-      "-pix_fmt", "yuv420p",
-      "-c:a", "aac",
-      "-b:a", "128k",
-      "-shortest",
-      outPath,
-    ]);
-    if (onProgress) onProgress(90);
+    try {
+      await run(FFMPEG, ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outPath]);
+    } catch {
+      // copy 실패 시 재인코딩 폴백
+      await run(FFMPEG, ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", outPath]);
+    }
+    if (onProgress) onProgress(95);
 
-    // 7. Storage 업로드
-    const bucket = storage.bucket();
+    // 최종 업로드
     const destPath = `projects/${projectId}/output/video_${Date.now()}.mp4`;
-    await bucket.upload(outPath, {
-      destination: destPath,
-      metadata: { contentType: "video/mp4" },
-    });
+    await bucket.upload(outPath, { destination: destPath, metadata: { contentType: "video/mp4" } });
     const outFile = bucket.file(destPath);
     await outFile.makePublic();
     const outputUrl = `https://storage.googleapis.com/${bucket.name}/${destPath}`;
 
     if (onProgress) onProgress(100);
-    const renderSeconds = (Date.now() - startedAt) / 1000;
-
-    return { outputUrl, renderSeconds, frameCount };
+    return {
+      outputUrl,
+      renderSeconds: (Date.now() - startedAt) / 1000,
+      frameCount: totalFrames,
+      reusedSegments,
+      renderedSegments,
+    };
   } finally {
+    if (browser) await browser.close().catch(() => {});
     await rm(workDir, { recursive: true, force: true }).catch(() => {});
   }
 }
