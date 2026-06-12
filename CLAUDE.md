@@ -94,7 +94,7 @@ Sonnet 4.6  →  막히면 Opus 4.8  →  그래도 안 되면 Fable 5
 
 > 진행 상황을 한두 줄로 갱신해 다음 세션이 이어받게 한다. 길어지면 `docs/`로 옮긴다.
 
-- 현재 페이즈: **Phase 0~3 코드 완료 + 로컬 엔드투엔드 검증 완료 (실제 mp4 생성 확인)** → 다음은 Phase 4 또는 UI 전체 흐름 검증 (`todo.md` 참조)
-- 최근 결정: 렌더=Puppeteer로 renderCore 공유(프리뷰=최종본) / LLM·이미지·TTS 전부 OpenAI 키 하나 / gpt-image-2 한글 라벨 오타 0 확인(1순위 리스크 해소 신호)
-- 주의: env 변경 시 dev 서버 재시작(admin SDK 캐시) / `/render`는 proxy.ts에서 로케일 제외 / GCS CORS 설정돼 있음
-- 다음 할 일: ①(사용자) Firestore 인덱스 2개 생성 ②UI 전체 흐름 검증(~$1.5) ③Phase 4
+- 현재 상태: **Phase 0~4 완료 + 배포 전체 동작**(Vercel + Cloud Run Worker + 규칙/인덱스/인증/과금/어드민) + **드로잉 엔진 v13**(의미순서·이어달리기 붓·번짐 채움). 어드민 `/admin/brush`에서 비용 0 즉시 테스트.
+- 최근 결정: 드로잉=전체 이미지 1회 엣지 분석→점-객체 1회 배정→destination-in 마스킹 / 붓 이어달리기(30% 오버랩, 동시=붓개수) / 과금 토글 OFF 기본(naggu1999 면제)
+- 주의: `transpilePackages:["firebase-admin"]` 제거 금지(Vercel ESM) / renderCore 수정 시 worker sceneHash v 증가+worker 재배포로 캐시 무효화 / env 변경 시 dev 재시작 / gcloud=funjejuai 계정
+- 다음 할 일: ①붓 기본값 확정→시스템설정 저장 ②배포본에서 실전 영상 1편(~$2) 품질 검증 ③백로그(`todo.md`)

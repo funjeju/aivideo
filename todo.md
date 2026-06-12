@@ -1,66 +1,48 @@
 # TODO — 다음 세션 시작점
 
-> 갱신: 2026-06-12 밤. 전반 로직 검토 + 버그 5건 수정까지 완료된 상태.
+> 갱신: 2026-06-12 심야. 배포본 전체 동작 + 드로잉 엔진(v13)까지 완료된 상태.
+> 상세 경위는 `history.md` 참조.
 
-## 🔴 즉시 (다음 세션 첫 작업)
+## ✅ 완료된 큰 덩어리 (요약)
 
-- [ ] **(사용자) Firestore 복합 인덱스 2개 생성** — 없으면 대시보드/렌더 진행률이 조용히 실패
-  - 링크는 `node scripts/test-indexes.mjs` 실행하면 에러 메시지에 출력됨 (history.md "전반 로직 검토" 섹션에도 있음)
-  - 생성 후 같은 스크립트로 ✅ 확인
-- [ ] **브라우저 UI 전체 흐름 검증** — 로그인 → 생성 → 원고 승인 → 이미지 생성 → 프리뷰 → mp4 (이미지 수장 생성으로 ~$1.5 비용, 사용자 승인 후 진행)
-  - 사전: dev 서버 + worker 서버 둘 다 실행, `.env.local`에 `RENDER_WORKER_URL=http://localhost:8080`
-  - Firebase 콘솔에서 Auth Google/이메일 로그인 활성화 확인 필요
+- 배포 전체 동작: Vercel(앱) + Cloud Run Worker(mp4) + Firestore 규칙/인덱스 + API 인증(토큰+내부시크릿)
+- 어드민: 대시보드/회원(크레딧·역할·과금면제)/영상/비용/보이스/시스템설정/**붓 테스트**
+- 과금: 전역 토글(기본 OFF=전원무료) + billingExempt(naggu1999 면제) + 승인 게이트(402) + 실비 차감
+- 사후 편집(문장수정/그림재생성) + 부분 재렌더(세그먼트 캐시, 28s→1.5s)
+- 멀티 비율(9:16/16:9/1:1), 보이스 6종 + 미리듣기, 랜딩 페이지
+- **드로잉 엔진 v13**: 전체 이미지 1회 분석→점-객체 1회 배정, 의미 순서 드로잉, 이어달리기 붓(30% 오버랩, 동시=붓개수), 객체 70% 타원 번짐 채움 + 전체 92% 전역 채움, 윤곽 추적 펜(가변두께/잉크튐/번짐/회전), 크기 0.3~6/개수 1~6/속도 0.05~4/표시 토글
 
-## 🟡 Phase 4 (편집 + 과금 + 어드민)
+## 🔴 다음 세션 우선 후보
 
-- [ ] Step 8 사후 편집: "이 그림 다시 / 이 문장 수정 / 순서·길이 변경" → 부분 재렌더(`type: "partial"`)
-- [ ] **API 인증 추가** — 현재 전부 무인증(ownerId를 클라이언트가 보냄). Firebase ID 토큰 검증 미들웨어 + Firestore 보안 규칙 작성. **배포 전 필수**
-- [ ] `/admin` 세션 쿠키(`__session`) 설정 로직 (로그인 시 ID 토큰 → 쿠키)
-- [ ] 크레딧/과금: costLog 기반 차감, 플랜별 한도
-- [ ] 어드민 화면 구현 (회원/영상/비용/보이스/템플릿) — 현재 골격만
-- [ ] Style Pack을 Firestore `stylePacks` 컬렉션으로 승격
-- [ ] 멀티 비율 출력 (9:16/16:9/1:1) — 현재 planner가 9:16 고정
-- [ ] draft-cheap 토글 (low/medium 프리뷰 → high 확정)
+- [ ] **붓 기본값 확정**: 사용자가 붓 테스트로 마음에 드는 조합(크기/개수/속도) 찾으면 → 시스템 설정 저장 → 실제 영상 1편 생성해 mp4 품질 확인
+- [ ] (선택) 오버랩 비율(현재 renderCore OVERLAP=0.3 상수)을 어드민 슬라이더로
+- [ ] **실전 영상 1편 엔드투엔드** (배포본에서 생성→mp4, ~$2): 새 Vision(anchorText)+새 드로잉으로 최종 품질 검증
+- [ ] Vision bbox 정확도가 부족하면: detail 올리기/프롬프트 개선/객체 수 가이드
 
-## 🟢 배포 시점에
+## 🟡 백로그
 
-- [ ] Vercel 배포 + 환경변수 주입
-- [ ] Cloud Run Worker 배포 (`worker/README.md`의 gcloud 명령) → `RENDER_WORKER_URL` 갱신
-- [ ] approve→generate fire-and-forget을 **Cloud Tasks로 전환** (Vercel 함수 조기 종료 위험)
-- [ ] `RENDER_PAGE_URL`을 Vercel URL + `/render`로
-- [ ] Firebase 키 재발급 검토 (채팅에 노출됐었음)
+- [ ] 결제 연동 (현재 어드민 수동 크레딧 지급만)
+- [ ] 한글 in-image 긴 문장 오타율 실측 (라벨은 오타 0 확인)
+- [ ] LLM 파싱 실패 재시도, signup 페이지
+- [ ] 자막/BGM, Style Pack Firestore 승격(템플릿 어드민 편집), draft-cheap 토글
+- [ ] Firebase 키 재발급 (채팅 노출 이력)
 
-## 🔵 품질 개선 (Phase 5 영역, 급하지 않음)
+## 환경 메모 (중요)
 
-- [ ] bbox 사각형 clip 경계가 보임 → 객체 외곽 따라 부드러운 리빌 (페더링/브러시 마스크)
-- [ ] 붓/손 그래픽 다듬기 (현재 단순 도형)
-- [ ] 한글 in-image 긴 문장 오타율 실측 (라벨 "한계효용"은 오타 0 확인됨, 문장 단위는 미검증)
-- [ ] LLM 파싱 실패 시 재시도 로직
-- [ ] signup 페이지 (현재 Google 로그인만 동작)
-- [ ] 4대 Planner LLM 기반 의미 동기화 (규칙 → 지능형)
-
-## 현재 동작 상태 요약
-
-- ✅ 전체 파이프라인 코드 완성 + 로컬 엔드투엔드 검증 (실제 mp4 생성 확인)
-- ✅ 한글 in-image 라벨 오타 0 (gpt-image-2) — 1순위 리스크 해소 신호
-- ✅ 버그 5건 수정·검증 (TTS 길이 실측, Storage 버킷, users upsert, 이미지 에러 기록, 비용 집계)
-- ⏸ 인덱스 2개만 생성되면 UI 구독까지 완전 동작
+- **renderCore 수정 시**: Vercel 배포만으로 프리뷰/붓테스트/mp4 모두 반영. 단 **worker 세그먼트 캐시 무효화** 필요하면 `worker/src/render.ts`의 sceneHash `v:` 증가 + worker 재배포
+- **worker 재배포**: `cd worker; gcloud run deploy aivideo-render-worker --source . --project golpo-b6407 --account funjejuai@gmail.com --region asia-northeast3 --memory 2Gi --cpu 2 --timeout 3600 --allow-unauthenticated --env-vars-file .env.cloudrun.yaml --quiet`
+- gcloud 계정: funjejuai@gmail.com (golpo-b6407 권한 있음). 토큰 만료 시 `gcloud auth login`
+- Vercel 내부 시크릿: INTERNAL_API_SECRET (로컬 .env.local 값과 Vercel 값이 다름 — 외부에서 배포본 internal 호출 시 Vercel 값 사용)
+- ffmpeg: `C:\Users\funjeju\tools\ffmpeg-8.1.1-essentials_build\bin` (worker/.env)
+- env 변경 시 dev 서버 재시작 (admin SDK 캐시)
+- next.config의 `transpilePackages:["firebase-admin"]` **제거 금지** (Vercel ERR_REQUIRE_ESM)
 
 ## 유용한 스크립트 (scripts/)
 
 | 스크립트 | 용도 |
 |---|---|
-| `test-firebase.mjs` | Firestore/Storage 연결 확인 (무료) |
-| `test-indexes.mjs` | 복합 인덱스 존재 확인 (무료) |
-| `test-script.mjs` | LLM 원고 생성 (~$0.006) |
-| `test-tts-route.mjs` | /api/tts 회귀 테스트 (~$0.001, dev 서버 필요) |
-| `test-image.mjs` | gpt-image-2 한글 이미지 (~$0.19) |
-| `seed-test-project.mjs` | 비용 0 테스트 프로젝트 생성 (기존 자산 재활용) |
-| `test-render.mjs <projectId>` | Worker 렌더 직접 실행 → mp4 (dev 서버 필요) |
-| `set-cors.mjs` | GCS CORS 설정 (적용 완료됨) |
-
-## 환경 메모
-
-- ffmpeg: `C:\Users\funjeju\tools\ffmpeg-8.1.1-essentials_build\bin` (worker/.env에 경로 설정됨)
-- worker 로컬 실행: `cd worker && npm run dev` (포트 8080)
-- dev 서버 재시작 시 admin SDK 인스턴스 캐시 주의 (env 변경 시 재시작 필수)
+| `test-render.mjs <projectId>` | Worker 렌더 직접 실행 → mp4 (dev 서버 필요, 캐시 변경 검증용) |
+| `seed-test-project.mjs` | 비용 0 테스트 프로젝트 생성 |
+| `watch-proj.mjs <projectId>` | 프로젝트 생성 진행 모니터 |
+| `set-admin.mjs <email> <role>` | 권한 부여 |
+| `test-indexes.mjs` / `test-firebase.mjs` | 인프라 확인 (무료) |
