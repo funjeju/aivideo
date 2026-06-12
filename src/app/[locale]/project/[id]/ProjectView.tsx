@@ -95,34 +95,59 @@ export default function ProjectView({ projectId }: { projectId: string }) {
         await updateDoc(doc(db, "projects", projectId, "scenes", sceneId), { narration });
       }
 
-      // TTS 합성
+      // TTS 합성 — 동시 3개 제한 + 45초 타임아웃 + 1회 재시도 (행 방지)
       const targetScenes = scenes.map((s) => ({
         ...s,
         narration: editedNarrations[s.id] ?? s.narration,
       }));
 
       let done = 0;
-      await Promise.all(
-        targetScenes.map(async (scene) => {
-          await fetch("/api/tts", {
-            method: "POST",
-            headers: authHeaders,
-            body: JSON.stringify({
-              projectId,
-              sceneId: scene.id,
-              narration: scene.narration,
-              voiceId: project?.voiceId ?? "nova",
-            }),
-          });
-          done++;
-          setTtsProgress(Math.round((done / targetScenes.length) * 100));
-        })
-      );
+      const failed: string[] = [];
+
+      async function synthOne(scene: { id: string; narration: string }) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const res = await fetch("/api/tts", {
+              method: "POST",
+              headers: authHeaders,
+              signal: AbortSignal.timeout(45000),
+              body: JSON.stringify({
+                projectId,
+                sceneId: scene.id,
+                narration: scene.narration,
+                voiceId: project?.voiceId ?? "nova",
+              }),
+            });
+            if (res.ok) return;
+          } catch {
+            // 타임아웃/네트워크 — 재시도
+          }
+        }
+        failed.push(scene.id);
+      }
+
+      const CONCURRENCY = 3;
+      for (let i = 0; i < targetScenes.length; i += CONCURRENCY) {
+        await Promise.all(
+          targetScenes.slice(i, i + CONCURRENCY).map(async (scene) => {
+            await synthOne(scene);
+            done++;
+            setTtsProgress(Math.round((done / targetScenes.length) * 100));
+          })
+        );
+      }
+
+      if (failed.length > 0) {
+        alert(`${failed.length}개 장면의 음성 합성에 실패했습니다. "승인하고 영상 만들기"를 다시 눌러 주세요.`);
+        setApproving(false);
+        return;
+      }
 
       // 승인
       const apRes = await fetch("/api/approve", {
         method: "POST",
         headers: authHeaders,
+        signal: AbortSignal.timeout(30000),
         body: JSON.stringify({ projectId }),
       });
       if (apRes.status === 402) {
