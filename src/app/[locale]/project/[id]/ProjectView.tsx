@@ -10,6 +10,7 @@ import { ProjectDoc, SceneDoc, SceneSpec, RenderJobDoc } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import ScenePlayer from "@/components/render/ScenePlayer";
+import SceneEditList from "./SceneEditList";
 
 interface SceneWithId extends SceneDoc { id: string }
 
@@ -28,6 +29,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   const [ttsProgress, setTtsProgress] = useState(0);
   const [renderJob, setRenderJob] = useState<RenderJobDoc | null>(null);
   const [rendering, setRendering] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     const projRef = doc(db, "projects", projectId);
@@ -71,6 +73,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
       });
+      setDirty(false);
     } catch (e) {
       console.error(e);
     } finally {
@@ -257,7 +260,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
           <p className="text-[var(--ink-soft)]">장면 데이터를 불러오는 중...</p>
         )}
 
-        <div className="mt-6 flex items-center gap-3">
+        <div className="mt-6 flex items-center gap-3 flex-wrap">
           {outputUrl ? (
             <>
               <a
@@ -268,7 +271,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
                 mp4 다운로드
               </a>
               <Button variant="outline" onClick={handleRender} disabled={rendering}>
-                다시 렌더링
+                {dirty ? "변경사항으로 다시 렌더링" : "다시 렌더링"}
               </Button>
             </>
           ) : (
@@ -282,9 +285,24 @@ export default function ProjectView({ projectId }: { projectId: string }) {
           )}
         </div>
 
+        {dirty && (
+          <div className="mt-3 text-xs text-[var(--accent)] bg-[var(--accent-soft)] rounded-[var(--radius)] px-3 py-2 inline-block">
+            장면을 수정했습니다. &quot;다시 렌더링&quot;을 눌러 새 영상에 반영하세요.
+          </div>
+        )}
+
         <p className="text-xs text-[var(--ink-faint)] mt-3">
           위는 브라우저 프리뷰입니다. &quot;mp4로 만들기&quot;를 누르면 동일한 화면이 영상 파일로 렌더링됩니다.
         </p>
+
+        {/* 장면별 사후 편집 */}
+        <div className="mt-10">
+          <h2 className="text-sm font-semibold text-[var(--ink)] mb-1">장면 편집</h2>
+          <p className="text-xs text-[var(--ink-soft)] mb-4">
+            문장을 고치거나 그림을 다시 그릴 수 있습니다. 변경 후 다시 렌더링하면 새 영상에 반영됩니다.
+          </p>
+          <SceneEditList projectId={projectId} scenes={scenes} onDirty={() => setDirty(true)} />
+        </div>
       </main>
     );
   }
