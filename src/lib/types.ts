@@ -13,6 +13,7 @@ export type ProjectStatus =
   | "error";
 export type ProjectMode = "generate" | "faithful";
 export type TargetLength = 50 | 180 | 600;
+export type AspectRatio = "9:16" | "16:9" | "1:1";
 export type StylePackId = "whiteboard" | "ink-wash" | "minhwa";
 export type RenderJobType = "full" | "partial";
 export type RenderJobStatus = "queued" | "running" | "done" | "error";
@@ -47,6 +48,7 @@ export interface ProjectDoc {
   sourceText: string;
   sourceFileUrl?: string;
   targetLength: TargetLength;
+  aspect: AspectRatio;
   stylePackId: StylePackId;
   voiceId: string;
   contentLocale: string;

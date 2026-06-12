@@ -7,7 +7,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { StylePackId, TargetLength } from "@/lib/types";
+import { StylePackId, TargetLength, AspectRatio } from "@/lib/types";
 
 const TARGET_LENGTHS: { value: TargetLength; label: string }[] = [
   { value: 50, label: "50초 숏폼" },
@@ -19,6 +19,12 @@ const STYLE_PACKS: { id: StylePackId; name: string; desc: string; emoji: string 
   { id: "whiteboard", name: "클래식 화이트보드", desc: "깔끔한 설명 영상 기본기", emoji: "✏️" },
   { id: "ink-wash", name: "수묵담채", desc: "한지 위 먹선, 심리·철학·역사", emoji: "🖌️" },
   { id: "minhwa", name: "민화/조선", desc: "오방색 모티프, 한국사·문화", emoji: "🐯" },
+];
+
+const ASPECTS: { value: AspectRatio; label: string; sub: string; icon: string }[] = [
+  { value: "9:16", label: "세로", sub: "숏폼·릴스", icon: "▯" },
+  { value: "16:9", label: "가로", sub: "유튜브", icon: "▭" },
+  { value: "1:1", label: "정사각", sub: "피드", icon: "▢" },
 ];
 
 const VOICES = [
@@ -39,6 +45,7 @@ export default function CreateForm() {
   const [topic, setTopic] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [targetLength, setTargetLength] = useState<TargetLength>(180);
+  const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
   const [voiceId, setVoiceId] = useState("nova");
   const [loading, setLoading] = useState(false);
@@ -61,6 +68,7 @@ export default function CreateForm() {
       formData.append("ownerId", user.uid);
       formData.append("mode", mode);
       formData.append("targetLength", String(targetLength));
+      formData.append("aspect", aspect);
       formData.append("stylePackId", stylePackId);
       formData.append("voiceId", voiceId);
       formData.append("contentLocale", "ko");
@@ -167,6 +175,29 @@ export default function CreateForm() {
                 }`}
               >
                 {l.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* 화면 비율 */}
+        <section>
+          <p className="text-sm font-medium text-[var(--ink)] mb-3">화면 비율</p>
+          <div className="flex gap-3">
+            {ASPECTS.map((a) => (
+              <button
+                key={a.value}
+                type="button"
+                onClick={() => setAspect(a.value)}
+                className={`flex-1 py-3 rounded-[var(--radius)] border text-sm font-medium transition-colors flex flex-col items-center gap-1 ${
+                  aspect === a.value
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "border-[var(--line)] text-[var(--ink-soft)] hover:border-[var(--accent)]"
+                }`}
+              >
+                <span className="text-lg leading-none">{a.icon}</span>
+                <span>{a.label}</span>
+                <span className="text-xs text-[var(--ink-faint)]">{a.sub}</span>
               </button>
             ))}
           </div>

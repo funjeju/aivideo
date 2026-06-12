@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
-import { getStylePack } from "@/lib/style-packs";
+import { getStylePack, imageSizeForAspect } from "@/lib/style-packs";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
 
@@ -31,6 +31,10 @@ export async function POST(req: NextRequest) {
     const pack = getStylePack(stylePackId ?? "whiteboard");
     const prompt = pack.imagePrompt.template.replace("{subject}", visualIntent);
 
+    // 프로젝트 비율에 맞춰 이미지 해상도 결정 (canvas.aspect와 정합)
+    const projData = (await adminDb().collection("projects").doc(projectId).get()).data();
+    const size = imageSizeForAspect(projData?.aspect ?? "9:16");
+
     let imageUrl = "";
     let cost = 0;
     let regenerations = 0;
@@ -41,7 +45,7 @@ export async function POST(req: NextRequest) {
           model: "gpt-image-2", // gpt-image 계열은 항상 b64_json 반환 (response_format 불필요)
           prompt,
           n: 1,
-          size: pack.imagePrompt.size as "1024x1024" | "1024x1536" | "1536x1024",
+          size,
           quality: pack.imagePrompt.quality as "high" | "medium" | "low",
         });
 

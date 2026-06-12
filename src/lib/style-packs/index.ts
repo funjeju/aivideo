@@ -107,3 +107,13 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
 export function getStylePack(id: string): StylePackDoc {
   return STYLE_PACKS[id] ?? STYLE_PACKS.whiteboard;
 }
+
+/** 비율 → GPT Image 2 지원 해상도 (canvas.aspect와 정합) */
+export function imageSizeForAspect(aspect: string): "1024x1024" | "1024x1536" | "1536x1024" {
+  switch (aspect) {
+    case "16:9": return "1536x1024";
+    case "1:1": return "1024x1024";
+    case "9:16":
+    default: return "1024x1536";
+  }
+}

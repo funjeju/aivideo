@@ -32,8 +32,7 @@ export async function POST(req: NextRequest) {
     const stylePack = getStylePack(project.stylePackId ?? "whiteboard");
     const objects: RevealObject[] = scene.sceneSpec?.reveal?.objects ?? [];
 
-    // aspect: targetLength에 따라 9:16 기본
-    const aspect = "9:16" as const;
+    const aspect = (project.aspect ?? "9:16") as "9:16" | "16:9" | "1:1";
 
     const sceneSpec = buildSceneSpec({
       sceneId,

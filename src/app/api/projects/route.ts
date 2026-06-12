@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
     const mode = formData.get("mode") as string;
     const topic = formData.get("topic") as string | null;
     const targetLength = Number(formData.get("targetLength") ?? 180);
+    const aspect = (formData.get("aspect") as string) ?? "9:16";
     const stylePackId = formData.get("stylePackId") as string ?? "whiteboard";
     const voiceId = formData.get("voiceId") as string ?? "nova";
     const contentLocale = formData.get("contentLocale") as string ?? "ko";
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
       sourceText,
       sourceFileUrl,
       targetLength,
+      aspect,
       stylePackId,
       voiceId,
       contentLocale,
