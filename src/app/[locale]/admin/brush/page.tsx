@@ -18,6 +18,7 @@ export default function BrushTestPage() {
   const [brushSize, setBrushSize] = useState(1);
   const [brushCount, setBrushCount] = useState(1);
   const [brushSpeed, setBrushSpeed] = useState(1);
+  const [showBrush, setShowBrush] = useState(true);
   const [scene, setScene] = useState<SceneSpec | null>(null);
   const [objects, setObjects] = useState<RevealObject[]>([]);
   const [playing, setPlaying] = useState(false);
@@ -130,6 +131,11 @@ export default function BrushTestPage() {
               className="flex-1 accent-[var(--accent)]" />
             <span className="text-sm tabular-nums w-10 text-right">{brushSpeed.toFixed(1)}×</span>
           </div>
+          <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
+            <input type="checkbox" checked={showBrush} onChange={(e) => setShowBrush(e.target.checked)}
+              className="accent-[var(--accent)]" />
+            붓 표시
+          </label>
 
           <div className="flex gap-2">
             <button onClick={analyze} disabled={analyzing}
@@ -162,7 +168,7 @@ export default function BrushTestPage() {
 
         {/* 우: 미리보기 */}
         <div>
-          <BrushPlayer scene={scene} image={image} playing={playing} brushSize={brushSize} brushCount={brushCount} brushSpeed={brushSpeed} />
+          <BrushPlayer scene={scene} image={image} playing={playing} brushSize={brushSize} brushCount={brushCount} brushSpeed={brushSpeed} showBrush={showBrush} />
         </div>
       </div>
     </div>

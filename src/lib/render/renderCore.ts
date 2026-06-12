@@ -222,12 +222,17 @@ function strokePathOnMask(
   mctx.fillStyle = "#fff";
   mctx.lineCap = "round";
   mctx.lineJoin = "round";
+  // 잉크 번짐 — 마스크 가장자리를 부드럽게 (destination-in 시 원본이 페이드되며 나타남)
+  mctx.shadowColor = "#fff";
+  mctx.shadowBlur = baseW * 0.55;
   const n = Math.min(count, path.length - 1);
+  const fade = 12; // 펜 끝 최근 구간은 옅게 시작 → 점점 진해짐 (끊김 방지)
   for (let i = 1; i <= n; i++) {
     const p0 = path[i - 1], p1 = path[i];
     // 동적 두께 (사인 압력 시뮬레이션)
     const w = baseW * (0.75 + 0.45 * (0.5 + 0.5 * Math.sin(i * 0.35)));
     mctx.lineWidth = w;
+    mctx.globalAlpha = i > n - fade ? Math.max(0.08, (n - i) / fade) : 1;
     mctx.beginPath();
     mctx.moveTo(p0.x, p0.y);
     mctx.lineTo(p1.x, p1.y);
@@ -239,9 +244,10 @@ function strokePathOnMask(
       mctx.beginPath();
       mctx.arc(p1.x + (rnd() - 0.5) * baseW, p1.y + (rnd() - 0.5) * baseW, r, 0, Math.PI * 2);
       mctx.fill();
-      mctx.globalAlpha = 1;
     }
   }
+  mctx.globalAlpha = 1;
+  mctx.shadowBlur = 0;
 }
 
 export function renderSceneFrame(
