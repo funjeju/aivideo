@@ -15,7 +15,7 @@ export type ProjectMode = "generate" | "faithful";
 /** 목표 영상 길이(초). 유저가 슬라이더로 자유 입력(20~1200). */
 export type TargetLength = number;
 export type AspectRatio = "9:16" | "16:9" | "1:1";
-export type StylePackId = "whiteboard" | "ink-wash" | "minhwa" | "doodle-edu";
+export type StylePackId = "whiteboard" | "ink-wash" | "minhwa" | "doodle-edu" | "joseon-reaper";
 export type RenderJobType = "full" | "partial";
 export type RenderJobStatus = "queued" | "running" | "done" | "error";
 export type ImageStatus = "pending" | "done" | "error";

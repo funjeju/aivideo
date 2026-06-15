@@ -19,7 +19,7 @@ const STATUS_LABEL: Record<string, string> = {
   generating: "생성중", rendering: "렌더중", done: "완성", error: "오류",
 };
 const STYLE_LABEL: Record<string, string> = {
-  whiteboard: "화이트보드", "ink-wash": "수묵담채", minhwa: "민화", "doodle-edu": "낙서 교육",
+  whiteboard: "화이트보드", "ink-wash": "수묵담채", minhwa: "민화", "doodle-edu": "낙서 교육", "joseon-reaper": "조선 저승사자",
 };
 
 export default function AdminVideosPage() {

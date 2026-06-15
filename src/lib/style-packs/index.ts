@@ -101,6 +101,43 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     sortOrder: 4,
   },
 
+  "joseon-reaper": {
+    id: "joseon-reaper",
+    name: "조선 저승사자",
+    description: "수묵 산수 배경 + 갓 쓴 저승사자 내레이터 + 미니 스틱피겨. 심리·경제·교양을 위트있게.",
+    imagePrompt: {
+      template:
+        "Korean traditional ink wash painting (sumukhwa) educational illustration on aged hanji paper, {subject}. Atmospheric soft ink-wash mountains, mist, a small pagoda and plum blossoms in the background (faint, low contrast). In the foreground: a recurring narrator character — a Joseon-era grim reaper (저승사자) with a pale round mask-like face, tall black gat hat, flowing black hanbok robe, holding a folding fan — gesturing as a guide. Concepts shown with simple minimal stick-figure cartoon characters and hand-drawn rectangular speech bubbles. Muted sepia and black ink tones with sparse red accent only on key words. A small red seal stamp in a corner. Elegant, witty, clear. IMPORTANT: keep foreground elements (characters, stick figures, bubbles, labels) with crisp dark outlines and generous empty space between them so they can be drawn one by one; keep the ink-wash scenery soft and in the background. Minimal text — only short keyword labels, no paragraphs.",
+      negative: "photorealistic, 3d render, vivid saturated color, neon, modern flat vector, anime, cluttered, dense text, paragraphs, heavy color",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "hybrid",
+    fontTitle: "Nanum Brush Script",
+    fontLabel: "Pretendard",
+    overlays: [
+      { type: "texture", asset: "hanji.png", opacity: 0.15 },
+      { type: "stamp", asset: "nakgwan.png", trigger: "end" },
+    ],
+    plannerDefaults: {
+      // 전경(인물/스틱피겨/말풍선)은 펜으로 그리고, 수묵 배경은 페이드인이 자연스럽다.
+      revealStyle: "symbol-first",
+      strokeStyle: "brush",
+      flowDirection: "left-to-right",
+      rhythm: "slow-breath",
+      handTool: "brush",
+    },
+    palette: { ink: "#2A2A2E", accent: "#B23A2E", paper: "#EDE6D6" },
+    userSliders: {
+      colorTemperature: { min: -1, max: 1, default: 0 },
+      whitespaceDensity: { min: 0, max: 1, default: 0.55 },
+    },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 5,
+  },
+
   minhwa: {
     id: "minhwa",
     name: "민화/조선",

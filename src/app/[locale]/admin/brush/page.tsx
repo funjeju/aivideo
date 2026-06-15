@@ -27,6 +27,7 @@ const BRUSH_TYPES: { id: BrushType; name: string; desc: string }[] = [
 const STYLES: { id: StylePackId; name: string }[] = [
   { id: "whiteboard", name: "화이트보드" },
   { id: "ink-wash", name: "수묵담채" },
+  { id: "joseon-reaper", name: "조선 저승사자" },
   { id: "minhwa", name: "민화" },
   { id: "doodle-edu", name: "낙서 교육" },
 ];
@@ -53,6 +54,10 @@ export default function BrushTestPage() {
   const [recording, setRecording] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  // 스타일팩별 샘플 이미지 생성
+  const [sampleSubject, setSampleSubject] = useState("");
+  const [samples, setSamples] = useState<Record<string, { loading: boolean; image?: string; error?: string }>>({});
+  const [genningAll, setGenningAll] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const playerRef = useRef<BrushPlayerHandle>(null);
 
@@ -74,6 +79,49 @@ export default function BrushTestPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function generateSample(packId: StylePackId) {
+    if (!sampleSubject.trim()) { setError("샘플 주제(한 줄)를 입력하세요"); return; }
+    setError("");
+    setSamples((s) => ({ ...s, [packId]: { loading: true } }));
+    try {
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
+      const res = await fetch("/api/admin/sample-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ stylePackId: packId, subject: sampleSubject }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSamples((s) => ({ ...s, [packId]: { loading: false, error: data.error ?? "실패" } })); return; }
+      setSamples((s) => ({ ...s, [packId]: { loading: false, image: data.image } }));
+    } catch {
+      setSamples((s) => ({ ...s, [packId]: { loading: false, error: "오류" } }));
+    }
+  }
+
+  async function generateAllSamples() {
+    if (!sampleSubject.trim()) { setError("샘플 주제(한 줄)를 입력하세요"); return; }
+    setGenningAll(true);
+    try {
+      await Promise.all(STYLES.map((s) => generateSample(s.id)));
+    } finally {
+      setGenningAll(false);
+    }
+  }
+
+  // 생성된 샘플을 붓 테스트 캔버스로 불러오기
+  function loadSampleForTest(packId: StylePackId, dataUrl: string) {
+    setImageBase64(dataUrl);
+    const img = new Image();
+    img.onload = () => setImage(img);
+    img.src = dataUrl;
+    setStylePackId(packId);
+    setScene(null);
+    setObjects([]);
+    setAudioUrl("");
+    setPlaying(false);
   }
 
   async function downloadRecording() {
@@ -200,6 +248,69 @@ export default function BrushTestPage() {
         이미지를 올리고 나레이션을 입력하면, AI가 의미를 분석(OCR/Vision)해 그 순서대로 붓이 그려나가는 걸 미리 봅니다.
         영상 생성 없이 이미지 1장으로 즉시 테스트합니다.
       </p>
+
+      {/* 스타일팩별 샘플 이미지 생성 */}
+      <div className="mb-8 border border-[var(--line)] rounded-[var(--radius)] p-4 bg-[var(--paper-sunken)]">
+        <p className="text-sm font-semibold text-[var(--ink)] mb-1">스타일팩별 샘플 이미지 생성</p>
+        <p className="text-xs text-[var(--ink-soft)] mb-3">
+          한 줄 주제로 각 화풍의 샘플 이미지를 생성해 비교합니다. 마음에 드는 걸 “이 이미지로 붓 테스트”로 불러와 드로잉을 확인하세요. (장당 ~$0.06, 전체 생성 시 화풍 수만큼)
+        </p>
+        <div className="flex gap-2 mb-3">
+          <input
+            value={sampleSubject}
+            onChange={(e) => setSampleSubject(e.target.value)}
+            placeholder="예: 한계효용 — 사과를 베어무는 사람과 줄어드는 만족"
+            className="flex-1 px-3 py-2 rounded border border-[var(--line)] bg-[var(--paper)] text-sm text-[var(--ink)]"
+          />
+          <button
+            onClick={generateAllSamples}
+            disabled={genningAll}
+            className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium disabled:opacity-50 whitespace-nowrap"
+          >
+            {genningAll ? "생성 중..." : "전체 화풍 생성"}
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {STYLES.map((s) => {
+            const r = samples[s.id];
+            return (
+              <div key={s.id} className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-[var(--ink)]">{s.name}</span>
+                  <button
+                    onClick={() => generateSample(s.id)}
+                    disabled={r?.loading}
+                    title="이 화풍만 생성/재생성"
+                    className="text-[11px] text-[var(--ink-faint)] hover:text-[var(--accent)] disabled:opacity-50"
+                  >
+                    ↻
+                  </button>
+                </div>
+                <div className="aspect-[2/3] rounded overflow-hidden bg-[var(--paper)] border border-[var(--line)] flex items-center justify-center">
+                  {r?.loading ? (
+                    <span className="text-xs text-[var(--ink-faint)]">생성 중…</span>
+                  ) : r?.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.image} alt={s.name} className="w-full h-full object-cover" />
+                  ) : r?.error ? (
+                    <span className="text-xs text-[var(--accent)] px-1 text-center">{r.error}</span>
+                  ) : (
+                    <span className="text-xs text-[var(--ink-faint)]">—</span>
+                  )}
+                </div>
+                {r?.image && (
+                  <button
+                    onClick={() => loadSampleForTest(s.id, r.image!)}
+                    className="text-[11px] px-2 py-1 rounded border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--paper)]"
+                  >
+                    이 이미지로 붓 테스트
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 좌: 입력 */}
