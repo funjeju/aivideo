@@ -63,8 +63,8 @@ export async function POST(req: NextRequest) {
         await file.makePublic();
         imageUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
-        // gpt-image-2 high 기준: 약 $0.19/image (1024x1536)
-        cost = 0.19;
+        // gpt-image-2 1024x1536 대략 원가: high≈$0.19, medium≈$0.06, low≈$0.02
+        cost = pack.imagePrompt.quality === "high" ? 0.19 : pack.imagePrompt.quality === "low" ? 0.02 : 0.06;
         if (attempt > 0) regenerations = attempt;
         break;
       } catch (e) {
