@@ -1,15 +1,14 @@
 import { adminDb } from "./firebase/admin";
-import { TargetLength } from "./types";
+import { sceneCountForLength } from "./length";
 
-/** 길이별 예상 외부 API 원가(USD). 승인 단계 잔액 확인용. (01-core.md 추정치) */
-const ESTIMATED_COST: Record<number, number> = {
-  50: 2.0,
-  180: 5.5,
-  600: 7.0,
-};
-
+/**
+ * 예상 외부 API 원가(USD). 승인 단계 잔액 확인용.
+ * 장면 수에 비례: 장면당 이미지($0.19)+TTS+렌더 ≈ $0.25, 기본 오버헤드 $0.5.
+ * (길이 자유 입력이므로 고정표 대신 계산)
+ */
 export function estimateCost(targetLength: number): number {
-  return ESTIMATED_COST[targetLength] ?? 5.5;
+  const scenes = sceneCountForLength(targetLength);
+  return Math.round((scenes * 0.25 + 0.5) * 10) / 10;
 }
 
 /** 전역 과금 활성화 여부 (settings/global). 기본 false(무료). */

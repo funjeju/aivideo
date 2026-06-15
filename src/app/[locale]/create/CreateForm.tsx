@@ -10,12 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { StylePackId, TargetLength, AspectRatio } from "@/lib/types";
+import { MIN_LENGTH, MAX_LENGTH, formatLength, sceneCountForLength } from "@/lib/length";
 
-const TARGET_LENGTHS: { value: TargetLength; label: string }[] = [
-  { value: 50, label: "50초 숏폼" },
-  { value: 180, label: "3분" },
-  { value: 600, label: "10분" },
-];
+// 슬라이더 빠른선택 프리셋(틱)
+const LENGTH_PRESETS = [50, 180, 600];
 
 const STYLE_PACKS: { id: StylePackId; name: string; desc: string; emoji: string }[] = [
   { id: "whiteboard", name: "클래식 화이트보드", desc: "깔끔한 설명 영상 기본기", emoji: "✏️" },
@@ -186,22 +184,37 @@ export default function CreateForm() {
           </TabsContent>
         </Tabs>
 
-        {/* 영상 길이 */}
+        {/* 영상 길이 — 슬라이더 자유 입력 */}
         <section>
-          <p className="text-sm font-medium text-[var(--ink)] mb-3">{t("length")}</p>
-          <div className="flex gap-3">
-            {TARGET_LENGTHS.map((l) => (
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-sm font-medium text-[var(--ink)]">{t("length")}</p>
+            <p className="text-sm text-[var(--ink-soft)]">
+              <span className="font-semibold text-[var(--accent)]">{formatLength(targetLength)}</span>
+              <span className="text-xs text-[var(--ink-faint)]"> · 약 {sceneCountForLength(targetLength)}장면</span>
+            </p>
+          </div>
+          <input
+            type="range"
+            min={MIN_LENGTH}
+            max={MAX_LENGTH}
+            step={10}
+            value={targetLength}
+            onChange={(e) => setTargetLength(Number(e.target.value))}
+            className="w-full accent-[var(--accent)] cursor-pointer"
+          />
+          <div className="flex justify-between mt-2">
+            {LENGTH_PRESETS.map((p) => (
               <button
-                key={l.value}
+                key={p}
                 type="button"
-                onClick={() => setTargetLength(l.value)}
-                className={`flex-1 py-3 rounded-[var(--radius)] border text-sm font-medium transition-colors ${
-                  targetLength === l.value
-                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                    : "border-[var(--line)] text-[var(--ink-soft)] hover:border-[var(--accent)]"
+                onClick={() => setTargetLength(p)}
+                className={`text-xs px-2 py-1 rounded-[var(--radius)] transition-colors ${
+                  targetLength === p
+                    ? "text-[var(--accent)] font-semibold"
+                    : "text-[var(--ink-faint)] hover:text-[var(--accent)]"
                 }`}
               >
-                {l.label}
+                {formatLength(p)}
               </button>
             ))}
           </div>

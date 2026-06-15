@@ -75,8 +75,8 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     description: "한국 교육 유튜브 특유의 두꺼운 마커 낙서체. 스틱피겨·말풍선·컬러 키워드 강조.",
     imagePrompt: {
       template:
-        "Korean educational YouTube whiteboard doodle style, {subject}, thick black marker outlines on pure white background, hand-drawn comic style with cloud-shaped thought bubbles, speech bubbles, simple stick figure characters, bold Korean-style typography with key words highlighted in blue or red, arrows connecting concepts, rounded boxy shapes, slightly imperfect wobble lines, cheerful educational infographic, flat 2D, no shading, no gradients. Distinct elements with clear empty space between them so they can be revealed one by one.",
-      negative: "photorealistic, 3d, watercolor, ink wash, traditional, complex texture, dark background, gradient, shadow, realistic proportions",
+        "Korean educational YouTube whiteboard doodle style, {subject}, thick black marker outlines on pure white background, hand-drawn comic style with simple stick figure characters and icons, arrows connecting concepts, rounded boxy shapes, slightly imperfect wobble lines, cheerful educational infographic, flat 2D, no shading, no gradients. Picture-driven, NOT text-driven: rely on drawings and icons to convey meaning. Use at most 1-2 very short keyword labels (single words, 1-3 syllables) optionally highlighted in blue or red — absolutely NO sentences, NO paragraphs, NO dense text, NO walls of text, NO multiple text boxes. Generous empty space between distinct elements so they can be drawn one by one.",
+      negative: "photorealistic, 3d, watercolor, ink wash, traditional, complex texture, dark background, gradient, shadow, realistic proportions, paragraphs, full sentences, dense text, walls of text, many text boxes, cluttered text, small unreadable text, speech bubbles full of text",
       model: "gpt-image-2",
       quality: "high",
       size: "1024x1536",

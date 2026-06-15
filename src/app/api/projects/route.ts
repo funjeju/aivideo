@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest } from "@/lib/auth";
+import { MIN_LENGTH, MAX_LENGTH } from "@/lib/length";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +16,10 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const mode = formData.get("mode") as string;
     const topic = formData.get("topic") as string | null;
-    const targetLength = Number(formData.get("targetLength") ?? 180);
+    const targetLength = Math.min(
+      MAX_LENGTH,
+      Math.max(MIN_LENGTH, Math.round(Number(formData.get("targetLength") ?? 180)) || 180)
+    );
     const aspect = (formData.get("aspect") as string) ?? "9:16";
     const stylePackId = formData.get("stylePackId") as string ?? "whiteboard";
     const voiceId = formData.get("voiceId") as string ?? "nova";

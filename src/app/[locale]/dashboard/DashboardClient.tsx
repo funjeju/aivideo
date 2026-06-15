@@ -5,6 +5,7 @@ import { collection, query, where, orderBy, onSnapshot } from "firebase/firestor
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { ProjectDoc } from "@/lib/types";
+import { formatLength } from "@/lib/length";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
@@ -26,12 +27,6 @@ const STYLE_EMOJI: Record<string, string> = {
   whiteboard: "✏️",
   "ink-wash": "🖌️",
   minhwa: "🐯",
-};
-
-const LENGTH_LABEL: Record<number, string> = {
-  50: "50초",
-  180: "3분",
-  600: "10분",
 };
 
 export default function DashboardClient() {
@@ -161,7 +156,7 @@ function ProjectCard({ project, onClick }: { project: ProjectWithId; onClick: ()
         {project.title || "제목 없음"}
       </h3>
       <p className="text-xs text-[var(--ink-faint)]">
-        {LENGTH_LABEL[project.targetLength] ?? ""} · {project.mode === "generate" ? "생성 모드" : "충실 모드"}
+        {formatLength(project.targetLength)} · {project.mode === "generate" ? "생성 모드" : "충실 모드"}
       </p>
       {isGenerating && (
         <Progress value={30} className="h-0.5 mt-3" />

@@ -1,11 +1,5 @@
 import { ProjectMode, TargetLength } from "@/lib/types";
-
-// 판서 1페이지 = 약 10초(나레이션 40~48자) 기준. 그림을 그릴 시간을 확보한다.
-const SCENE_COUNTS: Record<TargetLength, string> = {
-  50: "5",
-  180: "18",
-  600: "60",
-};
+import { sceneCountForLength } from "@/lib/length";
 
 export function buildScriptPrompt({
   mode,
@@ -20,7 +14,7 @@ export function buildScriptPrompt({
   targetLength: TargetLength;
   contentLocale: string;
 }) {
-  const sceneCount = SCENE_COUNTS[targetLength];
+  const sceneCount = String(sceneCountForLength(targetLength));
   const langInstruction = contentLocale === "ko" ? "한국어로 작성하라." : `Write in ${contentLocale}.`;
 
   const commonInstruction = `

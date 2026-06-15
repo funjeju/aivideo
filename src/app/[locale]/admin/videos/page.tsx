@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { ProjectDoc } from "@/lib/types";
+import { formatLength } from "@/lib/length";
 
 interface VideoRow extends ProjectDoc {
   id: string;
@@ -20,7 +21,6 @@ const STATUS_LABEL: Record<string, string> = {
 const STYLE_LABEL: Record<string, string> = {
   whiteboard: "화이트보드", "ink-wash": "수묵담채", minhwa: "민화", "doodle-edu": "낙서 교육",
 };
-const LENGTH_LABEL: Record<number, string> = { 50: "50초", 180: "3분", 600: "10분" };
 
 export default function AdminVideosPage() {
   const params = useParams();
@@ -71,7 +71,7 @@ export default function AdminVideosPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-[var(--ink-soft)]">{STYLE_LABEL[r.stylePackId] ?? r.stylePackId}</td>
-                    <td className="px-4 py-3 text-[var(--ink-soft)]">{LENGTH_LABEL[r.targetLength] ?? "-"}</td>
+                    <td className="px-4 py-3 text-[var(--ink-soft)]">{r.targetLength ? formatLength(r.targetLength) : "-"}</td>
                     <td className="px-4 py-3 text-[var(--ink-soft)]">{STATUS_LABEL[r.status] ?? r.status}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-[var(--ink)]">${cost.toFixed(2)}</td>
                     <td className="px-4 py-3 text-right">
