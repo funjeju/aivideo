@@ -69,8 +69,10 @@ export async function POST(req: NextRequest) {
     let imageCostUsd = 0;
     let imageRegenerations = 0;
 
-    // 병렬 처리 (동시 2개 — rate limit/타임아웃 안정성)
-    const BATCH = 2;
+    // 병렬 처리. 이미지 생성은 OpenAI 응답 대기(네트워크 바운드)라 동시성을 올리면
+    // 거의 비례해 빨라진다. Tier 1 안전 스윗스팟 = 4 (버스트가 RPM 한도 안쪽,
+    // 간헐 429는 images 라우트의 SDK 백오프가 흡수). 더 빠르게 = Tier 2 업그레이드.
+    const BATCH = 4;
     for (let i = 0; i < scenes.length; i += BATCH) {
       const batch = scenes.slice(i, i + BATCH);
       await Promise.all(

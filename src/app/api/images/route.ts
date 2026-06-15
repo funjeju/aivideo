@@ -5,7 +5,9 @@ import { getStylePack, imageSizeForAspect } from "@/lib/style-packs";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// maxRetries: SDK가 429(rate limit)/5xx를 Retry-After 존중 + 지수 백오프로 자동 재시도.
+// Tier 1처럼 한도 빠듯한 계정에서 동시 생성 시 간헐 429를 흡수(실패 대신 자동 감속).
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 5 });
 const MAX_RETRIES = 2;
 
 export async function POST(req: NextRequest) {
