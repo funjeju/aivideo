@@ -4,8 +4,13 @@
 export const MIN_LENGTH = 20;
 export const MAX_LENGTH = 1200; // 20분
 
-/** 판서 1장면 = 약 10초(나레이션 40~48자). 길이 → 장면 수. */
-export const SECONDS_PER_SCENE = 10;
+/**
+ * 판서 1장면(이미지 1장) = 약 7초. 길이 → 장면 수.
+ * TTS 실측 속도 ~7자/초 기준 7초 ≈ 50자. (이전 4.3자/초 가정은 오류로 길이가 60%만 채워졌었음)
+ */
+export const SECONDS_PER_SCENE = 7;
+/** TTS 실측 한국어 발화 속도(자/초). 나레이션 분량 산정 기준. */
+export const CHARS_PER_SECOND = 7;
 
 export function sceneCountForLength(targetLength: number): number {
   return Math.max(1, Math.round(targetLength / SECONDS_PER_SCENE));
