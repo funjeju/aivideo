@@ -20,6 +20,11 @@ const FPS = 30;
 const FFMPEG = process.env.FFMPEG_PATH ?? "ffmpeg";
 const FFPROBE = process.env.FFPROBE_PATH ?? "ffprobe";
 
+const T0 = Date.now();
+function log(...args: unknown[]) {
+  console.log(`[render +${((Date.now() - T0) / 1000).toFixed(1)}s]`, ...args);
+}
+
 function admin() {
   if (getApps().length === 0) {
     const saKey = process.env.FIREBASE_ADMIN_SA_KEY;
@@ -90,11 +95,13 @@ async function renderSegment(
   const imageUrl = (spec.image as { url?: string })?.url ?? "";
   let img: Awaited<ReturnType<typeof loadImage>> | null = null;
   if (imageUrl) {
+    log("  image fetch start");
     const resp = await fetch(imageUrl);
     if (!resp.ok) throw new Error(`image fetch failed ${resp.status}: ${imageUrl}`);
     const srcPath = join(framesDir, "_src.png");
     await writeFile(srcPath, Buffer.from(await resp.arrayBuffer()));
     img = await loadImage(srcPath);
+    log("  image loaded", img.width, "x", img.height);
   }
 
   const aspect = (spec.canvas as { aspect?: string })?.aspect ?? "9:16";
@@ -103,6 +110,8 @@ async function renderSegment(
   const ctx = canvas.getContext("2d");
 
   const frameCount = Math.max(1, Math.ceil(durationSec * FPS));
+  log(`  rendering ${frameCount} frames (${size.width}x${size.height})...`);
+  const frameT0 = Date.now();
   for (let i = 0; i < frameCount; i++) {
     const t = i / FPS;
     ctx.clearRect(0, 0, size.width, size.height);
@@ -115,7 +124,11 @@ async function renderSegment(
       {},
     );
     await writeFile(join(framesDir, `f_${String(i).padStart(6, "0")}.png`), canvas.toBuffer("image/png"));
+    if (i === 0 || (i + 1) % 30 === 0) {
+      log(`    frame ${i + 1}/${frameCount} (${((Date.now() - frameT0) / 1000).toFixed(1)}s)`);
+    }
   }
+  log(`  frames done in ${((Date.now() - frameT0) / 1000).toFixed(1)}s, ffmpeg muxing...`);
 
   // 프레임 + 오디오 → 세그먼트 mp4 (동일 인코딩으로 concat copy 가능)
   await run(FFMPEG, [
@@ -128,6 +141,7 @@ async function renderSegment(
     "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
     "-shortest", outPath,
   ]);
+  log("  ffmpeg mux done");
   return frameCount;
 }
 
@@ -140,14 +154,17 @@ export async function renderProject(
   onProgress?: (pct: number) => void
 ): Promise<RenderResult> {
   const startedAt = Date.now();
+  log("renderProject start", projectId);
   const { db, storage } = admin();
   const bucket = storage.bucket();
+  log("admin ready, bucket:", bucket.name);
 
   const scenesSnap = await db
     .collection("projects").doc(projectId)
     .collection("scenes").orderBy("order").get();
   const rawScenes = scenesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
   if (rawScenes.length === 0) throw new Error("no scenes");
+  log(`loaded ${rawScenes.length} scenes`);
 
   const workDir = await mkdtemp(join(tmpdir(), `render-${projectId}-`));
   const framesDir = join(workDir, "frames");
@@ -163,6 +180,7 @@ export async function renderProject(
 
     for (let i = 0; i < rawScenes.length; i++) {
       const s = rawScenes[i];
+      log(`scene ${i + 1}/${total} start (id ${s.id})`);
       const spec = ((s.sceneSpec as Record<string, unknown>) ?? {}) as Record<string, unknown>;
       const imageUrl = (s.imageUrl as string) || ((spec.image as { url?: string })?.url ?? "");
       const audioUrl = (s.audioUrl as string) || (spec.audioUrl as string) || "";
@@ -174,6 +192,7 @@ export async function renderProject(
         await download(audioUrl, audioPath);
         const measured = await probeDuration(audioPath);
         if (measured > 0) durationSec = measured;
+        log(`  audio ${durationSec.toFixed(1)}s`);
       } else {
         await run(FFMPEG, ["-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", String(durationSec), audioPath]);
       }
@@ -189,9 +208,11 @@ export async function renderProject(
 
       if (cachedHash === hash && segExists) {
         // 캐시 재사용
+        log("  cache hit, downloading segment");
         await segFile.download({ destination: localSeg });
         reusedSegments++;
       } else {
+        log("  cache miss, rendering segment");
         // 재렌더 (node-canvas 직접 렌더 — Chrome 불필요)
         await rm(framesDir, { recursive: true, force: true });
         await mkdir(framesDir, { recursive: true });
@@ -200,10 +221,12 @@ export async function renderProject(
         totalFrames += fc;
 
         // Storage 업로드 + 해시 기록
+        log("  uploading segment to storage");
         await bucket.upload(localSeg, { destination: segStoragePath, metadata: { contentType: "video/mp4" } });
         await db.collection("projects").doc(projectId).collection("scenes").doc(s.id as string)
           .update({ segmentHash: hash });
         renderedSegments++;
+        log("  segment done");
       }
 
       segmentLocalPaths.push(localSeg);
@@ -211,6 +234,7 @@ export async function renderProject(
     }
 
     // 세그먼트 concat → 최종 mp4
+    log("all segments done, concat...");
     const listPath = join(workDir, "segments.txt");
     await writeFile(listPath, segmentLocalPaths.map((p) => `file '${p.replace(/\\/g, "/")}'`).join("\n"));
     const outPath = join(workDir, "out.mp4");
@@ -223,6 +247,7 @@ export async function renderProject(
     if (onProgress) onProgress(95);
 
     // 최종 업로드
+    log("concat done, uploading final mp4");
     const destPath = `projects/${projectId}/output/video_${Date.now()}.mp4`;
     await bucket.upload(outPath, { destination: destPath, metadata: { contentType: "video/mp4" } });
     const outFile = bucket.file(destPath);

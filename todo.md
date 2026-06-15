@@ -12,25 +12,22 @@
 - 멀티 비율(9:16/16:9/1:1), 보이스 6종 + 미리듣기, 랜딩 페이지
 - **드로잉 엔진 v13**: 전체 이미지 1회 분석→점-객체 1회 배정, 의미 순서 드로잉, 이어달리기 붓(30% 오버랩, 동시=붓개수), 객체 70% 타원 번짐 채움 + 전체 92% 전역 채움, 윤곽 추적 펜(가변두께/잉크튐/번짐/회전), 크기 0.3~6/개수 1~6/속도 0.05~4/표시 토글
 
-## 🔴🔴 최우선 (2026-06-16 진행 중 — worker 렌더 전환)
+## ✅ 해결됨 (2026-06-16 — worker 렌더 전환 + hang 근본원인)
 
-**배경**: Cloud Run에서 headless Chrome(Puppeteer)이 안 뜸(gVisor에서 socket/NETLINK 실패). 9번 시도 실패 → **Chrome 제거하고 node-canvas(@napi-rs/canvas)로 전환** 결정·구현함.
+**배경**: Cloud Run에서 headless Chrome(Puppeteer)이 안 뜸(gVisor socket/NETLINK 실패). 9번 시도 실패 → **Chrome 제거하고 node-canvas(@napi-rs/canvas)로 전환**. 전환 후에도 worker가 progress 0에서 timeout → **근본원인은 코드가 아니라 Cloud Run CPU 스로틀링이었음.**
 
-**완료(커밋됨)**:
-- `77feb61` renderCore에 캔버스 백엔드 주입 추상화(configureCanvasBackend) — 브라우저 무영향
-- `c00557c` worker/src/render-engine/에 renderCore·seededRandom·types 격리 복사(import .js, @/lib/types→로컬), @napi-rs/canvas 설치, PoC로 node 렌더 검증(페이드/blur/한글 OK)
-- `a51ee63` render.ts를 Puppeteer→node-canvas로 교체 + index.ts storageBucket 픽스
-- `8809ac1` 성능: 영역 blur 사전계산 캐시 + round shadowBlur 제거(Skia CPU에서 그림자가 렌더 2배). **로컬 53s→27s/장면**. worker sceneHash v26.
+**🔑 근본원인**: index.ts가 202를 먼저 응답(`res.end`)하고 무거운 렌더를 그 다음에 시작하는 fire-and-forget 패턴. Cloud Run 기본값은 **요청 응답 후 CPU를 ~0으로 throttle** → 응답 뒤 시작되는 렌더가 거의 안 돌아 timeout. 로컬은 멀쩡하니 코드만 의심하느라 오래 막힘.
 
-**막힌 지점(다음 세션 시작점)**:
-- 로컬(Windows) 프레임 렌더 = 26초/장면(123프레임). 근데 **worker(gen1 4Gi)에선 여전히 progress 0으로 10분+ timeout**.
-- worker 로그에 진행/에러 없음(renderSegment에 console.log 없어서 깜깜).
-- **로컬엔 ffmpeg가 없어 frames→mp4 합성 단계는 미검증 = 사각지대**. 여기가 hang 의심 1순위.
-- **다음 수**: worker render.ts에 단계별 console.log(이미지fetch완료/프레임N/ffmpeg시작·완료) 추가 재배포 → 첫 세그먼트가 어디서 멈추는지 확인. ffmpeg hang인지, gen1 렌더가 로컬보다 훨씬 느린건지 특정.
-- 배포 리비전 00027-kn8(node-canvas v26)이 현재 traffic. 롤백하려면 이전 리비전.
-- 검증 도구: `node scripts/render-test.mjs <projectId>` (renderJob 생성+worker호출+폴링), `node scripts/diag.mjs <projectId>` (상태덤프). worker/poc-frame.mjs(로컬 프레임 렌더 시간측정).
-- 추가 최적화 여지(필요시): 채움/합성도 매 프레임 누적(21s)→ 누적 마스크 or 해상도/fps. 단 품질 민감 — 해상도/fps는 최후.
-- 정리 안 한 것: Dockerfile에 puppeteer/chrome 설치 잔존(빌드 느림, 동작 무관) — 전환 확정되면 제거. package.json puppeteer 의존성도.
+**조치**: `--no-cpu-throttling`(CPU 항상 할당) + `--concurrency 1`(인스턴스당 렌더 1개=풀CPU)로 재배포. **revision 00028-9fz**.
+
+**검증 완료(2026-06-16)**: render-test.mjs로 테스트 프로젝트(yPnz64wkmJi1XVXUFLls, 9장면) 렌더 → **status done, progress 0→9→…→100, 총 ~535s(9분)**. 출력 mp4 ffprobe 검증: **H.264 1080×1920 + AAC, 35.0초, 5.2MB = 정상 재생 가능본.** node-canvas 전환 이후 배포본에서 영상이 처음으로 끝까지 생성됨.
+
+**부수 정리(커밋 필요)**: render.ts에 단계별 진단 로그 추가 / Dockerfile에서 죽은 puppeteer+chrome 설치 제거(다음 빌드부터 훨씬 빠름) / package.json puppeteer 의존성 제거.
+
+**관련 커밋(전환 과정)**:
+- `77feb61` renderCore 캔버스 백엔드 주입 추상화 / `c00557c` render-engine 격리+PoC / `a51ee63` render.ts node-canvas 교체 / `8809ac1` blur 사전계산+shadow 제거(로컬 53→27s/장면, sceneHash v26)
+
+**남은 최적화 여지(필요시)**: 9분/35초영상은 다소 느림(장면당 ~59s=프레임29s+ffmpeg+업로드). 채움/합성 매 프레임 누적(21s) → 누적 마스크 or 해상도/fps 조정. 단 품질 민감 — 해상도/fps는 최후.
 
 ## 🔴 다음 세션 우선 후보
 
@@ -50,7 +47,8 @@
 ## 환경 메모 (중요)
 
 - **renderCore 수정 시**: Vercel 배포만으로 프리뷰/붓테스트/mp4 모두 반영. 단 **worker 세그먼트 캐시 무효화** 필요하면 `worker/src/render.ts`의 sceneHash `v:` 증가 + worker 재배포
-- **worker 재배포**: `cd worker; gcloud run deploy aivideo-render-worker --source . --project golpo-b6407 --account funjejuai@gmail.com --region asia-northeast3 --memory 2Gi --cpu 2 --timeout 3600 --allow-unauthenticated --env-vars-file .env.cloudrun.yaml --quiet`
+- **worker 재배포**: `cd worker; gcloud run deploy aivideo-render-worker --source . --project golpo-b6407 --account funjejuai@gmail.com --region asia-northeast3 --memory 4Gi --cpu 2 --timeout 3600 --no-cpu-throttling --concurrency 1 --allow-unauthenticated --env-vars-file .env.cloudrun.yaml --quiet`
+  - ⚠️ **`--no-cpu-throttling` 절대 빼지 마라**: 워커는 202 응답 후 비동기로 렌더한다(fire-and-forget). 이 플래그 없으면 응답 후 CPU가 throttle돼 progress 0에서 timeout(2026-06-16 hang 근본원인). `--concurrency 1`은 렌더 1건이 인스턴스 풀CPU 쓰게.
 - gcloud 계정: funjejuai@gmail.com (golpo-b6407 권한 있음). 토큰 만료 시 `gcloud auth login`
 - Vercel 내부 시크릿: INTERNAL_API_SECRET (로컬 .env.local 값과 Vercel 값이 다름 — 외부에서 배포본 internal 호출 시 Vercel 값 사용)
 - ffmpeg: `C:\Users\funjeju\tools\ffmpeg-8.1.1-essentials_build\bin` (worker/.env)

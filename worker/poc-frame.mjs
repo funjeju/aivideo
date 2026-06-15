@@ -36,12 +36,20 @@ const canvas = createCanvas(size.width, size.height);
 const ctx = canvas.getContext("2d");
 
 const dur = s.durationSec || 8;
-// 중간 프레임 (드로잉 진행 중) + 끝 프레임 (완성)
-for (const [label, t] of [["mid", dur * 0.5], ["end", dur * 0.98]]) {
+const FPS = 30;
+const frameCount = Math.max(1, Math.ceil(dur * FPS));
+console.log(`rendering ${frameCount} frames (dur ${dur}s)...`);
+const t0 = Date.now();
+let firstFrameMs = 0;
+for (let i = 0; i < frameCount; i++) {
+  const t = i / FPS;
+  const fs0 = Date.now();
   ctx.clearRect(0, 0, size.width, size.height);
   renderSceneFrame(ctx, spec, img, t, size, {});
-  const fs = await import("node:fs");
-  fs.writeFileSync(`poc-${label}.png`, canvas.toBuffer("image/png"));
-  console.log(`wrote poc-${label}.png (t=${t.toFixed(2)})`);
+  const buf = canvas.toBuffer("image/png");
+  if (i === 0) { firstFrameMs = Date.now() - fs0; void buf; }
+  if (i % 30 === 0) console.log(`  frame ${i}/${frameCount} (${((Date.now() - t0) / 1000).toFixed(1)}s elapsed)`);
 }
+const total = (Date.now() - t0) / 1000;
+console.log(`DONE ${frameCount} frames in ${total.toFixed(1)}s (${(total / frameCount * 1000).toFixed(0)}ms/frame, first=${firstFrameMs}ms)`);
 process.exit(0);
