@@ -256,19 +256,36 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     // 정체 감지: updatedAt이 5분 이상 갱신 안 되면 함수가 죽은 것으로 보고 재개 버튼 노출
     const updatedMs = (project?.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
     const stuck = updatedMs > 0 && now - updatedMs > 5 * 60 * 1000;
+
+    // 단계별 완료 — scenes의 필드를 실시간 집계 (지나가는 텍스트 대신 단계별 완료 표시)
+    const total = scenes.length || 1;
+    const audioDone = scenes.filter((s) => s.audioUrl).length;
+    const imageDone = scenes.filter((s) => s.imageUrl || s.imageStatus === "done").length;
+    const specDone = scenes.filter((s) => (s.sceneSpec as SceneSpec | undefined)?.reveal).length;
+    const stages: { label: string; done: number; total: number }[] = [
+      { label: "원고 작성", done: scenes.length, total: scenes.length },
+      { label: "음성 합성", done: audioDone, total },
+      { label: "이미지 생성", done: imageDone, total },
+      { label: "연출 구성", done: specDone, total },
+    ];
+    // 첫 미완료 단계 = 현재 진행 중. 그 앞은 완료, 뒤는 대기.
+    const activeIdx = stages.findIndex((s) => s.done < s.total);
+
     return (
       <main className="flex-1 flex flex-col items-center justify-center p-6">
-        <div className="text-center w-full max-w-sm">
-          <div className="w-16 h-16 mb-6 mx-auto">
-            <svg viewBox="0 0 64 64" fill="none" className={resuming || !stuck ? "animate-spin" : ""} style={{ animationDuration: "2s" }}>
-              <circle cx="32" cy="32" r="28" stroke="var(--line)" strokeWidth="4" />
-              <path d="M32 4a28 28 0 0 1 28 28" stroke="var(--accent)" strokeWidth="4" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-[var(--ink)] mb-2">영상 생성 중</h2>
-          <p className="text-sm text-[var(--ink-soft)] mb-4">이미지와 연출을 준비하고 있습니다...</p>
-          <Progress value={progress} className="h-1.5" />
-          <p className="text-xs text-[var(--ink-faint)] mt-2">{progress}%</p>
+        <div className="w-full max-w-sm">
+          <h2 className="text-xl font-semibold text-[var(--ink)] mb-1 text-center">영상 생성 중</h2>
+          <p className="text-xs text-[var(--ink-faint)] mb-6 text-center">{progress}% · 총 {scenes.length}장면</p>
+
+          <ol className="flex flex-col gap-1 mb-2">
+            {stages.map((s, i) => {
+              const state: StageState =
+                s.done >= s.total ? "done" : activeIdx === -1 || i === activeIdx ? "active" : "pending";
+              return <StageRow key={s.label} label={s.label} done={s.done} total={s.total} state={state} animate={!stuck} />;
+            })}
+          </ol>
+
+          <Progress value={progress} className="h-1.5 mt-4" />
 
           {stuck && (
             <div className="mt-6 p-4 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-sunken)]">
@@ -391,6 +408,39 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     <main className="flex-1 flex items-center justify-center p-6">
       <p className="text-[var(--accent)]">오류가 발생했습니다. 다시 시도해 주세요.</p>
     </main>
+  );
+}
+
+type StageState = "done" | "active" | "pending";
+
+function StageRow({
+  label, done, total, state, animate,
+}: { label: string; done: number; total: number; state: StageState; animate: boolean }) {
+  return (
+    <li className="flex items-center gap-3 py-2">
+      <span className="w-5 h-5 flex items-center justify-center shrink-0">
+        {state === "done" ? (
+          <svg viewBox="0 0 20 20" className="w-5 h-5 text-[var(--accent)]" fill="currentColor">
+            <circle cx="10" cy="10" r="10" opacity="0.15" />
+            <path d="M6 10.5l2.5 2.5 5-5.5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : state === "active" ? (
+          <span
+            className={`w-4 h-4 rounded-full border-2 border-[var(--accent)] border-t-transparent ${animate ? "animate-spin" : ""}`}
+          />
+        ) : (
+          <span className="w-3.5 h-3.5 rounded-full border-2 border-[var(--line)]" />
+        )}
+      </span>
+
+      <span className={`flex-1 text-sm ${state === "pending" ? "text-[var(--ink-faint)]" : "text-[var(--ink)]"}`}>
+        {label}
+      </span>
+
+      <span className="text-xs tabular-nums text-[var(--ink-faint)]">
+        {state === "done" ? "완료" : state === "pending" ? "대기" : `${done}/${total}`}
+      </span>
+    </li>
   );
 }
 
