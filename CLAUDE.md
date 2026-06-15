@@ -94,8 +94,8 @@ Sonnet 4.6  →  막히면 Opus 4.8  →  그래도 안 되면 Fable 5
 
 > 진행 상황을 한두 줄로 갱신해 다음 세션이 이어받게 한다. 길어지면 `docs/`로 옮긴다.
 
-- 현재 상태: **Phase 0~4 완료 + 배포 전체 동작 + 배포본 영상 렌더 엔드투엔드 성공(2026-06-16)**. worker는 **node-canvas(@napi-rs/canvas) 직접 렌더**로 전환(Chrome/Puppeteer 제거). 막혔던 worker hang은 **Cloud Run CPU 스로틀링이 근본원인** → `--no-cpu-throttling`+`--concurrency 1` 재배포(rev 00028-9fz)로 해결, 9장면 mp4(H.264 1080×1920+AAC 35s) 정상 검증. **드로잉 엔진 v15 "판서"**(잉크 이진화→Zhang-Suen 세선화→획 추출→객체별 획 순서 드로잉 + 영역 분할 채움). 어드민 `/admin/brush`에서 비용 0 즉시 테스트.
+- 현재 상태: **Phase 0~4 완료 + 배포 전체 동작 + 배포본 영상 렌더 엔드투엔드 성공(2026-06-16)**. worker는 **node-canvas(@napi-rs/canvas) 직접 렌더**로 전환(Chrome/Puppeteer 제거). 막혔던 worker hang은 **Cloud Run CPU 스로틀링이 근본원인** → `--no-cpu-throttling`+`--concurrency 1` 재배포로 해결. **렌더 속도도 최적화**: 프레임 PNG인코딩(병목 82%) 제거 — raw RGBA를 ffmpeg stdin 직접 파이프+동시인코딩 → **9분→1.8분(5배)**, 출력 바이트 동일(무손실). 현재 rev 00030-bfj, sceneHash v27. 9장면 mp4(H.264 1080×1920+AAC 35s) 정상 검증. **드로잉 엔진 v15 "판서"**(잉크 이진화→Zhang-Suen 세선화→획 추출→객체별 획 순서 드로잉 + 영역 분할 채움). 어드민 `/admin/brush`에서 비용 0 즉시 테스트.
 - 최근 결정: 드로잉=골격 획(stroke) 단위로 실제 선을 따라 그림(판서 느낌, TSP 점구름 폐기) / 객체별 영역 채움이 endAt에 100% 완성 보장(전역 92% 채움 삭제) / 나레이션 동기 모드(startAt 존재)에선 brushSpeed 무시 / 과금 토글 OFF 기본(naggu1999 면제)
 - 주의: `transpilePackages:["firebase-admin"]` 제거 금지(Vercel ESM) / renderCore 수정 시 worker sceneHash v 증가+worker 재배포로 캐시 무효화 / env 변경 시 dev 재시작 / gcloud=funjejuai 계정 / **worker 재배포 시 `--no-cpu-throttling --concurrency 1` 절대 빼지 마라**(빼면 응답후 CPU throttle돼 hang — 2026-06-16 근본원인)
-- 다음 할 일: ①진단로그/Dockerfile정리 변경 커밋 ②붓 조합 확정→"기본값으로 저장"(settings/global→planner 자동) ③실전 영상 1편(~$2) 품질 검증 ④렌더 속도 최적화(9분/35초는 느림, todo.md) ⑤백로그
-- 붓 자동화: 붓 9종+도구 5종+흐름 2종 전부 settings/global로 저장→자동 생성에 적용. worker 현재 rev 00028-9fz(node-canvas, no-cpu-throttling).
+- 다음 할 일: ①붓 조합 확정→"기본값으로 저장"(settings/global→planner 자동) ②실전 영상 1편(~$2) 품질 검증(사용자가 직접) ③백로그(`todo.md`)
+- 붓 자동화: 붓 9종+도구 5종+흐름 2종 전부 settings/global로 저장→자동 생성에 적용. worker 현재 rev 00030-bfj(node-canvas, no-cpu-throttling, raw 파이프 렌더).

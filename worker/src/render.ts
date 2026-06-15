@@ -78,7 +78,7 @@ interface RenderResult {
 /** 장면 입력의 결정적 해시 — 바뀌면 세그먼트 재렌더 */
 function sceneHash(spec: unknown, imageUrl: string, audioUrl: string): string {
   return createHash("sha256")
-    .update(JSON.stringify({ spec, imageUrl, audioUrl, fps: FPS, v: 26 }))
+    .update(JSON.stringify({ spec, imageUrl, audioUrl, fps: FPS, v: 27 }))
     .digest("hex")
     .slice(0, 16);
 }
@@ -110,8 +110,34 @@ async function renderSegment(
   const ctx = canvas.getContext("2d");
 
   const frameCount = Math.max(1, Math.ceil(durationSec * FPS));
-  log(`  rendering ${frameCount} frames (${size.width}x${size.height})...`);
+  log(`  rendering ${frameCount} frames (${size.width}x${size.height}) → ffmpeg pipe...`);
   const frameT0 = Date.now();
+
+  // PNG 인코딩(프레임당 ~180ms)이 렌더(~40ms)보다 4배 비싸다 → 프레임을 디스크에 PNG로
+  // 안 쓰고 raw RGBA 픽셀을 ffmpeg stdin에 직접 파이프한다. ffmpeg(libx264)는 별도
+  // 프로세스로 남는 vCPU에서 동시에 인코딩 → 렌더와 병렬. canvas.data()는 RGBA 순서.
+  const ff = spawn(FFMPEG, [
+    "-y",
+    "-f", "rawvideo", "-pixel_format", "rgba",
+    "-video_size", `${size.width}x${size.height}`, "-framerate", String(FPS),
+    "-i", "pipe:0",
+    "-i", audioPath,
+    "-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p",
+    "-r", String(FPS),
+    "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+    "-shortest", outPath,
+  ]);
+  let ffErr = "";
+  ff.stderr.on("data", (d) => (ffErr += d));
+  const ffDone = new Promise<void>((resolve, reject) => {
+    ff.on("close", (code) =>
+      code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${ffErr.slice(-600)}`))
+    );
+    ff.on("error", reject);
+  });
+  // stdin EPIPE 등은 close 핸들러의 종료코드로 잡는다 (여기서 throw하면 unhandled)
+  ff.stdin.on("error", () => {});
+
   for (let i = 0; i < frameCount; i++) {
     const t = i / FPS;
     ctx.clearRect(0, 0, size.width, size.height);
@@ -123,25 +149,18 @@ async function renderSegment(
       size,
       {},
     );
-    await writeFile(join(framesDir, `f_${String(i).padStart(6, "0")}.png`), canvas.toBuffer("image/png"));
+    // 복사 필수: stream.write는 버퍼 참조만 보관 → 다음 프레임이 같은 메모리를 덮어쓰면 오염
+    const frame = Buffer.from(canvas.data());
+    if (!ff.stdin.write(frame)) {
+      await new Promise<void>((r) => ff.stdin.once("drain", r));
+    }
     if (i === 0 || (i + 1) % 30 === 0) {
       log(`    frame ${i + 1}/${frameCount} (${((Date.now() - frameT0) / 1000).toFixed(1)}s)`);
     }
   }
-  log(`  frames done in ${((Date.now() - frameT0) / 1000).toFixed(1)}s, ffmpeg muxing...`);
-
-  // 프레임 + 오디오 → 세그먼트 mp4 (동일 인코딩으로 concat copy 가능)
-  await run(FFMPEG, [
-    "-y",
-    "-framerate", String(FPS),
-    "-i", join(framesDir, "f_%06d.png"),
-    "-i", audioPath,
-    "-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p",
-    "-r", String(FPS),
-    "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-    "-shortest", outPath,
-  ]);
-  log("  ffmpeg mux done");
+  ff.stdin.end();
+  await ffDone;
+  log(`  segment encoded in ${((Date.now() - frameT0) / 1000).toFixed(1)}s`);
   return frameCount;
 }
 

@@ -27,7 +27,15 @@
 **관련 커밋(전환 과정)**:
 - `77feb61` renderCore 캔버스 백엔드 주입 추상화 / `c00557c` render-engine 격리+PoC / `a51ee63` render.ts node-canvas 교체 / `8809ac1` blur 사전계산+shadow 제거(로컬 53→27s/장면, sceneHash v26)
 
-**남은 최적화 여지(필요시)**: 9분/35초영상은 다소 느림(장면당 ~59s=프레임29s+ffmpeg+업로드). 채움/합성 매 프레임 누적(21s) → 누적 마스크 or 해상도/fps 조정. 단 품질 민감 — 해상도/fps는 최후.
+## ✅ 렌더 속도 최적화 완료 (2026-06-16 — 9분→1.8분, 5배)
+
+**측정으로 병목 특정**(worker/measure-frame.mjs): 프레임당 renderSceneFrame=39ms vs **toBuffer(PNG)=182ms(전체 82%)**, raw 추출=0ms. 실제 그리기가 아니라 PNG 인코딩이 병목이었음.
+
+**해결**: 프레임을 PNG로 디스크에 안 쓰고 **raw RGBA 픽셀(`canvas.data()`)을 ffmpeg stdin에 직접 파이프**(render.ts renderSegment). PNG인코딩+디스크I/O 제거 + ffmpeg(libx264)가 별도 프로세스로 남는 vCPU에서 **동시 인코딩**(렌더와 병렬). canvas.data()=RGBA 순서, Buffer.from 복사 필수(stream.write는 참조만 보관), 백프레셔 drain 처리.
+
+**검증**: 로컬 test-pipe.mjs(123프레임 27s→6.2s, 색/길이 정상) → Cloud Run rev 00030-bfj 실측 **535s→106s**. 출력 mp4 **바이트 동일**(5,200,779) = 품질 그대로. sceneHash v27.
+
+**추가 여지(필요시)**: 세그먼트 인코딩 Cloud Run ~10s/장면(로컬 6s). ffmpeg preset medium→veryfast면 더 빠름(파일 약간↑). 해상도/fps는 품질 민감 — 최후.
 
 ## 🔴 다음 세션 우선 후보
 
