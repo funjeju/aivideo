@@ -60,13 +60,32 @@ function computeFit(canvas: CanvasSize, img?: ImageSource) {
   };
 }
 
+// ── 캔버스 백엔드 (브라우저=DOM 기본 / worker=@napi-rs/canvas 주입) ──
+// configureCanvasBackend를 호출하지 않으면 브라우저 DOM을 그대로 사용한다(붓 테스트·프리뷰 무영향).
+// worker(node)는 시작 시 @napi-rs/canvas의 createCanvas/ImageData를 주입한다.
+type ImageDataCtor = { new (data: Uint8ClampedArray, w: number, h: number): ImageData };
+let _createCanvas: (w: number, h: number) => HTMLCanvasElement = (w, h) => {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  return c;
+};
+let _ImageData: ImageDataCtor = (typeof ImageData !== "undefined" ? (ImageData as unknown as ImageDataCtor) : (null as unknown as ImageDataCtor));
+
+export function configureCanvasBackend(backend: {
+  createCanvas: (w: number, h: number) => HTMLCanvasElement;
+  ImageData: ImageDataCtor;
+}) {
+  _createCanvas = backend.createCanvas;
+  _ImageData = backend.ImageData;
+}
+
 // ── 오프스크린 스크래치 캔버스 (성능) ──────────────────────────────
 type Cv = { c: HTMLCanvasElement | null };
 const _mask: Cv = { c: null };
 const _masked: Cv = { c: null };
 const _tmp: Cv = { c: null };
 function scratch(ref: Cv, w: number, h: number): HTMLCanvasElement {
-  if (!ref.c) ref.c = document.createElement("canvas");
+  if (!ref.c) ref.c = _createCanvas(w, h);
   if (ref.c.width !== w) ref.c.width = w;
   if (ref.c.height !== h) ref.c.height = h;
   return ref.c;
@@ -387,9 +406,8 @@ function computeSceneGeo(
       }
     }
     const regions = objects.map((_, i) => {
-      const cv = document.createElement("canvas");
-      cv.width = rw; cv.height = rh;
-      cv.getContext("2d")!.putImageData(new ImageData(regionData[i], rw, rh), 0, 0);
+      const cv = _createCanvas(rw, rh);
+      cv.getContext("2d")!.putImageData(new _ImageData(regionData[i], rw, rh), 0, 0);
       return cv;
     });
 
