@@ -107,6 +107,10 @@ interface SceneItem {
 interface SceneGeo { strokes: Pt[][][]; lens: number[][]; totals: number[]; regions: (HTMLCanvasElement | null)[] }
 const sceneGeoCache = new Map<string, SceneGeo>();
 
+// 영역 채움 blur 사전계산 캐시: 같은 region+같은 blur는 매 프레임 다시 blur하지 않고 재사용.
+// (CPU 캔버스에서 blur가 비싸 매 프레임 반복 시 프레임당 수백 ms → 객체당 1회로 절감, 결과 픽셀 동일)
+const blurredRegionCache = new Map<string, HTMLCanvasElement>();
+
 /** Zhang-Suen 세선화: 이진 잉크 마스크 → 1px 골격 */
 function thinSkeleton(ink: Uint8Array, w: number, h: number): Uint8Array {
   const img = ink.slice();
@@ -513,8 +517,9 @@ function strokePathOnMask(
 
   if (brushType === "round") {
     // ─ 기본 둥근 붓: 가변 두께 + 잉크 튐 ─
+    // shadowBlur 미사용: CPU 캔버스(worker)에서 그림자가 프레임당 비용 폭증(렌더 2배). 부드러움은 fade+채움 blur로 충분.
     mctx.lineCap = "round"; mctx.lineJoin = "round";
-    mctx.shadowColor = "#fff"; mctx.shadowBlur = baseW * 0.35;
+    mctx.shadowBlur = 0;
     for (let i = 1; i <= n; i++) {
       const p0 = path[i - 1], p1 = path[i];
       mctx.lineWidth = baseW * (0.5 + 0.3 * (0.5 + 0.5 * Math.sin(i * 0.35)));
@@ -855,10 +860,19 @@ export function renderSceneFrame(
               mctx.save();
               mctx.globalAlpha = a;
               if (it.region) {
-                // 저해상 영역 마스크 업스케일 + blur → 경계가 먹 번지듯 부드럽게
-                mctx.filter = `blur(${Math.max(baseW * 0.6, 8)}px)`;
-                mctx.drawImage(it.region, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
-                mctx.filter = "none";
+                // 영역 마스크 업스케일 + blur를 객체당 1회만 계산해 캐시 (매 프레임 alpha만 조절)
+                const blurPx = Math.max(baseW * 0.6, 8);
+                const bkey = `${scene.sceneId ?? "s"}|${it.obj.id}|${Math.round(blurPx)}|${Math.round(fit.drawW)}x${Math.round(fit.drawH)}`;
+                let blurred = blurredRegionCache.get(bkey);
+                if (!blurred) {
+                  if (blurredRegionCache.size > 80) blurredRegionCache.clear();
+                  blurred = _createCanvas(width, height);
+                  const bx = blurred.getContext("2d")!;
+                  bx.filter = `blur(${blurPx}px)`;
+                  bx.drawImage(it.region, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
+                  blurredRegionCache.set(bkey, blurred);
+                }
+                mctx.drawImage(blurred, 0, 0);
               } else {
                 // 영역 없음(CORS 폴백): bbox 방사 그라데이션
                 const bx1 = it.obj.bbox[0] * fit.bScaleX + fit.offsetX;
