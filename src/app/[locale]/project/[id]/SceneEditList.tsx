@@ -31,6 +31,27 @@ function SceneEditCard({
 
   const textChanged = narration.trim() !== (scene.narration ?? "").trim();
 
+  async function downloadImage() {
+    if (!scene.imageUrl) return;
+    const filename = `scene-${String(index + 1).padStart(2, "0")}.png`;
+    try {
+      // GCS는 교차 도메인이라 <a download>가 무시됨 → blob으로 받아 저장(버킷 CORS * GET 설정됨)
+      const res = await fetch(scene.imageUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // CORS/네트워크 실패 시 새 탭 폴백(사용자가 우클릭 저장)
+      window.open(scene.imageUrl, "_blank");
+    }
+  }
+
   async function call(action: "update-text" | "regenerate-image") {
     setBusy(action === "update-text" ? "text" : "image");
     setDone("");
@@ -61,15 +82,26 @@ function SceneEditCard({
 
   return (
     <div className="flex gap-3 bg-[var(--paper-raised)] border border-[var(--line)] rounded-[var(--radius)] p-3">
-      {/* 썸네일 */}
-      <div className="w-20 h-28 flex-shrink-0 rounded overflow-hidden bg-[var(--paper-sunken)] flex items-center justify-center">
+      {/* 썸네일 — 클릭 시 다운로드 */}
+      <button
+        type="button"
+        onClick={downloadImage}
+        disabled={!scene.imageUrl}
+        title={scene.imageUrl ? "클릭해서 이미지 저장" : undefined}
+        className="group relative w-20 h-28 flex-shrink-0 rounded overflow-hidden bg-[var(--paper-sunken)] flex items-center justify-center disabled:cursor-default"
+      >
         {scene.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={scene.imageUrl} alt={`scene ${index + 1}`} className="w-full h-full object-cover" />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={scene.imageUrl} alt={`scene ${index + 1}`} className="w-full h-full object-cover" />
+            <span className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-black/40 text-white text-[10px] font-medium">
+              ⬇ 저장
+            </span>
+          </>
         ) : (
           <span className="text-xs text-[var(--ink-faint)]">없음</span>
         )}
-      </div>
+      </button>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1.5">
@@ -102,6 +134,13 @@ function SceneEditCard({
             className="text-xs px-3 py-1.5 rounded-md border border-[var(--line)] text-[var(--ink)] disabled:opacity-40 hover:bg-[var(--paper-sunken)]"
           >
             {busy === "image" ? "생성 중..." : "이 그림 다시"}
+          </button>
+          <button
+            onClick={downloadImage}
+            disabled={!scene.imageUrl}
+            className="text-xs px-3 py-1.5 rounded-md border border-[var(--line)] text-[var(--ink)] disabled:opacity-40 hover:bg-[var(--paper-sunken)]"
+          >
+            이미지 저장
           </button>
           {done === "text" && <span className="text-xs text-green-600">문장·음성 갱신됨</span>}
           {done === "image" && <span className="text-xs text-green-600">새 그림 생성됨</span>}
