@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   doc, collection, onSnapshot, updateDoc, query, orderBy, where, limit
@@ -32,6 +32,10 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   const [dirty, setDirty] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  // 진행률이 마지막으로 "증가한" 시각. 이게 오래 안 바뀌면 정체로 본다.
+  // (updatedAt은 progress 갱신 시 안 바뀌어 오탐 발생 → progress 변화 기준으로 판단)
+  const [progressChangedAt, setProgressChangedAt] = useState(() => Date.now());
+  const lastProgressRef = useRef<number | null>(null);
 
   // 정체 감지용 시계 (30초마다) — generating이 멈췄는지 판단
   useEffect(() => {
@@ -63,8 +67,15 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     const projRef = doc(db, "projects", projectId);
     const unsubProj = onSnapshot(projRef, (snap) => {
       if (!snap.exists()) return;
-      const data = snap.data() as ProjectDoc;
+      const data = snap.data() as ProjectDoc & { generateProgress?: number };
       setProject(data);
+
+      // 진행률이 올라갈 때마다 정체 타이머 리셋 (실제 활동 기준)
+      const gp = data.generateProgress ?? 0;
+      if (lastProgressRef.current === null || gp !== lastProgressRef.current) {
+        lastProgressRef.current = gp;
+        setProgressChangedAt(Date.now());
+      }
 
       if (data.status === "script_ready" && !data.scriptApproved) setViewState("script_approval");
       else if (data.status === "approved" || data.status === "generating") setViewState("generating");
@@ -253,9 +264,9 @@ export default function ProjectView({ projectId }: { projectId: string }) {
 
   if (viewState === "generating") {
     const progress = project?.generateProgress ?? 0;
-    // 정체 감지: updatedAt이 5분 이상 갱신 안 되면 함수가 죽은 것으로 보고 재개 버튼 노출
-    const updatedMs = (project?.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
-    const stuck = updatedMs > 0 && now - updatedMs > 5 * 60 * 1000;
+    // 정체 감지: 진행률이 8분 이상 멈춰 있으면 함수가 죽은 것으로 보고 재개 버튼 노출.
+    // (이미지 생성이 장당 수 분 걸려 정상이어도 진행률 간격이 길다 → 임계 8분)
+    const stuck = progress < 100 && now - progressChangedAt > 8 * 60 * 1000;
 
     // 단계별 완료 — scenes의 필드를 실시간 집계 (지나가는 텍스트 대신 단계별 완료 표시)
     const total = scenes.length || 1;

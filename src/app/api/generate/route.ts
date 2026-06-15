@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
               done++;
               await db.collection("projects").doc(projectId).update({
                 generateProgress: Math.round((done / total) * 100),
+                updatedAt: FieldValue.serverTimestamp(),
               });
               return;
             }
@@ -118,6 +119,7 @@ export async function POST(req: NextRequest) {
           done++;
           await db.collection("projects").doc(projectId).update({
             generateProgress: Math.round((done / total) * 100),
+            updatedAt: FieldValue.serverTimestamp(),
           });
         })
       );
