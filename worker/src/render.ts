@@ -1,15 +1,22 @@
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import puppeteer, { Page } from "puppeteer";
+import { createCanvas, loadImage, ImageData } from "@napi-rs/canvas";
+import { configureCanvasBackend, renderSceneFrame, ASPECT_SIZES } from "./render-engine/renderCore.js";
+import type { SceneSpec } from "./render-engine/types.js";
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+// 렌더 엔진에 @napi-rs/canvas 백엔드 주입 (Chrome 없이 node에서 직접 렌더)
+configureCanvasBackend({
+  createCanvas: (w, h) => createCanvas(w, h) as unknown as HTMLCanvasElement,
+  ImageData: ImageData as unknown as never,
+});
+
 const FPS = 30;
-const RENDER_PAGE_URL = process.env.RENDER_PAGE_URL ?? "http://localhost:3000/render";
 const FFMPEG = process.env.FFMPEG_PATH ?? "ffmpeg";
 const FFPROBE = process.env.FFPROBE_PATH ?? "ffprobe";
 
@@ -71,33 +78,43 @@ function sceneHash(spec: unknown, imageUrl: string, audioUrl: string): string {
     .slice(0, 16);
 }
 
-/** 단일 장면 → 세그먼트 mp4 (프레임 캡처 + 오디오 합성) */
+/** 단일 장면 → 세그먼트 mp4 (node-canvas 직접 렌더 + 오디오 합성) */
 async function renderSegment(
-  page: Page,
   spec: Record<string, unknown>,
   durationSec: number,
   audioPath: string,
-  workDir: string,
   framesDir: string,
   outPath: string
 ): Promise<number> {
-  // 페이지에 이 장면 하나만 주입
-  await page.evaluate(async (injected: object[]) => {
-    const w = window as unknown as { __loadScenes: (s: object[]) => Promise<unknown> };
-    await w.__loadScenes(injected);
-  }, [spec] as unknown as object[]);
-  await page.waitForFunction("window.__renderReady === true", { timeout: 120000 });
+  // 이미지 로드: @napi-rs loadImage는 buffer를 SVG로 오판하는 버그가 있어 임시파일 경유
+  const imageUrl = (spec.image as { url?: string })?.url ?? "";
+  let img: Awaited<ReturnType<typeof loadImage>> | null = null;
+  if (imageUrl) {
+    const resp = await fetch(imageUrl);
+    if (!resp.ok) throw new Error(`image fetch failed ${resp.status}: ${imageUrl}`);
+    const srcPath = join(framesDir, "_src.png");
+    await writeFile(srcPath, Buffer.from(await resp.arrayBuffer()));
+    img = await loadImage(srcPath);
+  }
+
+  const aspect = (spec.canvas as { aspect?: string })?.aspect ?? "9:16";
+  const size = ASPECT_SIZES[aspect] ?? ASPECT_SIZES["9:16"];
+  const canvas = createCanvas(size.width, size.height);
+  const ctx = canvas.getContext("2d");
 
   const frameCount = Math.max(1, Math.ceil(durationSec * FPS));
   for (let i = 0; i < frameCount; i++) {
     const t = i / FPS;
-    const dataUrl: string = await page.evaluate((tt: number) => {
-      const w = window as unknown as { __seek: (t: number) => void; __getFrame: () => string };
-      w.__seek(tt);
-      return w.__getFrame();
-    }, t);
-    const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
-    await writeFile(join(framesDir, `f_${String(i).padStart(6, "0")}.png`), Buffer.from(base64, "base64"));
+    ctx.clearRect(0, 0, size.width, size.height);
+    renderSceneFrame(
+      ctx as unknown as CanvasRenderingContext2D,
+      spec as unknown as SceneSpec,
+      (img ?? undefined) as unknown as Parameters<typeof renderSceneFrame>[2],
+      t,
+      size,
+      {},
+    );
+    await writeFile(join(framesDir, `f_${String(i).padStart(6, "0")}.png`), canvas.toBuffer("image/png"));
   }
 
   // 프레임 + 오디오 → 세그먼트 mp4 (동일 인코딩으로 concat copy 가능)
@@ -136,7 +153,6 @@ export async function renderProject(
   const framesDir = join(workDir, "frames");
   await mkdir(framesDir, { recursive: true });
 
-  let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
   let reusedSegments = 0;
   let renderedSegments = 0;
   let totalFrames = 0;
@@ -176,25 +192,12 @@ export async function renderProject(
         await segFile.download({ destination: localSeg });
         reusedSegments++;
       } else {
-        // 재렌더
-        if (!browser) {
-          browser = await puppeteer.launch({
-            headless: true,
-            args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-          });
-        }
-        const page = await browser.newPage();
-        await page.setViewport({ width: 1080, height: 1920, deviceScaleFactor: 1 });
-        await page.goto(RENDER_PAGE_URL, { waitUntil: "networkidle0" });
-        await page.waitForFunction("typeof window.__loadScenes === 'function'", { timeout: 60000 });
-
-        // 프레임 디렉터리 비우고 재사용
+        // 재렌더 (node-canvas 직접 렌더 — Chrome 불필요)
         await rm(framesDir, { recursive: true, force: true });
         await mkdir(framesDir, { recursive: true });
 
-        const fc = await renderSegment(page, fullSpec, durationSec, audioPath, workDir, framesDir, localSeg);
+        const fc = await renderSegment(fullSpec, durationSec, audioPath, framesDir, localSeg);
         totalFrames += fc;
-        await page.close();
 
         // Storage 업로드 + 해시 기록
         await bucket.upload(localSeg, { destination: segStoragePath, metadata: { contentType: "video/mp4" } });
@@ -206,8 +209,6 @@ export async function renderProject(
       segmentLocalPaths.push(localSeg);
       if (onProgress) onProgress(Math.round(((i + 1) / total) * 85));
     }
-
-    if (browser) { await browser.close(); browser = null; }
 
     // 세그먼트 concat → 최종 mp4
     const listPath = join(workDir, "segments.txt");
@@ -237,7 +238,6 @@ export async function renderProject(
       renderedSegments,
     };
   } finally {
-    if (browser) await browser.close().catch(() => {});
     await rm(workDir, { recursive: true, force: true }).catch(() => {});
   }
 }

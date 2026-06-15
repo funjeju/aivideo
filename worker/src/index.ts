@@ -11,7 +11,11 @@ function db() {
   if (getApps().length === 0) {
     const saKey = process.env.FIREBASE_ADMIN_SA_KEY;
     if (!saKey) throw new Error("FIREBASE_ADMIN_SA_KEY not set");
-    initializeApp({ credential: cert(JSON.parse(saKey)) });
+    // storageBucket 포함 — 이 init이 먼저 실행되므로 여기 없으면 render의 bucket() 호출이 실패한다
+    initializeApp({
+      credential: cert(JSON.parse(saKey)),
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    });
   }
   return getFirestore();
 }
