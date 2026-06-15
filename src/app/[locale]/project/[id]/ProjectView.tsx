@@ -30,6 +30,34 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   const [renderJob, setRenderJob] = useState<RenderJobDoc | null>(null);
   const [rendering, setRendering] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  // 정체 감지용 시계 (30초마다) — generating이 멈췄는지 판단
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  async function handleResume() {
+    if (resuming) return;
+    setResuming(true);
+    try {
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
+      // 멱등 재개 — 완료된 장면은 자동 스킵, 멈춘 지점부터 이어서 처리.
+      // 응답까지 수분 걸릴 수 있으나 onSnapshot이 진행률을 실시간 갱신한다.
+      await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ projectId }),
+      });
+    } catch (e) {
+      console.error("resume failed:", e);
+    } finally {
+      setResuming(false);
+    }
+  }
 
   useEffect(() => {
     const projRef = doc(db, "projects", projectId);
@@ -225,11 +253,14 @@ export default function ProjectView({ projectId }: { projectId: string }) {
 
   if (viewState === "generating") {
     const progress = project?.generateProgress ?? 0;
+    // 정체 감지: updatedAt이 5분 이상 갱신 안 되면 함수가 죽은 것으로 보고 재개 버튼 노출
+    const updatedMs = (project?.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+    const stuck = updatedMs > 0 && now - updatedMs > 5 * 60 * 1000;
     return (
       <main className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="text-center w-full max-w-sm">
           <div className="w-16 h-16 mb-6 mx-auto">
-            <svg viewBox="0 0 64 64" fill="none" className="animate-spin" style={{ animationDuration: "2s" }}>
+            <svg viewBox="0 0 64 64" fill="none" className={resuming || !stuck ? "animate-spin" : ""} style={{ animationDuration: "2s" }}>
               <circle cx="32" cy="32" r="28" stroke="var(--line)" strokeWidth="4" />
               <path d="M32 4a28 28 0 0 1 28 28" stroke="var(--accent)" strokeWidth="4" strokeLinecap="round" />
             </svg>
@@ -238,6 +269,18 @@ export default function ProjectView({ projectId }: { projectId: string }) {
           <p className="text-sm text-[var(--ink-soft)] mb-4">이미지와 연출을 준비하고 있습니다...</p>
           <Progress value={progress} className="h-1.5" />
           <p className="text-xs text-[var(--ink-faint)] mt-2">{progress}%</p>
+
+          {stuck && (
+            <div className="mt-6 p-4 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-sunken)]">
+              <p className="text-sm text-[var(--ink)] mb-3">
+                생성이 5분 이상 멈춰 있습니다. 처리가 중단됐을 수 있어요.
+                <br />아래 버튼을 누르면 멈춘 지점부터 이어서 생성합니다.
+              </p>
+              <Button onClick={handleResume} disabled={resuming} className="w-full">
+                {resuming ? "재개 중..." : "이어서 생성하기"}
+              </Button>
+            </div>
+          )}
         </div>
       </main>
     );

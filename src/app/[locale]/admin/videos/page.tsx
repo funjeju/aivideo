@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { ProjectDoc } from "@/lib/types";
@@ -16,11 +18,13 @@ const STATUS_LABEL: Record<string, string> = {
   generating: "생성중", rendering: "렌더중", done: "완성", error: "오류",
 };
 const STYLE_LABEL: Record<string, string> = {
-  whiteboard: "화이트보드", "ink-wash": "수묵담채", minhwa: "민화",
+  whiteboard: "화이트보드", "ink-wash": "수묵담채", minhwa: "민화", "doodle-edu": "낙서 교육",
 };
 const LENGTH_LABEL: Record<number, string> = { 50: "50초", 180: "3분", 600: "10분" };
 
 export default function AdminVideosPage() {
+  const params = useParams();
+  const locale = (params.locale as string) ?? "ko";
   const [rows, setRows] = useState<VideoRow[] | null>(null);
 
   useEffect(() => {
@@ -61,7 +65,11 @@ export default function AdminVideosPage() {
                 const cost = (r.costLog?.imageCostUsd ?? 0) + (r.costLog?.llmCostUsd ?? 0) + (r.costLog?.ttsCostUsd ?? 0);
                 return (
                   <tr key={r.id} className="border-b border-[var(--line)] last:border-0">
-                    <td className="px-4 py-3 text-[var(--ink)] max-w-xs truncate">{r.title || "(제목 없음)"}</td>
+                    <td className="px-4 py-3 max-w-xs truncate">
+                      <Link href={`/${locale}/project/${r.id}`} className="text-[var(--ink)] hover:text-[var(--accent)] hover:underline">
+                        {r.title || "(제목 없음)"}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-[var(--ink-soft)]">{STYLE_LABEL[r.stylePackId] ?? r.stylePackId}</td>
                     <td className="px-4 py-3 text-[var(--ink-soft)]">{LENGTH_LABEL[r.targetLength] ?? "-"}</td>
                     <td className="px-4 py-3 text-[var(--ink-soft)]">{STATUS_LABEL[r.status] ?? r.status}</td>
