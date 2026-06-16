@@ -7,6 +7,7 @@ export const LLM_MODELS = [
   "gpt-5",
   "gpt-5-mini",
   "o4-mini",
+  "gemini-2.5-flash",
 ] as const;
 export type LlmModel = (typeof LLM_MODELS)[number];
 export const DEFAULT_LLM_MODEL: LlmModel = "gpt-4o";
@@ -20,6 +21,7 @@ export const LLM_MODEL_INFO: Record<LlmModel, string> = {
   "gpt-5": "gpt-5 (최고 품질, 느림·고가)",
   "gpt-5-mini": "gpt-5-mini (고품질·중간가)",
   "o4-mini": "o4-mini (추론 특화)",
+  "gemini-2.5-flash": "gemini-2.5-flash (Google, 저렴·bbox 강함)",
 };
 
 export function resolveLlmModel(v: unknown): LlmModel {

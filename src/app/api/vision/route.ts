@@ -5,6 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { RevealObject } from "@/lib/types";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
 import { resolveLlmModel, isReasoningModel } from "@/lib/llm/model";
+import { isGeminiModel, geminiGenerateJSON, fetchImageBase64 } from "@/lib/llm/gemini";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -19,6 +20,7 @@ function buildVisionPrompt(narration: string): string {
 - bbox: [x1, y1, x2, y2] — 정규화 좌표. 이미지 왼쪽 끝=0, 오른쪽 끝=1000, 위=0, 아래=1000 (실제 가로세로 비율과 무관하게 항상 0~1000). **요소 전체를 빠짐없이 감싸되 여유를 약간 둬라**(텍스트가 잘리지 않게 상하좌우 여백 포함).
 - role: "title" | "label" | "illustration" | "arrow" | "shape"
 - revealOrder: 나레이션 흐름상 등장 순서(1부터).
+- **요소는 의미 단위로 통합해 최대 12개 이내**. 글자 한 줄·아이콘 하나까지 잘게 쪼개지 말고, 하나의 메시지를 이루는 묶음으로 묶어라.
 - anchorText: **이 요소가 대응하는 나레이션 속 핵심 구절을, 나레이션 원문에서 그대로 복사해 적어라**(반드시 위 나레이션에 실제로 들어있는 연속된 문자열). 이 구절이 발화되는 순간 이 요소가 그려지기 시작한다. 예) 나레이션이 "사과를 하나 먹으면 만족스럽죠"이고 사과 그림이면 anchorText는 "사과를 하나".
 
 출력 형식 (JSON만, 설명 없이):
@@ -50,28 +52,34 @@ export async function POST(req: NextRequest) {
       narration = (s.data()?.narration as string) ?? "";
     }
 
-    // 어드민에서 고른 LLM 모델 (기본 gpt-4o). 추론 모델은 토큰 예산↑(추론이 토큰을 소비)
+    // 어드민에서 고른 LLM 모델 (기본 gpt-4o). gemini면 Gemini, 아니면 OpenAI.
     const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};
     const model = resolveLlmModel(settings.llmModel);
-    const reasoning = isReasoningModel(model);
+    const prompt = buildVisionPrompt(narration ?? "");
 
-    const response = await openai.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "user",
-          content: [
-            // high: bbox 좌표 정밀도 확보 (low는 박스가 뭉개져 드로잉 순서가 틀어짐)
-            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
-            { type: "text", text: buildVisionPrompt(narration ?? "") },
-          ],
-        },
-      ],
-      response_format: { type: "json_object" },
-      ...(reasoning ? { max_completion_tokens: 6000 } : { max_tokens: 1200 }),
-    });
-
-    const raw = response.choices[0].message.content ?? "{}";
+    let raw: string;
+    if (isGeminiModel(model)) {
+      const imageBase64 = await fetchImageBase64(imageUrl);
+      raw = await geminiGenerateJSON({ model, prompt, imageBase64 });
+    } else {
+      const reasoning = isReasoningModel(model);
+      const response = await openai.chat.completions.create({
+        model,
+        messages: [
+          {
+            role: "user",
+            content: [
+              // high: bbox 좌표 정밀도 확보 (low는 박스가 뭉개져 드로잉 순서가 틀어짐)
+              { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+              { type: "text", text: prompt },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+        ...(reasoning ? { max_completion_tokens: 6000 } : { max_tokens: 1200 }),
+      });
+      raw = response.choices[0].message.content ?? "{}";
+    }
     const parsed = JSON.parse(raw);
     const objects: RevealObject[] = parsed.objects ?? [];
 
