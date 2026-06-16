@@ -6,6 +6,10 @@ import { authorizeRequest, ownsProject } from "@/lib/auth";
 // 워커 콜드스타트(scale-to-zero) 시 202 응답까지 수십 초 걸릴 수 있어 여유를 둔다.
 export const maxDuration = 60;
 
+// Cloud Run 워커 주소. 비밀 아님(공개 엔드포인트)이라 기본값을 박아 env 없이도 동작하게 한다.
+// RENDER_WORKER_URL env가 있으면 그것으로 오버라이드.
+const DEFAULT_WORKER_URL = "https://aivideo-render-worker-328519096392.asia-northeast3.run.app";
+
 /**
  * 렌더 작업 등록. renderJobs 문서를 만들고 Worker를 트리거한다.
  * Vercel은 주문만 받고(즉시 반환), 실제 렌더는 Cloud Run Worker가 수행.
@@ -45,12 +49,7 @@ export async function POST(req: NextRequest) {
     // await 없이 fire-and-forget하면 Vercel이 응답 반환 즉시 함수를 종료시켜
     // 이 fetch가 워커에 도달하기 전에 잘린다 → 작업이 "queued"에 영원히 묶임.
     // 워커는 202를 즉시 반환(렌더는 워커가 비동기 수행)하므로 await해도 빠르다.
-    const workerUrl = process.env.RENDER_WORKER_URL;
-    if (!workerUrl) {
-      console.error("RENDER_WORKER_URL not set — worker not triggered");
-      await jobRef.update({ status: "error", error: "RENDER_WORKER_URL not configured", updatedAt: FieldValue.serverTimestamp() });
-      return NextResponse.json({ error: "render worker not configured" }, { status: 500 });
-    }
+    const workerUrl = process.env.RENDER_WORKER_URL || DEFAULT_WORKER_URL;
     try {
       const res = await fetch(`${workerUrl}/render`, {
         method: "POST",
