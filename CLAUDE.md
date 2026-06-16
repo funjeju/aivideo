@@ -33,6 +33,7 @@
 | 화면 색·폰트·컴포넌트 | `@docs/05-design-system.md` |
 | 개발 순서(페이즈) | `@docs/06-phases.md` |
 | 어드민·권한·보이스 | `@docs/07-admin.md` |
+| **현재 전체 프로세스/API/최적화 한눈에** | `@docs/08-processes.md` |
 
 > `docs/`의 PDF는 사람용 인쇄본이다. **Claude Code는 PDF를 읽지 마라** (md보다 토큰을 훨씬 많이 소비). 항상 md를 읽는다.
 
