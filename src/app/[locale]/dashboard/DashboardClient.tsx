@@ -146,6 +146,12 @@ function ProjectCard({ project, onClick }: { project: ProjectWithId; onClick: ()
       onClick={onClick}
       className="bg-[var(--paper-raised)] border border-[var(--line)] rounded-[var(--radius)] p-4 cursor-pointer hover:border-[var(--accent)] hover:shadow-[var(--shadow-md)] transition-all"
     >
+      {project.thumbnailUrl && (
+        <div className="-mx-4 -mt-4 mb-3 h-32 overflow-hidden rounded-t-[var(--radius)] bg-[var(--paper-sunken)]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={project.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
       <div className="flex items-start justify-between mb-3">
         <span className="text-2xl">{STYLE_EMOJI[project.stylePackId] ?? "🎬"}</span>
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>

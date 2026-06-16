@@ -104,6 +104,14 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     return () => { unsubProj(); unsubScenes(); unsubJobs(); };
   }, [projectId]);
 
+  async function chooseThumbnail(url: string) {
+    try {
+      await updateDoc(doc(db, "projects", projectId), { thumbnailUrl: url });
+    } catch (e) {
+      console.error("thumbnail update failed:", e);
+    }
+  }
+
   async function handleRender() {
     setRendering(true);
     try {
@@ -402,6 +410,35 @@ export default function ProjectView({ projectId }: { projectId: string }) {
         <p className="text-xs text-[var(--ink-faint)] mt-3">
           위는 브라우저 프리뷰입니다. &quot;mp4로 만들기&quot;를 누르면 동일한 화면이 영상 파일로 렌더링됩니다.
         </p>
+
+        {/* 썸네일 선택 — 대시보드 대표 이미지 */}
+        {scenes.some((s) => s.imageUrl) && (
+          <div className="mt-10">
+            <h2 className="text-sm font-semibold text-[var(--ink)] mb-1">썸네일 선택</h2>
+            <p className="text-xs text-[var(--ink-soft)] mb-3">대시보드 목록에 표시될 대표 이미지를 고르세요.</p>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {scenes.filter((s) => s.imageUrl).map((s, i) => {
+                const selected = (project?.thumbnailUrl ?? "") === s.imageUrl;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => chooseThumbnail(s.imageUrl!)}
+                    title={`장면 ${i + 1}`}
+                    className={`relative flex-shrink-0 w-16 h-24 rounded overflow-hidden border-2 transition-colors ${
+                      selected ? "border-[var(--accent)]" : "border-[var(--line)] hover:border-[var(--accent)]"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={s.imageUrl} alt={`장면 ${i + 1}`} className="w-full h-full object-cover" />
+                    {selected && (
+                      <span className="absolute bottom-0 inset-x-0 bg-[var(--accent)] text-white text-[10px] text-center leading-4">대표</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* 장면별 사후 편집 */}
         <div className="mt-10">
