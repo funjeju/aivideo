@@ -41,11 +41,6 @@ export async function POST(req: NextRequest) {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    await db.collection("projects").doc(projectId).update({
-      status: "rendering",
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
     // Worker 트리거 — 반드시 await 한다.
     // await 없이 fire-and-forget하면 Vercel이 응답 반환 즉시 함수를 종료시켜
     // 이 fetch가 워커에 도달하기 전에 잘린다 → 작업이 "queued"에 영원히 묶임.
@@ -72,6 +67,12 @@ export async function POST(req: NextRequest) {
       await jobRef.update({ status: "error", error: `worker trigger failed: ${String(e)}`, updatedAt: FieldValue.serverTimestamp() });
       return NextResponse.json({ error: "worker trigger failed" }, { status: 502 });
     }
+
+    // 워커가 수락(202)한 뒤에만 렌더링 상태로 — 트리거 실패 시 직전 상태 유지 → 재시도 가능
+    await db.collection("projects").doc(projectId).update({
+      status: "rendering",
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 
     return NextResponse.json({ jobId: jobRef.id });
   } catch (e) {
