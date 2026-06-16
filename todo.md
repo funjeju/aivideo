@@ -55,7 +55,7 @@
 ## 환경 메모 (중요)
 
 - **renderCore 수정 시**: Vercel 배포만으로 프리뷰/붓테스트/mp4 모두 반영. 단 **worker 세그먼트 캐시 무효화** 필요하면 `worker/src/render.ts`의 sceneHash `v:` 증가 + worker 재배포
-- **worker 재배포**: `cd worker; gcloud run deploy aivideo-render-worker --source . --project golpo-b6407 --account funjejuai@gmail.com --region asia-northeast3 --memory 4Gi --cpu 2 --timeout 3600 --no-cpu-throttling --concurrency 1 --allow-unauthenticated --env-vars-file .env.cloudrun.yaml --quiet`
+- **worker 재배포**: `cd worker; gcloud run deploy aivideo-render-worker --source . --project golpo-b6407 --account funjejuai@gmail.com --region asia-northeast3 --memory 4Gi --cpu 4 --timeout 3600 --no-cpu-throttling --concurrency 1 --allow-unauthenticated --env-vars-file .env.cloudrun.yaml --quiet`
   - ⚠️ **`--no-cpu-throttling` 절대 빼지 마라**: 워커는 202 응답 후 비동기로 렌더한다(fire-and-forget). 이 플래그 없으면 응답 후 CPU가 throttle돼 progress 0에서 timeout(2026-06-16 hang 근본원인). `--concurrency 1`은 렌더 1건이 인스턴스 풀CPU 쓰게.
 - gcloud 계정: funjejuai@gmail.com (golpo-b6407 권한 있음). 토큰 만료 시 `gcloud auth login`
 - Vercel 내부 시크릿: INTERNAL_API_SECRET (로컬 .env.local 값과 Vercel 값이 다름 — 외부에서 배포본 internal 호출 시 Vercel 값 사용)
