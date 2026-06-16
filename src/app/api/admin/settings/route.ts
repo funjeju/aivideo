@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { getAuthedUser, isAdmin, isSuperAdmin } from "@/lib/auth";
 import { FieldValue } from "firebase-admin/firestore";
+import { LLM_MODELS, DEFAULT_LLM_MODEL } from "@/lib/llm/model";
 
 const ref = () => adminDb().collection("settings").doc("global");
 
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     billingEnabled: d.billingEnabled === true,
     subtitles: d.subtitles !== false, // 기본 ON
+    llmModel: LLM_MODELS.includes(d.llmModel) ? d.llmModel : DEFAULT_LLM_MODEL,
     ...resolveBrush(d, stylePackId),
   });
 }
@@ -66,6 +68,7 @@ export async function POST(req: NextRequest) {
   const patch: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
   if (typeof body.billingEnabled === "boolean") patch.billingEnabled = body.billingEnabled;
   if (typeof body.subtitles === "boolean") patch.subtitles = body.subtitles;
+  if (typeof body.llmModel === "string" && LLM_MODELS.includes(body.llmModel as never)) patch.llmModel = body.llmModel;
 
   // stylePackId가 있으면 그 프리셋에만 저장, 없으면 전역(레거시 기본)
   if (typeof body.stylePackId === "string" && body.stylePackId) {

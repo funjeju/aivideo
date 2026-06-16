@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { RevealObject } from "@/lib/types";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
+import { resolveLlmModel, isReasoningModel } from "@/lib/llm/model";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -49,8 +50,13 @@ export async function POST(req: NextRequest) {
       narration = (s.data()?.narration as string) ?? "";
     }
 
+    // 어드민에서 고른 LLM 모델 (기본 gpt-4o). 추론 모델은 토큰 예산↑(추론이 토큰을 소비)
+    const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};
+    const model = resolveLlmModel(settings.llmModel);
+    const reasoning = isReasoningModel(model);
+
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model,
       messages: [
         {
           role: "user",
@@ -62,7 +68,7 @@ export async function POST(req: NextRequest) {
         },
       ],
       response_format: { type: "json_object" },
-      max_tokens: 1200,
+      ...(reasoning ? { max_completion_tokens: 6000 } : { max_tokens: 1200 }),
     });
 
     const raw = response.choices[0].message.content ?? "{}";

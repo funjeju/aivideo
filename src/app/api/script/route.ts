@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { adminDb } from "@/lib/firebase/admin";
 import { buildScriptPrompt } from "@/lib/llm/prompts";
 import { ProjectMode, TargetLength } from "@/lib/types";
+import { resolveLlmModel, isReasoningModel } from "@/lib/llm/model";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
 
@@ -32,12 +33,16 @@ export async function POST(req: NextRequest) {
       contentLocale: contentLocale ?? "ko",
     });
 
-    const startTime = Date.now();
+    // 어드민에서 고른 LLM 모델 (settings/global.llmModel, 기본 gpt-4o)
+    const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};
+    const model = resolveLlmModel(settings.llmModel);
+
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      temperature: 0.7,
+      // 추론 모델(gpt-5/o-시리즈)은 temperature 미지원 → 비추론 모델에만 설정
+      ...(isReasoningModel(model) ? {} : { temperature: 0.7 }),
     });
 
     const raw = completion.choices[0].message.content ?? "{}";

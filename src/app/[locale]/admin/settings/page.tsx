@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { LLM_MODELS, LLM_MODEL_INFO, type LlmModel } from "@/lib/llm/model";
 
 export default function AdminSettingsPage() {
   const { userDoc } = useAuth();
@@ -11,6 +12,8 @@ export default function AdminSettingsPage() {
   const [brushSpeed, setBrushSpeed] = useState(1);
   const [saving, setSaving] = useState(false);
   const [brushSaved, setBrushSaved] = useState(false);
+  const [llmModel, setLlmModel] = useState<LlmModel>("gpt-4o");
+  const [modelSaved, setModelSaved] = useState(false);
   const isSuper = userDoc?.role === "superadmin";
 
   useEffect(() => {
@@ -23,6 +26,7 @@ export default function AdminSettingsPage() {
       setBrushSize(data.brushSize ?? 1);
       setBrushCount(data.brushCount ?? 1);
       setBrushSpeed(data.brushSpeed ?? 1);
+      if (data.llmModel) setLlmModel(data.llmModel);
     })().catch(() => setBillingEnabled(false));
   }, []);
 
@@ -47,6 +51,15 @@ export default function AdminSettingsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function changeModel(m: LlmModel) {
+    if (!isSuper) return;
+    const prev = llmModel;
+    setLlmModel(m);
+    const res = await post({ llmModel: m });
+    if (res.ok) { setModelSaved(true); setTimeout(() => setModelSaved(false), 2000); }
+    else { setLlmModel(prev); alert("변경 실패"); }
   }
 
   async function saveBrush() {
@@ -103,6 +116,30 @@ export default function AdminSettingsPage() {
         {!isSuper && (
           <p className="text-xs text-[var(--ink-faint)] mt-3">변경은 슈퍼관리자만 가능합니다.</p>
         )}
+      </div>
+
+      {/* GPT 모델 선택 */}
+      <div className="bg-[var(--paper-raised)] border border-[var(--line)] rounded-[var(--radius)] p-5 max-w-xl mt-5">
+        <p className="font-medium text-[var(--ink)]">영상 생성 GPT 모델</p>
+        <p className="text-sm text-[var(--ink-soft)] mt-1 mb-4">
+          원고 작성과 이미지 의미 분석(Vision)에 쓰는 텍스트 모델. 높을수록 품질↑·비용↑·속도↓.
+          <br />
+          <span className="text-[var(--ink-faint)]">이미지 생성 모델(gpt-image-2)·TTS는 별도입니다. 변경 후 새로 만드는 영상부터 적용.</span>
+        </p>
+        <div className="flex items-center gap-3">
+          <select
+            value={llmModel}
+            onChange={(e) => changeModel(e.target.value as LlmModel)}
+            disabled={!isSuper}
+            className="px-3 py-2 rounded border border-[var(--line)] bg-[var(--paper-sunken)] text-sm text-[var(--ink)] disabled:opacity-50"
+          >
+            {LLM_MODELS.map((m) => (
+              <option key={m} value={m}>{LLM_MODEL_INFO[m]}</option>
+            ))}
+          </select>
+          {modelSaved && <span className="text-xs text-green-600">저장됨</span>}
+        </div>
+        {!isSuper && <p className="text-xs text-[var(--ink-faint)] mt-3">변경은 슈퍼관리자만 가능합니다.</p>}
       </div>
 
       {/* 붓 설정 */}
