@@ -856,13 +856,15 @@ export function renderSceneFrame(
             // 채움 패스: 이 객체에 "배정된 영역"이 붓 뒤를 따라 페이드인.
             // prog=1(=endAt)에 완전 불투명 → 자기 시간창 안에 100% 완성 보장.
             // 영역 합집합 = 화면 전체이므로 마지막 객체가 끝나면 그림이 자연히 완성됨.
-            if (prog > 0.3) {
-              const a = ease(clamp01((prog - 0.3) / 0.65)); // 0.3→0.95 동안 차오름, 0.95에 완성
+            if (prog > 0.05) {
+              // 객체 시간창 거의 전체(0.05→1.0)에 걸쳐 천천히 차오르게 — 막판에 툭 완성되는 점프 제거.
+              const a = ease(clamp01((prog - 0.05) / 0.95));
               mctx.save();
               mctx.globalAlpha = a;
               if (it.region) {
-                // 영역 마스크 업스케일 + blur를 객체당 1회만 계산해 캐시 (매 프레임 alpha만 조절)
-                const blurPx = Math.max(baseW * 0.6, 8);
+                // 영역 마스크 업스케일 + blur를 객체당 1회만 계산해 캐시 (매 프레임 alpha만 조절).
+                // blur를 키워 잉크가 번지듯 부드럽게 차오르게(저해상 영역 마스크의 블록 패치 제거).
+                const blurPx = Math.max(baseW * 1.3, 18);
                 const bkey = `${scene.sceneId ?? "s"}|${it.obj.id}|${Math.round(blurPx)}|${Math.round(fit.drawW)}x${Math.round(fit.drawH)}`;
                 let blurred = blurredRegionCache.get(bkey);
                 if (!blurred) {
