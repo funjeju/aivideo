@@ -138,6 +138,66 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     sortOrder: 5,
   },
 
+  "flat-icon": {
+    id: "flat-icon",
+    name: "플랫 아이콘",
+    description: "깔끔한 플랫 컬러 아이콘 인포그래픽. 또렷한 외곽선 + 밝은 배경. 판서 최적.",
+    imagePrompt: {
+      template:
+        "clean flat vector-style educational infographic illustration, {subject}, simple rounded flat icons and shapes with bold clear dark outlines, soft muted modern color palette, arrows connecting ideas, plenty of white space, light off-white background, NO gradients, NO shadows, NO 3d. Picture-driven: convey meaning with icons, use at most 1-2 short keyword labels (no sentences, no paragraphs). Each element clearly separated with generous empty space so they can be drawn one by one.",
+      negative: "3d, isometric, neon, glow, photorealistic, gradient, drop shadow, dense text, paragraphs, cluttered, overlapping elements, dark background",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "hybrid",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "left-to-right",
+      strokeStyle: "outline",
+      flowDirection: "left-to-right",
+      rhythm: "fast-beat",
+      handTool: "pen",
+    },
+    palette: { ink: "#2A2A2E", accent: "#2563EB", paper: "#FFFFFF" },
+    userSliders: { lineWeight: { min: 0, max: 1, default: 0.4 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 6,
+  },
+
+  "retro-poster": {
+    id: "retro-poster",
+    name: "레트로 포스터",
+    description: "미드센추리 빈티지 포스터. 따뜻한 색·굵은 외곽·할프톤 질감.",
+    imagePrompt: {
+      template:
+        "retro mid-century vintage poster illustration, {subject}, warm muted palette (mustard, terracotta, teal, cream), bold dark outlines, simple flat shapes, subtle halftone grain texture, geometric infographic layout, arrows connecting ideas, warm cream background. Picture-driven, minimal text — only short keyword labels, no sentences, no paragraphs. Distinct elements with generous spacing and crisp outlines so they can be drawn one by one.",
+      negative: "3d, isometric, neon, glow, photorealistic, smooth gradient, modern flat vector, dense text, paragraphs, cluttered, dark background",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "hybrid",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "left-to-right",
+      strokeStyle: "outline",
+      flowDirection: "left-to-right",
+      rhythm: "fast-beat",
+      handTool: "marker",
+    },
+    palette: { ink: "#3A2E26", accent: "#C75B39", paper: "#F3E9D6" },
+    userSliders: { lineWeight: { min: 0, max: 1, default: 0.6 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 7,
+  },
+
   minhwa: {
     id: "minhwa",
     name: "민화/조선",

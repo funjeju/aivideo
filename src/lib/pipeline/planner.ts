@@ -51,7 +51,7 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     }));
     return {
       sceneId, order, durationSec, narration, audioUrl,
-      canvas: { aspect, background: stylePack.id === "whiteboard" ? "white" : "paper-hanji" },
+      canvas: { aspect, background: ["whiteboard", "doodle-edu", "flat-icon"].includes(stylePack.id) ? "white" : "paper-hanji" },
       image: { url: imageUrl, fit: "contain" },
       reveal: { objects: tdObjects },
       overlays: stylePack.overlays.map((o) => ({ ...o })),
@@ -123,7 +123,7 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     audioUrl,
     canvas: {
       aspect,
-      background: stylePack.id === "whiteboard" ? "white" : "paper-hanji",
+      background: ["whiteboard", "doodle-edu", "flat-icon"].includes(stylePack.id) ? "white" : "paper-hanji",
     },
     image: { url: imageUrl, fit: "contain" },
     reveal: { objects: revealObjects },

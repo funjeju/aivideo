@@ -20,6 +20,8 @@ const STYLE_PACKS: { id: StylePackId; name: string; desc: string; emoji: string 
   { id: "doodle-edu", name: "낙서 교육", desc: "마커 낙서체, 한국 교육 유튜브 스타일", emoji: "🖊️" },
   { id: "ink-wash", name: "수묵담채", desc: "한지 위 먹선, 심리·철학·역사", emoji: "🖌️" },
   { id: "joseon-reaper", name: "조선 저승사자", desc: "수묵 산수 + 갓 쓴 내레이터, 위트있는 교양", emoji: "👻" },
+  { id: "flat-icon", name: "플랫 아이콘", desc: "깔끔한 플랫 컬러 아이콘, 또렷한 외곽선", emoji: "🟦" },
+  { id: "retro-poster", name: "레트로 포스터", desc: "미드센추리 빈티지, 따뜻한 색·할프톤", emoji: "📻" },
   { id: "minhwa", name: "민화/조선", desc: "오방색 모티프, 한국사·문화", emoji: "🐯" },
 ];
 
