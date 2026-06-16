@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       flowMode: pick("flowMode", undefined),
       inkSpread: pick("inkSpread", 0.5),
       fillRange: pick("fillRange", 1),
+      subtitles: (settings.subtitles ?? true) !== false,
     });
 
     await db.collection("projects").doc(projectId).collection("scenes").doc(sceneId).update({

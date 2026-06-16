@@ -23,6 +23,7 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
   showBoxes?: boolean;
   inkSpread?: number;
   fillRange?: number;
+  subtitles?: boolean;
 }>(function BrushPlayer({
   scene,
   image,
@@ -37,6 +38,7 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
   showBoxes,
   inkSpread,
   fillRange,
+  subtitles,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
@@ -85,6 +87,7 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
 
     const liveScene: SceneSpec = {
       ...scene,
+      subtitles: subtitles ?? scene.subtitles,
       hand: {
         ...(scene.hand ?? { enabled: true, asset: "brush" }),
         enabled: showBrush,
@@ -134,7 +137,7 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
       cancelAnimationFrame(rafRef.current);
       audioRef.current?.pause();
     };
-  }, [scene, image, playing, brushSize, brushCount, brushSpeed, showBrush, brushType, handAsset, showBoxes, size, inkSpread, fillRange]);
+  }, [scene, image, playing, brushSize, brushCount, brushSpeed, showBrush, brushType, handAsset, showBoxes, size, inkSpread, fillRange, subtitles]);
 
   // 녹화: 캔버스 스트림 + 나레이션 오디오 → webm 다운로드
   useImperativeHandle(ref, () => ({

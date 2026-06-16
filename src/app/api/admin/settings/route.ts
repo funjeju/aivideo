@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
   const stylePackId = req.nextUrl.searchParams.get("stylePackId") ?? undefined;
   return NextResponse.json({
     billingEnabled: d.billingEnabled === true,
+    subtitles: d.subtitles !== false, // 기본 ON
     ...resolveBrush(d, stylePackId),
   });
 }
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
 
   const patch: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
   if (typeof body.billingEnabled === "boolean") patch.billingEnabled = body.billingEnabled;
+  if (typeof body.subtitles === "boolean") patch.subtitles = body.subtitles;
 
   // stylePackId가 있으면 그 프리셋에만 저장, 없으면 전역(레거시 기본)
   if (typeof body.stylePackId === "string" && body.stylePackId) {

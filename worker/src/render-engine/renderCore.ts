@@ -981,6 +981,68 @@ export function renderSceneFrame(
       ctx.restore();
     }
   }
+
+  // 자막: 나레이션 구절을 글자수 비례 타이밍으로 하단에 표시 (음성과 동기, 화면에 구워짐)
+  if (scene.subtitles !== false && scene.narration && scene.narration.trim()) {
+    drawCaption(ctx, scene.narration, t, scene.durationSec, { width, height });
+  }
+}
+
+/** 나레이션을 자막 한 줄 단위(문장→길면 어절)로 분할 */
+function splitCaption(text: string): string[] {
+  const MAX = 28;
+  const sentences = text.match(/[^.!?…]+[.!?…]*/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
+  const out: string[] = [];
+  for (const s of sentences) {
+    if (s.length <= MAX) { out.push(s); continue; }
+    const words = s.split(/(\s+)/);
+    let cur = "";
+    for (const w of words) {
+      if ((cur + w).trim().length > MAX && cur.trim()) { out.push(cur.trim()); cur = w; }
+      else cur += w;
+    }
+    if (cur.trim()) out.push(cur.trim());
+  }
+  return out.length ? out : [text];
+}
+
+/** 하단 자막 1줄 렌더 (글자수 비례 타이밍으로 현재 구절 선택). 화면 좌표계에서 호출. */
+function drawCaption(
+  ctx: CanvasRenderingContext2D,
+  narration: string,
+  t: number,
+  durationSec: number,
+  size: { width: number; height: number }
+): void {
+  const phrases = splitCaption(narration);
+  const total = phrases.reduce((n, p) => n + p.length, 0) || 1;
+  let acc = 0;
+  let active = phrases[phrases.length - 1];
+  for (const p of phrases) {
+    acc += p.length;
+    if (t < (acc / total) * durationSec) { active = p; break; }
+  }
+  if (!active) return;
+
+  const { width, height } = size;
+  const fontPx = Math.round(width * 0.045);
+  ctx.save();
+  ctx.font = `600 ${fontPx}px "Pretendard", "Noto Sans KR", "Noto Sans CJK KR", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const padX = fontPx * 0.8;
+  const padY = fontPx * 0.5;
+  const maxInner = width * 0.92 - padX * 2;
+  const tw = Math.min(ctx.measureText(active).width, maxInner);
+  const boxW = tw + padX * 2;
+  const boxH = fontPx + padY * 2;
+  const cx = width / 2;
+  const cy = height * 0.9;
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH);
+  ctx.fillStyle = "#fff";
+  ctx.fillText(active, cx, cy, maxInner);
+  ctx.restore();
 }
 
 function interpolateCamera(camera: SceneSpec["camera"], t: number): { scale: number; x: number; y: number } {

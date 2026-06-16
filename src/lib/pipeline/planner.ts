@@ -21,10 +21,12 @@ interface PlannerInput {
   /** 시각 질감 게이지(프리셋별). inkSpread: 0 또렷~1 번짐 / fillRange: 채움 범위(1=전체) */
   inkSpread?: number;
   fillRange?: number;
+  /** 하단 자막 표시 (기본 true) */
+  subtitles?: boolean;
 }
 
 export function buildSceneSpec(input: PlannerInput): SceneSpec {
-  const { sceneId, order, narration, durationSec, audioUrl, imageUrl, objects, stylePack, aspect, brushSize, brushCount, brushSpeed, brushType, handAsset, flowMode, inkSpread, fillRange } = input;
+  const { sceneId, order, narration, durationSec, audioUrl, imageUrl, objects, stylePack, aspect, brushSize, brushCount, brushSpeed, brushType, handAsset, flowMode, inkSpread, fillRange, subtitles } = input;
   const defaults = stylePack.plannerDefaults;
 
   // Reveal Planner: revealOrder가 이미 지정돼 있으면(=LLM 의미 매칭) 그 순서, 없으면 role 순서
@@ -56,6 +58,7 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
       reveal: { objects: tdObjects },
       overlays: stylePack.overlays.map((o) => ({ ...o })),
       hand: { enabled: true, asset: handAsset || defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1, brushType: brushType ?? "round", inkSpread, fillRange },
+      subtitles,
     };
   }
 
@@ -129,5 +132,6 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     reveal: { objects: revealObjects },
     overlays: stylePack.overlays.map((o) => ({ ...o })),
     hand: { enabled: true, asset: handAsset || defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1, brushType: brushType ?? "round", inkSpread, fillRange },
+    subtitles,
   };
 }

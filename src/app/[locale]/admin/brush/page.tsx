@@ -60,6 +60,7 @@ export default function BrushTestPage() {
   const [fillRange, setFillRange] = useState(1);   // 채움 범위: 0.1 좁게(객체만) ~ 1 넓게(영역 전체)
   const [showBrush, setShowBrush] = useState(true);
   const [showBoxes, setShowBoxes] = useState(false);
+  const [subtitles, setSubtitles] = useState(true);
   const [flowMode, setFlowMode] = useState<"sync" | "topdown">("sync");
   const [scene, setScene] = useState<SceneSpec | null>(null);
   const [objects, setObjects] = useState<RevealObject[]>([]);
@@ -228,7 +229,7 @@ export default function BrushTestPage() {
         fetch("/api/admin/brush-test", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, aspect, inkSpread, fillRange }),
+          body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, aspect, inkSpread, fillRange, subtitles }),
         }),
         narration.trim()
           ? fetch("/api/admin/tts-preview", {
@@ -264,7 +265,7 @@ export default function BrushTestPage() {
           const reRes = await fetch("/api/admin/brush-test", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-            body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, durationSec: ttsDuration, aspect, inkSpread, fillRange }),
+            body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, durationSec: ttsDuration, aspect, inkSpread, fillRange, subtitles }),
           });
           if (reRes.ok) {
             const reData = await reRes.json();
@@ -519,6 +520,11 @@ export default function BrushTestPage() {
               붓 표시
             </label>
             <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
+              <input type="checkbox" checked={subtitles} onChange={(e) => setSubtitles(e.target.checked)}
+                className="accent-[var(--accent)]" />
+              자막
+            </label>
+            <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
               <input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)}
                 className="accent-[var(--accent)]" />
               bbox 디버그 (분석 박스 표시)
@@ -596,6 +602,7 @@ export default function BrushTestPage() {
             brushSpeed={brushSpeed}
             inkSpread={inkSpread}
             fillRange={fillRange}
+            subtitles={subtitles}
             showBrush={showBrush}
             audioUrl={audioUrl}
             brushType={brushType}

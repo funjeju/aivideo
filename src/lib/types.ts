@@ -99,6 +99,8 @@ export interface SceneSpec {
   camera?: Array<{ at: number; scale: number; x: number; y: number }>;
   overlays?: Array<{ type: string; asset: string; opacity?: number; pos?: [number, number]; trigger?: string }>;
   hand?: { enabled: boolean; asset: string; size?: number; count?: number; speed?: number; brushType?: BrushType; inkSpread?: number; fillRange?: number };
+  /** 하단 자막 표시 (기본 true). 나레이션 구절을 음성에 맞춰 자동 표시 */
+  subtitles?: boolean;
 }
 
 export interface SceneDoc {
