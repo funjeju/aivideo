@@ -58,3 +58,5 @@ scripts/*.mp3
 # 화풍 샘플 원본(로컬, Storage 업로드됨)
 templates/
 style-samples-src/
+
+.vercel

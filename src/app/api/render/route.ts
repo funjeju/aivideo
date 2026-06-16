@@ -2,17 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
+import { tasksConfigured, enqueueRender, workerUrl } from "@/lib/queue";
 
-// 워커 콜드스타트(scale-to-zero) 시 202 응답까지 수십 초 걸릴 수 있어 여유를 둔다.
 export const maxDuration = 60;
 
-// Cloud Run 워커 주소. 비밀 아님(공개 엔드포인트)이라 기본값을 박아 env 없이도 동작하게 한다.
-// RENDER_WORKER_URL env가 있으면 그것으로 오버라이드.
-const DEFAULT_WORKER_URL = "https://aivideo-render-worker-328519096392.asia-northeast3.run.app";
-
 /**
- * 렌더 작업 등록. renderJobs 문서를 만들고 Worker를 트리거한다.
- * Vercel은 주문만 받고(즉시 반환), 실제 렌더는 Cloud Run Worker가 수행.
+ * 렌더 작업 등록. renderJobs 문서를 만들고 Cloud Tasks 큐에 적재한다.
+ * Vercel은 주문(큐 적재)만 하고 즉시 반환, 실제 렌더는 Cloud Run Worker가 동기 수행.
+ * 큐가 워커로 안정 전달(재시도) + concurrency=1 오토스케일로 렌더마다 인스턴스 분리(병렬).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -45,29 +42,31 @@ export async function POST(req: NextRequest) {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // Worker 트리거 — 반드시 await 한다.
-    // await 없이 fire-and-forget하면 Vercel이 응답 반환 즉시 함수를 종료시켜
-    // 이 fetch가 워커에 도달하기 전에 잘린다 → 작업이 "queued"에 영원히 묶임.
-    // 워커는 202를 즉시 반환(렌더는 워커가 비동기 수행)하므로 await해도 빠르다.
-    const workerUrl = process.env.RENDER_WORKER_URL || DEFAULT_WORKER_URL;
+    // 트리거 방식:
+    // - 운영(Cloud Tasks 설정됨): 큐에 적재만 하고 즉시 반환. 워커는 동기 렌더(끝까지 응답 보류)라
+    //   직접 fetch하면 Vercel maxDuration에 끊긴다 → 반드시 큐 경유.
+    // - 로컬 dev(큐 미설정): 워커로 fire-and-forget fetch (로컬은 함수가 안 죽으므로 OK).
     try {
-      const res = await fetch(`${workerUrl}/render`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: jobRef.id, projectId }),
-        signal: AbortSignal.timeout(55000),
-      });
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        throw new Error(`worker ${res.status}: ${body.slice(0, 200)}`);
+      if (tasksConfigured()) {
+        await enqueueRender(jobRef.id, projectId);
+      } else {
+        // dev 폴백 — 응답을 기다리지 않는다(워커가 동기라 끝까지 안 돌아옴).
+        fetch(`${workerUrl()}/render`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(process.env.WORKER_SECRET ? { "x-worker-secret": process.env.WORKER_SECRET } : {}),
+          },
+          body: JSON.stringify({ jobId: jobRef.id, projectId }),
+        }).catch((e) => console.error("dev worker trigger failed:", e));
       }
     } catch (e) {
-      console.error("worker trigger failed:", e);
-      await jobRef.update({ status: "error", error: `worker trigger failed: ${String(e)}`, updatedAt: FieldValue.serverTimestamp() });
-      return NextResponse.json({ error: "worker trigger failed" }, { status: 502 });
+      console.error("enqueue failed:", e);
+      await jobRef.update({ status: "error", error: `enqueue failed: ${String(e)}`, updatedAt: FieldValue.serverTimestamp() });
+      return NextResponse.json({ error: "enqueue failed" }, { status: 502 });
     }
 
-    // 워커가 수락(202)한 뒤에만 렌더링 상태로 — 트리거 실패 시 직전 상태 유지 → 재시도 가능
+    // 큐 적재 성공 → 렌더링 상태로
     await db.collection("projects").doc(projectId).update({
       status: "rendering",
       updatedAt: FieldValue.serverTimestamp(),
