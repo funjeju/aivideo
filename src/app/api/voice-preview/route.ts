@@ -5,7 +5,7 @@ import { adminStorage } from "@/lib/firebase/admin";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const SAMPLE_TEXT = "안녕하세요. 지금 이 목소리로 영상 나레이션을 만들어 드립니다.";
-const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
+const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer", "ash", "coral", "sage"] as const;
 type OpenAIVoice = typeof OPENAI_VOICES[number];
 
 /** 오디오 바이트를 직접 반환 (redirect 없이 — <audio> 호환성 안전). 캐시는 Storage에 보관. */

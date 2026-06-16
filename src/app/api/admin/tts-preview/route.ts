@@ -4,7 +4,7 @@ import { authorizeRequest } from "@/lib/auth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
+const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer", "ash", "coral", "sage"] as const;
 type OpenAIVoice = typeof OPENAI_VOICES[number];
 
 /** 어드민 전용: Firebase 저장 없이 mp3 바이너리 직접 반환. 붓 테스트용. */

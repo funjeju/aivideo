@@ -19,6 +19,9 @@ const VOICES = [
   { id: "echo",    displayName: "낮은 남성",     gender: "male",   tags: ["deep", "steady"],     sortOrder: 4 },
   { id: "onyx",    displayName: "중후한 남성",   gender: "male",   tags: ["rich", "authoritative"], sortOrder: 5 },
   { id: "fable",   displayName: "이야기꾼",      gender: "neutral",tags: ["storytelling"],       sortOrder: 6 },
+  { id: "ash",     displayName: "담담한 남성",   gender: "male",   tags: ["calm", "steady"],     sortOrder: 7 },
+  { id: "coral",   displayName: "밝은 여성",     gender: "female", tags: ["bright", "friendly"], sortOrder: 8 },
+  { id: "sage",    displayName: "부드러운 여성", gender: "female", tags: ["soft", "gentle"],     sortOrder: 9 },
 ];
 
 for (const v of VOICES) {

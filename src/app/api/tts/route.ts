@@ -6,7 +6,7 @@ import { authorizeRequest, ownsProject } from "@/lib/auth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
+const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer", "ash", "coral", "sage"] as const;
 type OpenAIVoice = typeof OPENAI_VOICES[number];
 
 export async function POST(req: NextRequest) {
