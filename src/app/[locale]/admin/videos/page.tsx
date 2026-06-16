@@ -19,7 +19,7 @@ const STATUS_LABEL: Record<string, string> = {
   generating: "생성중", rendering: "렌더중", done: "완성", error: "오류",
 };
 const STYLE_LABEL: Record<string, string> = {
-  whiteboard: "화이트보드", "ink-wash": "수묵담채", minhwa: "민화", "doodle-edu": "낙서 교육", "joseon-reaper": "조선 저승사자", "flat-icon": "플랫 아이콘", "retro-poster": "레트로 포스터", "dark-neon": "다크 네온", "3d-iso": "3D 아이소메트릭",
+  whiteboard: "화이트보드", "ink-wash": "수묵담채", minhwa: "민화", "doodle-edu": "낙서 교육", "joseon-reaper": "조선 저승사자", "flat-icon": "플랫 아이콘", "retro-poster": "레트로 포스터", "dark-neon": "다크 네온", "3d-iso": "3D 아이소메트릭", "newspaper-cartoon": "신문 만평", "comic-essay": "만화책", "collage": "콜라주",
 };
 
 export default function AdminVideosPage() {

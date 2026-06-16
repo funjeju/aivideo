@@ -24,6 +24,9 @@ const STYLE_PACKS: { id: StylePackId; name: string; desc: string; emoji: string 
   { id: "retro-poster", name: "레트로 포스터", desc: "미드센추리 빈티지, 따뜻한 색·할프톤", emoji: "📻" },
   { id: "dark-neon", name: "다크 네온", desc: "어두운 배경 + 네온 글로우", emoji: "🌃" },
   { id: "3d-iso", name: "3D 아이소메트릭", desc: "3D 블록·입체감 (채움범위↑ 권장)", emoji: "🧊" },
+  { id: "newspaper-cartoon", name: "신문 만평", desc: "흑백 캐리커처, 시사·풍자", emoji: "🗞️" },
+  { id: "comic-essay", name: "만화책", desc: "웹툰 에세이체, 이야기로 기억", emoji: "💬" },
+  { id: "collage", name: "콜라주", desc: "테리 길리엄식 오려붙임, 빈티지·풍자", emoji: "✂️" },
   { id: "minhwa", name: "민화/조선", desc: "오방색 모티프, 한국사·문화", emoji: "🐯" },
 ];
 

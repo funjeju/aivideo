@@ -38,6 +38,9 @@ const STYLES: { id: StylePackId; name: string }[] = [
   { id: "retro-poster", name: "레트로 포스터" },
   { id: "dark-neon", name: "다크 네온" },
   { id: "3d-iso", name: "3D 아이소메트릭" },
+  { id: "newspaper-cartoon", name: "신문 만평" },
+  { id: "comic-essay", name: "만화책" },
+  { id: "collage", name: "콜라주" },
   { id: "minhwa", name: "민화" },
   { id: "doodle-edu", name: "낙서 교육" },
 ];
