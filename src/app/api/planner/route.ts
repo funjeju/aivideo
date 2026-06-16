@@ -34,8 +34,11 @@ export async function POST(req: NextRequest) {
 
     const aspect = (project.aspect ?? "9:16") as "9:16" | "16:9" | "1:1";
 
-    // 전역 붓 설정 (어드민 시스템설정)
+    // 붓 설정: 화풍 프리셋 값 우선 → 전역 → 기본값
     const settings = (await db.collection("settings").doc("global").get()).data() ?? {};
+    const presets = (settings.presets ?? {}) as Record<string, Record<string, unknown>>;
+    const p = presets[stylePack.id] ?? {};
+    const pick = <T>(key: string, def: T): T => (p[key] ?? settings[key] ?? def) as T;
 
     const sceneSpec = buildSceneSpec({
       sceneId,
@@ -47,12 +50,14 @@ export async function POST(req: NextRequest) {
       objects,
       stylePack,
       aspect,
-      brushSize: (settings.brushSize as number) ?? 1,
-      brushCount: (settings.brushCount as number) ?? 1,
-      brushSpeed: (settings.brushSpeed as number) ?? 1,
-      brushType: settings.brushType,
-      handAsset: settings.handAsset,
-      flowMode: settings.flowMode,
+      brushSize: pick("brushSize", 1),
+      brushCount: pick("brushCount", 1),
+      brushSpeed: pick("brushSpeed", 1),
+      brushType: pick("brushType", undefined),
+      handAsset: pick("handAsset", undefined),
+      flowMode: pick("flowMode", undefined),
+      inkSpread: pick("inkSpread", 0.5),
+      fillRange: pick("fillRange", 1),
     });
 
     await db.collection("projects").doc(projectId).collection("scenes").doc(sceneId).update({

@@ -21,6 +21,8 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
   brushType?: BrushType;
   handAsset?: string;
   showBoxes?: boolean;
+  inkSpread?: number;
+  fillRange?: number;
 }>(function BrushPlayer({
   scene,
   image,
@@ -33,6 +35,8 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
   brushType,
   handAsset,
   showBoxes,
+  inkSpread,
+  fillRange,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
@@ -89,6 +93,8 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
         count: brushCount,
         speed: brushSpeed,
         brushType: brushType ?? "round",
+        inkSpread: inkSpread ?? scene.hand?.inkSpread,
+        fillRange: fillRange ?? scene.hand?.fillRange,
       },
     };
     const renderOpts = { noFinalImage: true, debugBoxes: showBoxes };
@@ -128,7 +134,7 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
       cancelAnimationFrame(rafRef.current);
       audioRef.current?.pause();
     };
-  }, [scene, image, playing, brushSize, brushCount, brushSpeed, showBrush, brushType, handAsset, showBoxes, size]);
+  }, [scene, image, playing, brushSize, brushCount, brushSpeed, showBrush, brushType, handAsset, showBoxes, size, inkSpread, fillRange]);
 
   // 녹화: 캔버스 스트림 + 나레이션 오디오 → webm 다운로드
   useImperativeHandle(ref, () => ({

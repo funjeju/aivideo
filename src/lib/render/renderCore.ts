@@ -756,6 +756,9 @@ export function renderSceneFrame(
     const brushSpeed = Math.max(0.05, scene.hand?.speed ?? opts.brushSpeed ?? 1);
     const brushType: BrushType = scene.hand?.brushType ?? opts.brushType ?? "round";
     const baseW = Math.max(10, 42 * brushSize) * (height / 1920);
+    // 화풍별 시각 질감 게이지(프리셋별). inkSpread: 0 또렷 ~ 1 번짐. fillRange: 채움이 객체에서 퍼지는 범위(1=영역 전체).
+    const inkSpread = Math.max(0, Math.min(1, scene.hand?.inkSpread ?? 0.5));
+    const fillRange = Math.max(0.1, Math.min(1, scene.hand?.fillRange ?? 1));
 
     const drawWindow = Math.max(scene.durationSec * 0.85, 0.5);
 
@@ -858,12 +861,26 @@ export function renderSceneFrame(
             if (prog > 0.05) {
               // 객체 시간창 거의 전체(0.05→1.0)에 걸쳐 천천히 차오르게 — 막판에 툭 완성되는 점프 제거.
               const a = ease(clamp01((prog - 0.05) / 0.95));
+              // 객체 bbox(표시 좌표)
+              const bx1 = it.obj.bbox[0] * fit.bScaleX + fit.offsetX;
+              const by1 = it.obj.bbox[1] * fit.bScaleY + fit.offsetY;
+              const bx2 = it.obj.bbox[2] * fit.bScaleX + fit.offsetX;
+              const by2 = it.obj.bbox[3] * fit.bScaleY + fit.offsetY;
               mctx.save();
               mctx.globalAlpha = a;
               if (it.region) {
+                // 채움 범위 클립: 영역(보로노이 셀)이 클 때 한 객체가 화면 절반을 칠하는 것 방지.
+                // fillRange가 작으면 bbox 근처로 좁게, 1이면 사실상 전체 영역.
+                if (fillRange < 0.99) {
+                  const mx = fillRange * fillRange * width + baseW * 2;
+                  const my = fillRange * fillRange * height + baseW * 2;
+                  mctx.beginPath();
+                  mctx.rect(bx1 - mx, by1 - my, (bx2 - bx1) + mx * 2, (by2 - by1) + my * 2);
+                  mctx.clip();
+                }
                 // 영역 마스크 업스케일 + blur를 객체당 1회만 계산해 캐시 (매 프레임 alpha만 조절).
-                // blur를 키워 잉크가 번지듯 부드럽게 차오르게(저해상 영역 마스크의 블록 패치 제거).
-                const blurPx = Math.max(baseW * 1.3, 18);
+                // inkSpread로 blur 조절: 작으면 또렷(화이트보드), 크면 잉크 번짐(수묵).
+                const blurPx = Math.max(3, baseW * 0.4) + inkSpread * 38;
                 const bkey = `${scene.sceneId ?? "s"}|${it.obj.id}|${Math.round(blurPx)}|${Math.round(fit.drawW)}x${Math.round(fit.drawH)}`;
                 let blurred = blurredRegionCache.get(bkey);
                 if (!blurred) {
@@ -877,10 +894,6 @@ export function renderSceneFrame(
                 mctx.drawImage(blurred, 0, 0);
               } else {
                 // 영역 없음(CORS 폴백): bbox 방사 그라데이션
-                const bx1 = it.obj.bbox[0] * fit.bScaleX + fit.offsetX;
-                const by1 = it.obj.bbox[1] * fit.bScaleY + fit.offsetY;
-                const bx2 = it.obj.bbox[2] * fit.bScaleX + fit.offsetX;
-                const by2 = it.obj.bbox[3] * fit.bScaleY + fit.offsetY;
                 const cx = (bx1 + bx2) / 2, cy = (by1 + by2) / 2;
                 const rx = ((bx2 - bx1) / 2) * 1.35 + baseW * 2;
                 const ry = ((by2 - by1) / 2) * 1.35 + baseW * 2;
@@ -899,8 +912,15 @@ export function renderSceneFrame(
             }
           }
 
-          // (전역 채움 패스 제거 — 객체별 영역 채움이 prog=1에 100% 완성을 보장하므로
-          //  갑자기 전체가 나타나는 점프가 없다. 영역 합집합 = 화면 전체.)
+          // 마무리: 클립으로 안 채워진 빈 배경을 장면 끝 ~20% 구간에 은은히 채워 100% 완성(점프 없이)
+          const endP = clamp01((tEff - maxEnd * 0.8) / Math.max(maxEnd * 0.2, 0.01));
+          if (endP > 0) {
+            mctx.save();
+            mctx.globalAlpha = ease(endP);
+            mctx.fillStyle = "#fff";
+            mctx.fillRect(0, 0, width, height);
+            mctx.restore();
+          }
 
           // masked = 원본 ∩ 마스크 (destination-in)
           const masked = scratch(_masked, width, height);

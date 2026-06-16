@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import { SceneSpec, RevealObject, StylePackId, BrushType, AspectRatio } from "@/lib/types";
 import BrushPlayer, { BrushPlayerHandle } from "./BrushPlayer";
 
@@ -49,6 +49,8 @@ export default function BrushTestPage() {
   const [brushSize, setBrushSize] = useState(1);
   const [brushCount, setBrushCount] = useState(1);
   const [brushSpeed, setBrushSpeed] = useState(1);
+  const [inkSpread, setInkSpread] = useState(0.5); // 번짐(fill blur): 0 또렷 ~ 1 번짐
+  const [fillRange, setFillRange] = useState(1);   // 채움 범위: 0.1 좁게(객체만) ~ 1 넓게(영역 전체)
   const [showBrush, setShowBrush] = useState(true);
   const [showBoxes, setShowBoxes] = useState(false);
   const [flowMode, setFlowMode] = useState<"sync" | "topdown">("sync");
@@ -69,6 +71,31 @@ export default function BrushTestPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const playerRef = useRef<BrushPlayerHandle>(null);
 
+  // 화풍(프리셋) 바뀌면 그 프리셋에 저장된 붓 게이지를 불러와 슬라이더에 반영
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getIdToken } = await import("@/lib/clientAuth");
+        const token = await getIdToken();
+        const res = await fetch(`/api/admin/settings?stylePackId=${stylePackId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const d = await res.json();
+        setBrushSize(d.brushSize ?? 1);
+        setBrushCount(d.brushCount ?? 1);
+        setBrushSpeed(d.brushSpeed ?? 1);
+        setBrushType((d.brushType as BrushType) ?? "round");
+        setHandAsset(d.handAsset || "brush");
+        setFlowMode(d.flowMode === "topdown" ? "topdown" : "sync");
+        setInkSpread(typeof d.inkSpread === "number" ? d.inkSpread : 0.5);
+        setFillRange(typeof d.fillRange === "number" ? d.fillRange : 1);
+      } catch {
+        // 무시 — 기본값 유지
+      }
+    })();
+  }, [stylePackId]);
+
   async function saveAsDefaults() {
     if (saving) return;
     setSaving(true);
@@ -79,9 +106,11 @@ export default function BrushTestPage() {
       const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ brushSize, brushCount, brushSpeed, brushType, handAsset, flowMode }),
+        // 현재 선택한 화풍(프리셋)에만 저장
+        body: JSON.stringify({ stylePackId, brushSize, brushCount, brushSpeed, brushType, handAsset, flowMode, inkSpread, fillRange }),
       });
-      setSavedMsg(res.ok ? "✓ 저장됨 — 이후 생성되는 모든 영상에 적용" : "저장 실패 (superadmin 권한 필요)");
+      const packName = STYLES.find((s) => s.id === stylePackId)?.name ?? stylePackId;
+      setSavedMsg(res.ok ? `✓ "${packName}" 화풍 기본값 저장됨 — 이 화풍 영상에 적용` : "저장 실패 (superadmin 권한 필요)");
     } catch {
       setSavedMsg("저장 실패");
     } finally {
@@ -192,7 +221,7 @@ export default function BrushTestPage() {
         fetch("/api/admin/brush-test", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, aspect }),
+          body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, aspect, inkSpread, fillRange }),
         }),
         narration.trim()
           ? fetch("/api/admin/tts-preview", {
@@ -228,7 +257,7 @@ export default function BrushTestPage() {
           const reRes = await fetch("/api/admin/brush-test", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-            body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, durationSec: ttsDuration, aspect }),
+            body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, durationSec: ttsDuration, aspect, inkSpread, fillRange }),
           });
           if (reRes.ok) {
             const reData = await reRes.json();
@@ -462,6 +491,20 @@ export default function BrushTestPage() {
               className="flex-1 accent-[var(--accent)]" />
             <span className="text-sm tabular-nums w-10 text-right">{brushSpeed.toFixed(1)}×</span>
           </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-[var(--ink)] w-16" title="채움 번짐 정도 — 작으면 또렷(화이트보드), 크면 잉크처럼 번짐(수묵)">번짐</label>
+            <input type="range" min={0} max={1} step={0.05} value={inkSpread}
+              onChange={(e) => setInkSpread(Number(e.target.value))}
+              className="flex-1 accent-[var(--accent)]" />
+            <span className="text-sm tabular-nums w-10 text-right">{Math.round(inkSpread * 100)}%</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-[var(--ink)] w-16" title="채움 범위 — 작으면 객체 근처만(빈 배경 안 칠함), 크면 영역 전체로 퍼짐">채움범위</label>
+            <input type="range" min={0.1} max={1} step={0.05} value={fillRange}
+              onChange={(e) => setFillRange(Number(e.target.value))}
+              className="flex-1 accent-[var(--accent)]" />
+            <span className="text-sm tabular-nums w-10 text-right">{Math.round(fillRange * 100)}%</span>
+          </div>
           <div className="flex items-center gap-5">
             <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
               <input type="checkbox" checked={showBrush} onChange={(e) => setShowBrush(e.target.checked)}
@@ -504,10 +547,10 @@ export default function BrushTestPage() {
             <button
               onClick={saveAsDefaults}
               disabled={saving}
-              title="현재 붓 설정(크기/개수/속도/종류/도구/흐름)을 시스템 기본값으로 저장 — 자동 영상 생성에 적용"
+              title="현재 붓 게이지(두께/번짐/채움범위/개수/속도/종류/도구/흐름)를 이 화풍의 기본값으로 저장 — 이 화풍으로 만드는 영상에 적용"
               className="px-5 py-2.5 rounded-[var(--radius)] border border-[var(--line)] text-sm font-medium disabled:opacity-50"
             >
-              {saving ? "저장 중..." : "💾 기본값으로 저장"}
+              {saving ? "저장 중..." : "💾 이 화풍 기본값 저장"}
             </button>
           </div>
           {savedMsg && <p className="text-sm text-[var(--ink-soft)]">{savedMsg}</p>}
@@ -544,6 +587,8 @@ export default function BrushTestPage() {
             brushSize={brushSize}
             brushCount={brushCount}
             brushSpeed={brushSpeed}
+            inkSpread={inkSpread}
+            fillRange={fillRange}
             showBrush={showBrush}
             audioUrl={audioUrl}
             brushType={brushType}
