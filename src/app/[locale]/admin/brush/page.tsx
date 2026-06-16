@@ -104,6 +104,27 @@ export default function BrushTestPage() {
     })();
   }, [stylePackId]);
 
+  // 화면 진입 시 가장 최근 저장된 샘플 세트(주제·대본·화풍별 이미지)를 불러와 바로 표시
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getIdToken } = await import("@/lib/clientAuth");
+        const token = await getIdToken();
+        const res = await fetch("/api/admin/sample-image", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (d.subject) setSampleSubject(d.subject);
+        if (d.narration) setNarration(d.narration);
+        const imgs = (d.images ?? {}) as Record<string, string>;
+        if (Object.keys(imgs).length > 0) {
+          setSamples(Object.fromEntries(Object.entries(imgs).map(([k, url]) => [k, { loading: false, image: url }])));
+        }
+      } catch {
+        // 무시
+      }
+    })();
+  }, []);
+
   async function saveAsDefaults() {
     if (saving) return;
     setSaving(true);
@@ -136,7 +157,7 @@ export default function BrushTestPage() {
       const res = await fetch("/api/admin/sample-image", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ stylePackId: packId, subject: sampleSubject, quality: sampleHiQ ? "medium" : "low", aspect }),
+        body: JSON.stringify({ stylePackId: packId, subject: sampleSubject, quality: sampleHiQ ? "medium" : "low", aspect, narration }),
       });
       const data = await res.json();
       if (!res.ok) { setSamples((s) => ({ ...s, [packId]: { loading: false, error: data.error ?? "실패" } })); return; }
@@ -160,6 +181,7 @@ export default function BrushTestPage() {
   function loadSampleForTest(packId: StylePackId, dataUrl: string) {
     setImageBase64(dataUrl);
     const img = new Image();
+    img.crossOrigin = "anonymous"; // Storage URL을 canvas에 그릴 때 오염 방지(버킷 CORS *)
     img.onload = () => setImage(img);
     img.src = dataUrl;
     setStylePackId(packId);
