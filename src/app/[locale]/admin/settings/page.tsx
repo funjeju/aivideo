@@ -14,6 +14,8 @@ export default function AdminSettingsPage() {
   const [brushSaved, setBrushSaved] = useState(false);
   const [llmModel, setLlmModel] = useState<LlmModel>("gpt-4o");
   const [modelSaved, setModelSaved] = useState(false);
+  const [imageQuality, setImageQuality] = useState<"low" | "medium" | "high">("medium");
+  const [imgQSaved, setImgQSaved] = useState(false);
   const isSuper = userDoc?.role === "superadmin";
 
   useEffect(() => {
@@ -27,6 +29,7 @@ export default function AdminSettingsPage() {
       setBrushCount(data.brushCount ?? 1);
       setBrushSpeed(data.brushSpeed ?? 1);
       if (data.llmModel) setLlmModel(data.llmModel);
+      if (data.imageQuality) setImageQuality(data.imageQuality);
     })().catch(() => setBillingEnabled(false));
   }, []);
 
@@ -60,6 +63,15 @@ export default function AdminSettingsPage() {
     const res = await post({ llmModel: m });
     if (res.ok) { setModelSaved(true); setTimeout(() => setModelSaved(false), 2000); }
     else { setLlmModel(prev); alert("변경 실패"); }
+  }
+
+  async function changeImageQuality(q: "low" | "medium" | "high") {
+    if (!isSuper) return;
+    const prev = imageQuality;
+    setImageQuality(q);
+    const res = await post({ imageQuality: q });
+    if (res.ok) { setImgQSaved(true); setTimeout(() => setImgQSaved(false), 2000); }
+    else { setImageQuality(prev); alert("변경 실패"); }
   }
 
   async function saveBrush() {
@@ -138,6 +150,30 @@ export default function AdminSettingsPage() {
             ))}
           </select>
           {modelSaved && <span className="text-xs text-green-600">저장됨</span>}
+        </div>
+        {!isSuper && <p className="text-xs text-[var(--ink-faint)] mt-3">변경은 슈퍼관리자만 가능합니다.</p>}
+      </div>
+
+      {/* 이미지 생성 화질 */}
+      <div className="bg-[var(--paper-raised)] border border-[var(--line)] rounded-[var(--radius)] p-5 max-w-xl mt-5">
+        <p className="font-medium text-[var(--ink)]">이미지 생성 화질 (gpt-image-2)</p>
+        <p className="text-sm text-[var(--ink-soft)] mt-1 mb-4">
+          장면 이미지를 만드는 모델은 <b>gpt-image-2</b>이고, 화질만 고릅니다. 높을수록 선명·고가, 낮을수록 빠르고 저렴.
+          <br />
+          <span className="text-[var(--ink-faint)]">low ≈ $0.02 / medium ≈ $0.06 / high ≈ $0.19 (장당). 변경 후 새로 만드는 영상부터 적용.</span>
+        </p>
+        <div className="flex items-center gap-3">
+          <select
+            value={imageQuality}
+            onChange={(e) => changeImageQuality(e.target.value as "low" | "medium" | "high")}
+            disabled={!isSuper}
+            className="px-3 py-2 rounded border border-[var(--line)] bg-[var(--paper-sunken)] text-sm text-[var(--ink)] disabled:opacity-50"
+          >
+            <option value="low">low (저화질·가장 저렴 ~$0.02)</option>
+            <option value="medium">medium (기본·균형 ~$0.06)</option>
+            <option value="high">high (고화질·고가 ~$0.19)</option>
+          </select>
+          {imgQSaved && <span className="text-xs text-green-600">저장됨</span>}
         </div>
         {!isSuper && <p className="text-xs text-[var(--ink-faint)] mt-3">변경은 슈퍼관리자만 가능합니다.</p>}
       </div>

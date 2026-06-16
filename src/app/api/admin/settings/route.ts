@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
     billingEnabled: d.billingEnabled === true,
     subtitles: d.subtitles !== false, // 기본 ON
     llmModel: LLM_MODELS.includes(d.llmModel) ? d.llmModel : DEFAULT_LLM_MODEL,
+    imageQuality: ["low", "medium", "high"].includes(d.imageQuality) ? d.imageQuality : "medium",
     ...resolveBrush(d, stylePackId),
   });
 }
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
   if (typeof body.billingEnabled === "boolean") patch.billingEnabled = body.billingEnabled;
   if (typeof body.subtitles === "boolean") patch.subtitles = body.subtitles;
   if (typeof body.llmModel === "string" && LLM_MODELS.includes(body.llmModel as never)) patch.llmModel = body.llmModel;
+  if (body.imageQuality === "low" || body.imageQuality === "medium" || body.imageQuality === "high") patch.imageQuality = body.imageQuality;
 
   // stylePackId가 있으면 그 프리셋에만 저장, 없으면 전역(레거시 기본)
   if (typeof body.stylePackId === "string" && body.stylePackId) {

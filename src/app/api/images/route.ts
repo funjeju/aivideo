@@ -37,6 +37,12 @@ export async function POST(req: NextRequest) {
     const projData = (await adminDb().collection("projects").doc(projectId).get()).data();
     const size = imageSizeForAspect(projData?.aspect ?? "9:16");
 
+    // 이미지 화질: 어드민 전역 설정(settings/global.imageQuality) 우선, 없으면 화풍 기본값
+    const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};
+    const quality = (["low", "medium", "high"].includes(settings.imageQuality)
+      ? settings.imageQuality
+      : pack.imagePrompt.quality) as "low" | "medium" | "high";
+
     let imageUrl = "";
     let cost = 0;
     let regenerations = 0;
@@ -48,7 +54,7 @@ export async function POST(req: NextRequest) {
           prompt,
           n: 1,
           size,
-          quality: pack.imagePrompt.quality as "high" | "medium" | "low",
+          quality,
         });
 
         const b64 = response.data?.[0]?.b64_json;
@@ -64,7 +70,7 @@ export async function POST(req: NextRequest) {
         imageUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
         // gpt-image-2 1024x1536 대략 원가: high≈$0.19, medium≈$0.06, low≈$0.02
-        cost = pack.imagePrompt.quality === "high" ? 0.19 : pack.imagePrompt.quality === "low" ? 0.02 : 0.06;
+        cost = quality === "high" ? 0.19 : quality === "low" ? 0.02 : 0.06;
         if (attempt > 0) regenerations = attempt;
         break;
       } catch (e) {
