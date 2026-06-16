@@ -58,6 +58,7 @@ export default function BrushTestPage() {
   const [sampleSubject, setSampleSubject] = useState("");
   const [samples, setSamples] = useState<Record<string, { loading: boolean; image?: string; error?: string }>>({});
   const [genningAll, setGenningAll] = useState(false);
+  const [sampleHiQ, setSampleHiQ] = useState(false); // 샘플 화질: 기본 low(저렴), 켜면 medium
   const fileRef = useRef<HTMLInputElement>(null);
   const playerRef = useRef<BrushPlayerHandle>(null);
 
@@ -91,7 +92,7 @@ export default function BrushTestPage() {
       const res = await fetch("/api/admin/sample-image", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ stylePackId: packId, subject: sampleSubject }),
+        body: JSON.stringify({ stylePackId: packId, subject: sampleSubject, quality: sampleHiQ ? "medium" : "low" }),
       });
       const data = await res.json();
       if (!res.ok) { setSamples((s) => ({ ...s, [packId]: { loading: false, error: data.error ?? "실패" } })); return; }
@@ -253,9 +254,10 @@ export default function BrushTestPage() {
       <div className="mb-8 border border-[var(--line)] rounded-[var(--radius)] p-4 bg-[var(--paper-sunken)]">
         <p className="text-sm font-semibold text-[var(--ink)] mb-1">스타일팩별 샘플 이미지 생성</p>
         <p className="text-xs text-[var(--ink-soft)] mb-3">
-          한 줄 주제로 각 화풍의 샘플 이미지를 생성해 비교합니다. 마음에 드는 걸 “이 이미지로 붓 테스트”로 불러와 드로잉을 확인하세요. (장당 ~$0.06, 전체 생성 시 화풍 수만큼)
+          한 줄 주제로 각 화풍의 샘플 이미지를 생성해 비교합니다. 마음에 드는 걸 “이 이미지로 붓 테스트”로 불러와 드로잉을 확인하세요.
+          비교용이라 기본은 <b>저화질(~$0.02/장)</b> — 화풍만 보면 충분합니다. 비용 절약 위해 <b>개별(↻) 생성을 권장</b>하고, 전체 생성은 화풍 수만큼 듭니다.
         </p>
-        <div className="flex gap-2 mb-3">
+        <div className="flex gap-2 mb-2">
           <input
             value={sampleSubject}
             onChange={(e) => setSampleSubject(e.target.value)}
@@ -265,11 +267,16 @@ export default function BrushTestPage() {
           <button
             onClick={generateAllSamples}
             disabled={genningAll}
-            className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium disabled:opacity-50 whitespace-nowrap"
+            title="모든 화풍을 한 번에 생성 (화풍 수만큼 비용)"
+            className="px-4 py-2 rounded-[var(--radius)] border border-[var(--line)] text-[var(--ink)] text-sm font-medium disabled:opacity-50 whitespace-nowrap hover:bg-[var(--paper)]"
           >
-            {genningAll ? "생성 중..." : "전체 화풍 생성"}
+            {genningAll ? "생성 중..." : `전체 생성 (${STYLES.length}장)`}
           </button>
         </div>
+        <label className="flex items-center gap-2 text-xs text-[var(--ink-soft)] mb-3 cursor-pointer">
+          <input type="checkbox" checked={sampleHiQ} onChange={(e) => setSampleHiQ(e.target.checked)} className="accent-[var(--accent)]" />
+          고화질로 생성 (medium, ~$0.06/장) — 끄면 저화질 ~$0.02/장
+        </label>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {STYLES.map((s) => {
             const r = samples[s.id];

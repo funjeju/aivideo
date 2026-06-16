@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   if (!me || !isAdmin(me.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   try {
-    const { stylePackId, subject } = await req.json();
+    const { stylePackId, subject, quality } = await req.json();
     if (!subject || !String(subject).trim()) {
       return NextResponse.json({ error: "subject required" }, { status: 400 });
     }
@@ -26,12 +26,15 @@ export async function POST(req: NextRequest) {
     const pack = getStylePack(stylePackId ?? "whiteboard");
     const prompt = pack.imagePrompt.template.replace("{subject}", String(subject).trim());
 
+    // 샘플은 스타일 비교용이라 기본 low(가장 저렴). 요청 시 medium까지만 허용(비용 보호).
+    const q: "low" | "medium" = quality === "medium" ? "medium" : "low";
+
     const r = await openai.images.generate({
       model: "gpt-image-2",
       prompt,
       n: 1,
       size: pack.imagePrompt.size as "1024x1024" | "1024x1536" | "1536x1024",
-      quality: pack.imagePrompt.quality as "high" | "medium" | "low",
+      quality: q,
     });
 
     const b64 = r.data?.[0]?.b64_json;
