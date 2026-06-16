@@ -58,8 +58,10 @@ export interface ProjectDoc {
   contentLocale: string;
   status: ProjectStatus;
   scriptApproved: boolean;
-  /** 대시보드 썸네일로 쓸 장면 이미지 URL (사용자가 완성 화면에서 선택) */
+  /** 대시보드 썸네일 URL (제목이 합성되어 구워진 이미지) */
   thumbnailUrl?: string;
+  /** 썸네일 원본으로 고른 장면 이미지 URL (선택 하이라이트용) */
+  thumbnailSourceUrl?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

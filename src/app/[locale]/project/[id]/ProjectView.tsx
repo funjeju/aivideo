@@ -29,6 +29,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   const [ttsProgress, setTtsProgress] = useState(0);
   const [renderJob, setRenderJob] = useState<RenderJobDoc | null>(null);
   const [rendering, setRendering] = useState(false);
+  const [thumbBusy, setThumbBusy] = useState<string | null>(null); // 합성 중인 장면 이미지 URL
   const [dirty, setDirty] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -133,10 +134,23 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   async function chooseThumbnail(url: string) {
+    if (thumbBusy) return;
+    setThumbBusy(url);
     try {
-      await updateDoc(doc(db, "projects", projectId), { thumbnailUrl: url });
+      // 장면 이미지에 훅 제목을 중앙 대형으로 합성(브라우저 canvas) → 서버에 업로드
+      const dataUrl = await composeThumbnail(url, (project?.title ?? "").trim());
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
+      const res = await fetch("/api/thumbnail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ projectId, dataUrl, sourceUrl: url }),
+      });
+      if (!res.ok) console.error("thumbnail save failed", res.status);
     } catch (e) {
-      console.error("thumbnail update failed:", e);
+      console.error("thumbnail compose failed:", e);
+    } finally {
+      setThumbBusy(null);
     }
   }
 
@@ -443,28 +457,40 @@ export default function ProjectView({ projectId }: { projectId: string }) {
         {scenes.some((s) => s.imageUrl) && (
           <div className="mt-10">
             <h2 className="text-sm font-semibold text-[var(--ink)] mb-1">썸네일 선택</h2>
-            <p className="text-xs text-[var(--ink-soft)] mb-3">대시보드 목록에 표시될 대표 이미지를 고르세요.</p>
+            <p className="text-xs text-[var(--ink-soft)] mb-3">대표 이미지를 고르면 제목(훅)이 가운데 크게 합성돼 대시보드 썸네일이 됩니다.</p>
             <div className="flex gap-2 overflow-x-auto pb-2">
               {scenes.filter((s) => s.imageUrl).map((s, i) => {
-                const selected = (project?.thumbnailUrl ?? "") === s.imageUrl;
+                const selected = (project?.thumbnailSourceUrl ?? "") === s.imageUrl;
+                const busy = thumbBusy === s.imageUrl;
                 return (
                   <button
                     key={s.id}
                     onClick={() => chooseThumbnail(s.imageUrl!)}
+                    disabled={thumbBusy !== null}
                     title={`장면 ${i + 1}`}
-                    className={`relative flex-shrink-0 w-16 h-24 rounded overflow-hidden border-2 transition-colors ${
+                    className={`relative flex-shrink-0 w-16 h-24 rounded overflow-hidden border-2 transition-colors disabled:opacity-60 ${
                       selected ? "border-[var(--accent)]" : "border-[var(--line)] hover:border-[var(--accent)]"
                     }`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={s.imageUrl} alt={`장면 ${i + 1}`} className="w-full h-full object-cover" />
-                    {selected && (
+                    {busy && (
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-[10px]">합성 중…</span>
+                    )}
+                    {selected && !busy && (
                       <span className="absolute bottom-0 inset-x-0 bg-[var(--accent)] text-white text-[10px] text-center leading-4">대표</span>
                     )}
                   </button>
                 );
               })}
             </div>
+            {project?.thumbnailUrl && (
+              <div className="mt-3">
+                <p className="text-xs text-[var(--ink-soft)] mb-1">현재 썸네일</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={project.thumbnailUrl} alt="썸네일" className="h-40 rounded border border-[var(--line)]" />
+              </div>
+            )}
           </div>
         )}
 
@@ -529,4 +555,56 @@ function LoadingView() {
       </div>
     </main>
   );
+}
+
+/** 장면 이미지 + 훅 제목(중앙 대형 + 반투명 박스)을 합성해 PNG data URL 반환 (브라우저 canvas) */
+async function composeThumbnail(imageUrl: string, title: string): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image();
+    im.crossOrigin = "anonymous"; // GCS 교차도메인 → canvas 오염 방지(버킷 CORS *)
+    im.onload = () => resolve(im);
+    im.onerror = reject;
+    im.src = imageUrl;
+  });
+  const maxW = 1080;
+  const scale = Math.min(1, maxW / img.width);
+  const W = Math.round(img.width * scale);
+  const H = Math.round(img.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0, W, H);
+
+  if (title) {
+    const fontPx = Math.round(W * 0.082);
+    ctx.font = `800 ${fontPx}px "Pretendard", "Noto Sans KR", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const maxTextW = W * 0.84;
+    // 어절 단위 줄바꿈
+    const words = title.split(/\s+/);
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      const test = cur ? cur + " " + w : w;
+      if (ctx.measureText(test).width > maxTextW && cur) { lines.push(cur); cur = w; }
+      else cur = test;
+    }
+    if (cur) lines.push(cur);
+
+    const lineH = fontPx * 1.2;
+    const blockH = lines.length * lineH;
+    const cy = H / 2;
+    const padX = fontPx * 0.6;
+    const padY = fontPx * 0.5;
+    const boxW = Math.min(W * 0.92, maxTextW + padX * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect((W - boxW) / 2, cy - blockH / 2 - padY, boxW, blockH + padY * 2);
+    ctx.fillStyle = "#fff";
+    ctx.shadowColor = "rgba(0,0,0,0.6)";
+    ctx.shadowBlur = fontPx * 0.15;
+    lines.forEach((ln, i) => ctx.fillText(ln, W / 2, cy - blockH / 2 + lineH * (i + 0.5), maxTextW));
+  }
+  return canvas.toDataURL("image/png");
 }
