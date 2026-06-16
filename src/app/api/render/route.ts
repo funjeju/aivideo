@@ -62,8 +62,9 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error("enqueue failed:", e);
-      await jobRef.update({ status: "error", error: `enqueue failed: ${String(e)}`, updatedAt: FieldValue.serverTimestamp() });
-      return NextResponse.json({ error: "enqueue failed" }, { status: 502 });
+      const detail = e instanceof Error ? e.message : String(e);
+      await jobRef.update({ status: "error", error: `enqueue failed: ${detail}`, updatedAt: FieldValue.serverTimestamp() });
+      return NextResponse.json({ error: "enqueue failed", detail }, { status: 502 });
     }
 
     // 큐 적재 성공 → 렌더링 상태로
