@@ -33,7 +33,6 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
   });
 
   const DRAW_WINDOW = durationSec * 0.85;
-  const narrLen = Math.max(narration.length, 1);
 
   // 위→아래 모드: anchor 무시, 화면 상단부터 순차 완성 (균등 슬롯, 겹침 최소)
   if (flowMode === "topdown") {
@@ -61,36 +60,53 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
   // anchorText(나레이션 구절)가 발화되는 시점에 객체를 그리기 시작한다.
   // 나레이션은 글자수에 비례해 균일 속도로 읽힌다고 보고, anchor 위치 비율 × durationSec = startAt.
 
-  // 각 객체의 앵커 시각 계산 (anchorText를 나레이션에서 찾아 위치 비율)
-  type Timed = RevealObject & { _anchor: number };
-  const timed: Timed[] = sorted.map((obj, i) => {
-    let anchor: number;
-    const at = obj.anchorText?.trim();
-    const idx = at ? narration.indexOf(at) : -1;
-    if (idx >= 0) {
-      anchor = (idx / narrLen) * DRAW_WINDOW;
-    } else {
-      // 앵커 못 찾으면 순서 기반 균등 폴백
-      anchor = (i / Math.max(sorted.length, 1)) * DRAW_WINDOW;
+  // anchorText를 나레이션에서 찾아 위치 비율(0~1)을 구한다.
+  // Vision이 구절을 정확히 복사하지 않는 경우가 많아(조사 변형·띄어쓰기·잘림: "손실을"→"손해를" 등)
+  // 정규화 + 앞/뒤 부분일치로 강건하게 매칭한다. 실패 시 -1.
+  const norm = (s: string) => s.replace(/\s+/g, "").replace(/["'.,!?…·]/g, "");
+  const nNarr = norm(narration);
+  function anchorRatio(anchorText?: string): number {
+    const a = norm(anchorText ?? "");
+    if (!a || nNarr.length === 0) return -1;
+    let idx = nNarr.indexOf(a);
+    if (idx >= 0) return idx / nNarr.length;
+    // 부분 일치: 앞/뒤에서 점점 짧게 잘라 재시도 (최소 4자)
+    for (let len = Math.min(a.length, 12); len >= 4; len--) {
+      idx = nNarr.indexOf(a.slice(0, len));
+      if (idx >= 0) return idx / nNarr.length;
+      idx = nNarr.indexOf(a.slice(a.length - len));
+      if (idx >= 0) return idx / nNarr.length;
     }
-    return { ...obj, _anchor: anchor };
+    return -1;
+  }
+
+  // 객체별 앵커 시각 (매칭 실패 시 순서 기반 균등 폴백)
+  const n = Math.max(sorted.length, 1);
+  const withAnchor = sorted.map((obj, i) => {
+    const r = anchorRatio(obj.anchorText);
+    return { obj, anchor: (r >= 0 ? r : i / n) * DRAW_WINDOW };
   });
 
-  // 앵커 시각 순으로 정렬 (실제 발화 순서)
-  timed.sort((a, b) => a._anchor - b._anchor);
+  // 발화 시각 순 정렬 + 같은 지점에 몰리지 않게 최소 간격 확보
+  // (Vision이 여러 객체에 같은 구절을 달면 0초에 겹쳐 "한꺼번에" 그려지는 문제 방지)
+  withAnchor.sort((x, y) => x.anchor - y.anchor || ((x.obj.revealOrder ?? 0) - (y.obj.revealOrder ?? 0)));
+  const minGap = (DRAW_WINDOW / n) * 0.6;
+  for (let i = 1; i < withAnchor.length; i++) {
+    if (withAnchor[i].anchor < withAnchor[i - 1].anchor + minGap) {
+      withAnchor[i].anchor = withAnchor[i - 1].anchor + minGap;
+    }
+  }
 
-  const revealObjects: RevealObject[] = timed.map((obj, i) => {
-    const { _anchor, ...rest } = obj;
-    // 첫 객체는 나레이션 시작과 동시에 붓이 출발 (anchor가 늦어도 0초 시작)
-    const startAt = i === 0 ? 0 : parseFloat(Math.min(_anchor, DRAW_WINDOW).toFixed(2));
-    // 그리기 종료 = 다음 객체 시작 시각(겹침 약간) 또는 DRAW_WINDOW
-    const nextStart = i + 1 < timed.length ? timed[i + 1]._anchor : DRAW_WINDOW;
+  const revealObjects: RevealObject[] = withAnchor.map(({ obj, anchor }, i) => {
+    // 첫 객체는 나레이션 시작과 동시에 붓 출발 (anchor가 늦어도 0초 시작)
+    const startAt = i === 0 ? 0 : parseFloat(Math.min(anchor, DRAW_WINDOW).toFixed(2));
+    const nextStart = i + 1 < withAnchor.length ? withAnchor[i + 1].anchor : DRAW_WINDOW;
     const endAt = parseFloat(Math.min(Math.max(nextStart + 0.4, startAt + 0.6), durationSec).toFixed(2));
     return {
-      ...rest,
+      ...obj,
       revealOrder: i + 1,
-      strokeStyle: (rest.strokeStyle ?? defaults.strokeStyle) as RevealObject["strokeStyle"],
-      flowDirection: rest.flowDirection ?? defaults.flowDirection,
+      strokeStyle: (obj.strokeStyle ?? defaults.strokeStyle) as RevealObject["strokeStyle"],
+      flowDirection: obj.flowDirection ?? defaults.flowDirection,
       startAt,
       endAt,
     };
