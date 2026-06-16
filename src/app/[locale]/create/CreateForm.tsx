@@ -252,27 +252,17 @@ export default function CreateForm() {
           </div>
         </section>
 
-        {/* 화풍 선택 */}
+        {/* 화풍 선택 — 샘플 이미지 카드 */}
         <section>
           <p className="text-sm font-medium text-[var(--ink)] mb-3">{t("style")}</p>
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {STYLE_PACKS.map((pack) => (
-              <button
+              <StyleCard
                 key={pack.id}
-                type="button"
+                pack={pack}
+                selected={stylePackId === pack.id}
                 onClick={() => setStylePackId(pack.id)}
-                className={`flex items-center gap-4 p-4 rounded-[var(--radius)] border text-left transition-colors ${
-                  stylePackId === pack.id
-                    ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                    : "border-[var(--line)] hover:border-[var(--accent)]"
-                }`}
-              >
-                <span className="text-2xl">{pack.emoji}</span>
-                <div>
-                  <p className="text-sm font-medium text-[var(--ink)]">{pack.name}</p>
-                  <p className="text-xs text-[var(--ink-soft)]">{pack.desc}</p>
-                </div>
-              </button>
+              />
             ))}
           </div>
         </section>
@@ -316,5 +306,49 @@ export default function CreateForm() {
         </Button>
       </form>
     </main>
+  );
+}
+
+// 화풍별 샘플 이미지 (Storage 고정 경로). 없으면 이모지로 폴백.
+const SAMPLE_BASE = "https://storage.googleapis.com/golpo-b6407.firebasestorage.app/style-samples";
+
+function StyleCard({
+  pack,
+  selected,
+  onClick,
+}: {
+  pack: { id: StylePackId; name: string; desc: string; emoji: string };
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const [imgOk, setImgOk] = useState(true);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[var(--radius)] border overflow-hidden text-left transition-all ${
+        selected
+          ? "border-[var(--accent)] ring-2 ring-[var(--accent)]"
+          : "border-[var(--line)] hover:border-[var(--accent)]"
+      }`}
+    >
+      <div className="aspect-[3/4] bg-[var(--paper-sunken)] flex items-center justify-center overflow-hidden">
+        {imgOk ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`${SAMPLE_BASE}/${pack.id}.png`}
+            alt={pack.name}
+            onError={() => setImgOk(false)}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className="text-4xl">{pack.emoji}</span>
+        )}
+      </div>
+      <div className="p-2">
+        <p className="text-sm font-medium text-[var(--ink)] truncate">{pack.emoji} {pack.name}</p>
+        <p className="text-xs text-[var(--ink-soft)] line-clamp-2">{pack.desc}</p>
+      </div>
+    </button>
   );
 }
