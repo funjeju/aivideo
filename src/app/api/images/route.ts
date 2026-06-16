@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { getStylePack, imageSizeForAspect } from "@/lib/style-packs";
 import { FieldValue } from "firebase-admin/firestore";
@@ -31,11 +31,37 @@ export async function POST(req: NextRequest) {
     }
 
     const pack = getStylePack(stylePackId ?? "whiteboard");
-    const prompt = pack.imagePrompt.template.replace("{subject}", visualIntent);
 
     // 프로젝트 비율에 맞춰 이미지 해상도 결정 (canvas.aspect와 정합)
     const projData = (await adminDb().collection("projects").doc(projectId).get()).data();
     const size = imageSizeForAspect(projData?.aspect ?? "9:16");
+
+    // 업소용(기업) 영상이면 매 장면 프롬프트에 사명 정확 표기 지시 + (옵션)로고 reference 반영.
+    // 업체용 테스트 페이지(corporate-sample)와 동일한 방식.
+    const corp = projData?.corporate as
+      | { companyKo?: string; companyEn?: string; logoUrl?: string; useLogoRef?: boolean }
+      | undefined;
+    let brandInstr = "";
+    let logoBuf: Buffer | null = null;
+    if (corp) {
+      const brand: string[] = [];
+      if (corp.companyKo) brand.push(`한글 "${corp.companyKo}"`);
+      if (corp.companyEn) brand.push(`영문 "${corp.companyEn}"`);
+      if (brand.length) {
+        brandInstr = ` 이 장면에 회사명이 보일 자리(간판/배너/라벨/명패 등)가 있으면 또렷하고 정확하게 표기하라: ${brand.join(" / ")}. 철자를 절대 틀리지 말 것. 단, 장면 맥락상 어색하면 억지로 넣지 말 것.`;
+      }
+      if (corp.useLogoRef && corp.logoUrl) {
+        try {
+          const r = await fetch(corp.logoUrl);
+          if (r.ok) {
+            logoBuf = Buffer.from(await r.arrayBuffer());
+            brandInstr += " 제공된 로고 이미지를 장면 속 로고 자리에 자연스럽게 반영하라.";
+          }
+        } catch { /* 로고 fetch 실패 시 텍스트 지시만 */ }
+      }
+    }
+
+    const prompt = pack.imagePrompt.template.replace("{subject}", visualIntent) + brandInstr;
 
     // 이미지 화질: 어드민 전역 설정(settings/global.imageQuality) 우선, 없으면 화풍 기본값
     const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};
@@ -49,13 +75,15 @@ export async function POST(req: NextRequest) {
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const response = await openai.images.generate({
-          model: "gpt-image-2", // gpt-image 계열은 항상 b64_json 반환 (response_format 불필요)
-          prompt,
-          n: 1,
-          size,
-          quality,
-        });
+        // gpt-image 계열은 항상 b64_json 반환 (response_format 불필요)
+        let response;
+        if (logoBuf) {
+          // 로고를 reference로 넣어 edit — 매 장면에 로고 반영 시도
+          const logoFile = await toFile(logoBuf, "logo.png", { type: "image/png" });
+          response = await openai.images.edit({ model: "gpt-image-2", image: logoFile, prompt, size, quality });
+        } else {
+          response = await openai.images.generate({ model: "gpt-image-2", prompt, n: 1, size, quality });
+        }
 
         const b64 = response.data?.[0]?.b64_json;
         if (!b64) throw new Error("no image data returned");

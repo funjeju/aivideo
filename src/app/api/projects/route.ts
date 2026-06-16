@@ -26,6 +26,12 @@ export async function POST(req: NextRequest) {
     const contentLocale = formData.get("contentLocale") as string ?? "ko";
     const file = formData.get("file") as File | null;
 
+    // 업소용(기업) 영상 브랜드 메타 — 있으면 매 장면 이미지에 사명/로고 반영
+    const companyKo = (formData.get("companyKo") as string | null)?.trim() ?? "";
+    const companyEn = (formData.get("companyEn") as string | null)?.trim() ?? "";
+    const useLogoRef = formData.get("useLogoRef") === "true";
+    const logo = formData.get("logo") as File | null;
+
     if (!mode) {
       return NextResponse.json({ error: "mode required" }, { status: 400 });
     }
@@ -48,6 +54,22 @@ export async function POST(req: NextRequest) {
       sourceFileUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
     }
 
+    // 업소용 브랜드: 사명 또는 로고가 있으면 corporate 메타 구성
+    let corporate: { companyKo: string; companyEn: string; logoUrl: string; useLogoRef: boolean } | undefined;
+    if (companyKo || companyEn || logo) {
+      let logoUrl = "";
+      if (logo) {
+        const buffer = Buffer.from(await logo.arrayBuffer());
+        const bucket = adminStorage().bucket();
+        const filePath = `logos/${ownerId}/${Date.now()}_${logo.name}`;
+        const storageFile = bucket.file(filePath);
+        await storageFile.save(buffer, { metadata: { contentType: logo.type } });
+        await storageFile.makePublic();
+        logoUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+      }
+      corporate = { companyKo, companyEn, logoUrl, useLogoRef: useLogoRef && !!logoUrl };
+    }
+
     const db = adminDb();
     const docRef = await db.collection("projects").add({
       ownerId,
@@ -60,6 +82,7 @@ export async function POST(req: NextRequest) {
       stylePackId,
       voiceId,
       contentLocale,
+      ...(corporate ? { corporate } : {}),
       status: "draft",
       scriptApproved: false,
       createdAt: FieldValue.serverTimestamp(),

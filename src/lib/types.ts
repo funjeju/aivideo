@@ -62,8 +62,22 @@ export interface ProjectDoc {
   thumbnailUrl?: string;
   /** 썸네일 원본으로 고른 장면 이미지 URL (선택 하이라이트용) */
   thumbnailSourceUrl?: string;
+  /** 업소용(기업 홍보) 영상이면 브랜드 메타 — 매 장면 이미지에 사명/로고를 반영한다 */
+  corporate?: CorporateBrand;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+/** 기업 홍보 영상의 브랜드 정보. 이미지 생성 단계에서 매 장면 프롬프트에 주입된다. */
+export interface CorporateBrand {
+  /** 회사명(국문) — 화면 간판/라벨에 정확 표기 지시 */
+  companyKo?: string;
+  /** 회사명(영문) */
+  companyEn?: string;
+  /** 업로드된 로고의 공개 Storage URL */
+  logoUrl?: string;
+  /** true면 로고를 images.edit reference로 매 장면에 반영 시도 */
+  useLogoRef?: boolean;
 }
 
 export interface RevealObject {

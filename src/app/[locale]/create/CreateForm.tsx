@@ -51,9 +51,16 @@ export default function CreateForm() {
   const params = useParams();
   const locale = params.locale as string;
 
-  const [mode, setMode] = useState<"generate" | "faithful">("generate");
+  const [mode, setMode] = useState<"generate" | "faithful" | "corporate">("generate");
   const [topic, setTopic] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  // 업소용(기업) 영상 — 사명/로고를 매 장면에 반영
+  const [companyKo, setCompanyKo] = useState("");
+  const [companyEn, setCompanyEn] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoDataUrl, setLogoDataUrl] = useState("");
+  const [useLogoRef, setUseLogoRef] = useState(true);
+  const logoRef = useRef<HTMLInputElement>(null);
   const [targetLength, setTargetLength] = useState<TargetLength>(60);
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
@@ -89,6 +96,13 @@ export default function CreateForm() {
     if (!user) { setError("로그인이 필요합니다"); return; }
     if (mode === "generate" && !topic.trim()) { setError("주제를 입력해 주세요"); return; }
     if (mode === "faithful" && !file) { setError("파일을 업로드해 주세요"); return; }
+    if (mode === "corporate") {
+      if (!topic.trim()) { setError("회사 소개 핵심 메시지를 입력해 주세요"); return; }
+      if (!companyKo.trim() && !companyEn.trim()) { setError("회사명(국문 또는 영문)을 입력해 주세요"); return; }
+    }
+
+    // 업소용은 주제 기반(generate)으로 원고를 만든 뒤 매 장면에 사명/로고를 반영한다
+    const submitMode = mode === "corporate" ? "generate" : mode;
 
     setLoading(true);
     setError("");
@@ -97,14 +111,20 @@ export default function CreateForm() {
       // 1. 프로젝트 생성
       const formData = new FormData();
       formData.append("ownerId", user.uid);
-      formData.append("mode", mode);
+      formData.append("mode", submitMode);
       formData.append("targetLength", String(targetLength));
       formData.append("aspect", aspect);
       formData.append("stylePackId", stylePackId);
       formData.append("voiceId", voiceId);
       formData.append("contentLocale", "ko");
-      if (mode === "generate") formData.append("topic", topic);
-      if (mode === "faithful" && file) formData.append("file", file);
+      if (submitMode === "generate") formData.append("topic", topic);
+      if (submitMode === "faithful" && file) formData.append("file", file);
+      if (mode === "corporate") {
+        formData.append("companyKo", companyKo);
+        formData.append("companyEn", companyEn);
+        formData.append("useLogoRef", String(useLogoRef));
+        if (logoFile) formData.append("logo", logoFile);
+      }
 
       const { getIdToken } = await import("@/lib/clientAuth");
       const token = await getIdToken();
@@ -121,7 +141,7 @@ export default function CreateForm() {
       const scriptRes = await fetch("/api/script", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ projectId, mode, topic, targetLength, contentLocale: "ko" }),
+        body: JSON.stringify({ projectId, mode: submitMode, topic, targetLength, contentLocale: "ko" }),
       });
       const { error: scriptErr } = await scriptRes.json();
       if (scriptErr) throw new Error(scriptErr);
@@ -137,6 +157,14 @@ export default function CreateForm() {
     e.preventDefault();
     const dropped = e.dataTransfer.files[0];
     if (dropped) setFile(dropped);
+  }
+
+  function onLogo(f: File | null) {
+    if (!f) return;
+    setLogoFile(f);
+    const r = new FileReader();
+    r.onload = () => setLogoDataUrl(r.result as string);
+    r.readAsDataURL(f);
   }
 
   function previewVoice(v: { id: string; previewUrl?: string }) {
@@ -156,10 +184,11 @@ export default function CreateForm() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-8">
         {/* 입력 모드 탭 */}
-        <Tabs value={mode} onValueChange={(v) => setMode(v as "generate" | "faithful")}>
+        <Tabs value={mode} onValueChange={(v) => setMode(v as "generate" | "faithful" | "corporate")}>
           <TabsList className="w-full mb-4">
             <TabsTrigger value="generate" className="flex-1">{t("modeGenerate")}</TabsTrigger>
             <TabsTrigger value="faithful" className="flex-1">{t("modeFaithful")}</TabsTrigger>
+            <TabsTrigger value="corporate" className="flex-1">업소용</TabsTrigger>
           </TabsList>
 
           <TabsContent value="generate">
@@ -170,6 +199,67 @@ export default function CreateForm() {
               rows={4}
               className="resize-none bg-[var(--paper-sunken)] border-[var(--line)] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus-visible:ring-[var(--accent)]"
             />
+          </TabsContent>
+
+          <TabsContent value="corporate">
+            <div className="flex flex-col gap-4">
+              <p className="text-xs text-[var(--ink-soft)] -mt-1">
+                회사 소개·홍보 영상. 입력한 <b>사명·로고가 매 장면 이미지에 반영</b>됩니다. (먼저 어드민 &gt; 업소용 테스트로 정확도 확인 권장)
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-[var(--ink-soft)]">회사명 (국문)</label>
+                  <input
+                    value={companyKo}
+                    onChange={(e) => setCompanyKo(e.target.value)}
+                    placeholder="예: 주식회사 아무개"
+                    className="w-full mt-1 px-3 py-2 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-sunken)] text-sm text-[var(--ink)]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-[var(--ink-soft)]">회사명 (영문)</label>
+                  <input
+                    value={companyEn}
+                    onChange={(e) => setCompanyEn(e.target.value)}
+                    placeholder="e.g. AMUGAE Inc."
+                    className="w-full mt-1 px-3 py-2 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-sunken)] text-sm text-[var(--ink)]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-[var(--ink-soft)]">로고 (선택)</label>
+                <div
+                  onClick={() => logoRef.current?.click()}
+                  className="mt-1 border-2 border-dashed border-[var(--line)] rounded-[var(--radius)] p-3 text-center cursor-pointer hover:border-[var(--accent)]"
+                >
+                  {logoDataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoDataUrl} alt="logo" className="max-h-16 mx-auto" />
+                  ) : (
+                    <p className="text-xs text-[var(--ink-faint)]">로고 이미지 클릭 업로드 (PNG 권장)</p>
+                  )}
+                  <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => onLogo(e.target.files?.[0] ?? null)} />
+                </div>
+                {logoDataUrl && (
+                  <label className="flex items-center gap-2 text-xs text-[var(--ink)] mt-2 cursor-pointer">
+                    <input type="checkbox" checked={useLogoRef} onChange={(e) => setUseLogoRef(e.target.checked)} className="accent-[var(--accent)]" />
+                    로고를 매 장면 이미지에 반영 시도 (reference)
+                  </label>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-[var(--ink-soft)]">회사 소개 핵심 메시지 / 주제</label>
+                <Textarea
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="예: 우리 회사는 철갑상어 오일을 연구하는 바이오 기업입니다. 제품 신뢰성과 연구 역량을 강조해 주세요."
+                  rows={3}
+                  className="mt-1 resize-none bg-[var(--paper-sunken)] border-[var(--line)] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus-visible:ring-[var(--accent)]"
+                />
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="faithful">
