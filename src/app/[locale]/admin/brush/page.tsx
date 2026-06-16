@@ -255,7 +255,7 @@ export default function BrushTestPage() {
         <p className="text-sm font-semibold text-[var(--ink)] mb-1">스타일팩별 샘플 이미지 생성</p>
         <p className="text-xs text-[var(--ink-soft)] mb-3">
           한 줄 주제로 각 화풍의 샘플 이미지를 생성해 비교합니다. 마음에 드는 걸 “이 이미지로 붓 테스트”로 불러와 드로잉을 확인하세요.
-          비교용이라 기본은 <b>저화질(~$0.02/장)</b> — 화풍만 보면 충분합니다. 비용 절약 위해 <b>개별(↻) 생성을 권장</b>하고, 전체 생성은 화풍 수만큼 듭니다.
+          비교용이라 기본은 <b>저화질(~$0.02/장)</b> — 화풍만 보면 충분합니다. 비용 절약 위해 <b>원하는 화풍 칸을 눌러 한 개씩 생성</b>하세요. (전체 생성은 화풍 수만큼 비용)
         </p>
         <div className="flex gap-2 mb-2">
           <input
@@ -299,10 +299,16 @@ export default function BrushTestPage() {
                   ) : r?.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={r.image} alt={s.name} className="w-full h-full object-cover" />
-                  ) : r?.error ? (
-                    <span className="text-xs text-[var(--accent)] px-1 text-center">{r.error}</span>
                   ) : (
-                    <span className="text-xs text-[var(--ink-faint)]">—</span>
+                    // 빈 칸 = 이 화풍만 생성하는 버튼 (개별 생성)
+                    <button
+                      onClick={() => generateSample(s.id)}
+                      className="w-full h-full flex flex-col items-center justify-center gap-1 text-[var(--ink-faint)] hover:text-[var(--accent)] hover:bg-[var(--accent-soft)] transition-colors"
+                    >
+                      <span className="text-xl leading-none">＋</span>
+                      <span className="text-xs">{r?.error ? "다시 생성" : "생성"}</span>
+                      {r?.error && <span className="text-[10px] text-[var(--accent)] px-1 text-center">{r.error}</span>}
+                    </button>
                   )}
                 </div>
                 {r?.image && (
