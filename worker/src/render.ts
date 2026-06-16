@@ -78,7 +78,7 @@ interface RenderResult {
 /** 장면 입력의 결정적 해시 — 바뀌면 세그먼트 재렌더 */
 function sceneHash(spec: unknown, imageUrl: string, audioUrl: string): string {
   return createHash("sha256")
-    .update(JSON.stringify({ spec, imageUrl, audioUrl, fps: FPS, v: 31 }))
+    .update(JSON.stringify({ spec, imageUrl, audioUrl, fps: FPS, v: 32 }))
     .digest("hex")
     .slice(0, 16);
 }
@@ -122,7 +122,7 @@ async function renderSegment(
     "-video_size", `${size.width}x${size.height}`, "-framerate", String(FPS),
     "-i", "pipe:0",
     "-i", audioPath,
-    "-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p",
+    "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
     "-r", String(FPS),
     "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
     "-shortest", outPath,
