@@ -58,7 +58,7 @@ export default function CreateForm() {
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
   const [voiceId, setVoiceId] = useState("nova");
-  const [voices, setVoices] = useState<{ id: string; name: string }[]>(FALLBACK_VOICES);
+  const [voices, setVoices] = useState<{ id: string; name: string; previewUrl?: string }[]>(FALLBACK_VOICES);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -71,9 +71,9 @@ export default function CreateForm() {
         const snap = await getDocs(query(collection(db, "voices"), where("enabled", "==", true)));
         if (!snap.empty) {
           const list = snap.docs
-            .map((d) => d.data() as { id: string; displayName: string; sortOrder?: number })
+            .map((d) => d.data() as { id: string; displayName: string; sortOrder?: number; previewUrl?: string })
             .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99))
-            .map((v) => ({ id: v.id, name: v.displayName }));
+            .map((v) => ({ id: v.id, name: v.displayName, previewUrl: v.previewUrl }));
           setVoices(list);
           if (!list.find((v) => v.id === voiceId)) setVoiceId(list[0].id);
         }
@@ -139,12 +139,13 @@ export default function CreateForm() {
     if (dropped) setFile(dropped);
   }
 
-  function previewVoice(v: { id: string }) {
+  function previewVoice(v: { id: string; previewUrl?: string }) {
     const audio = audioRef.current;
     if (!audio) return;
-    // src만 바꾸면 이전 소스가 이어 재생되는 브라우저가 있어 명시적으로 정지→교체→로드
+    // 공개 Storage URL을 직접 재생(브라우저 캐시 → 즉시). 없으면 라우트 폴백.
+    // &t= 캐시버스트 제거 — 같은 URL이라야 브라우저가 캐싱해 두 번째부턴 즉각 재생.
     audio.pause();
-    audio.src = `/api/voice-preview?voiceId=${v.id}&t=${Date.now()}`;
+    audio.src = v.previewUrl || `/api/voice-preview?voiceId=${v.id}`;
     audio.load();
     audio.play().catch(() => {});
   }
