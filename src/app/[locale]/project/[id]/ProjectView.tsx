@@ -36,12 +36,30 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   // (updatedAt은 progress 갱신 시 안 바뀌어 오탐 발생 → progress 변화 기준으로 판단)
   const [progressChangedAt, setProgressChangedAt] = useState(() => Date.now());
   const lastProgressRef = useRef<number | null>(null);
+  // status가 "approved"(=생성 트리거 안 됨)일 때 클라가 직접 생성을 켠다. 마운트당 1회.
+  const genTriggeredRef = useRef(false);
 
   // 정체 감지용 시계 (30초마다) — generating이 멈췄는지 판단
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
+
+  // 생성 파이프라인을 클라이언트에서 직접 트리거(브라우저 디스패치는 Vercel처럼 잘리지 않음).
+  // 서버측 approve→generate fire-and-forget이 실패해도 이 경로로 확실히 시작된다.
+  async function triggerGenerate() {
+    try {
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
+      await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ projectId }),
+      });
+    } catch (e) {
+      console.error("generate trigger failed:", e);
+    }
+  }
 
   async function handleResume() {
     if (resuming) return;
@@ -78,7 +96,15 @@ export default function ProjectView({ projectId }: { projectId: string }) {
       }
 
       if (data.status === "script_ready" && !data.scriptApproved) setViewState("script_approval");
-      else if (data.status === "approved" || data.status === "generating") setViewState("generating");
+      else if (data.status === "approved" || data.status === "generating") {
+        setViewState("generating");
+        // status가 "approved"에 멈춰 있으면 생성이 시작 안 된 것 → 클라가 직접 트리거(마운트당 1회).
+        // generate가 즉시 status를 "generating"으로 바꾸므로 중복 트리거 안 됨.
+        if (data.status === "approved" && !genTriggeredRef.current) {
+          genTriggeredRef.current = true;
+          triggerGenerate();
+        }
+      }
       else if (data.status === "rendering") setViewState("rendering");
       else if (data.status === "done") setViewState("done");
       else if (data.status === "error") setViewState("error");
@@ -102,6 +128,8 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     });
 
     return () => { unsubProj(); unsubScenes(); unsubJobs(); };
+    // triggerGenerate는 projectId 클로저라 재실행 불필요 (구독은 projectId에만 의존)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   async function chooseThumbnail(url: string) {

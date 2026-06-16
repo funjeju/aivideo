@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { authorizeRequest, ownsProject, internalHeaders } from "@/lib/auth";
+import { authorizeRequest, ownsProject } from "@/lib/auth";
 import { checkBillingGate } from "@/lib/billing";
 
 export async function POST(req: NextRequest) {
@@ -38,14 +38,8 @@ export async function POST(req: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-    // 이미지 생성 파이프라인 비동기 트리거 (내부 시크릿으로 인증)
-    const origin = req.nextUrl.origin;
-    fetch(`${origin}/api/generate`, {
-      method: "POST",
-      headers: internalHeaders(),
-      body: JSON.stringify({ projectId }),
-    }).catch(console.error);
-
+    // 이미지 생성 트리거는 클라이언트가 status="approved"를 보고 직접 호출한다(ProjectView).
+    // 서버측 fire-and-forget은 Vercel이 응답 후 함수를 종료시켜 잘리는 문제가 있어 제거.
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);
