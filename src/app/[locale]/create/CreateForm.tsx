@@ -22,6 +22,8 @@ const STYLE_PACKS: { id: StylePackId; name: string; desc: string; emoji: string 
   { id: "joseon-reaper", name: "조선 저승사자", desc: "수묵 산수 + 갓 쓴 내레이터, 위트있는 교양", emoji: "👻" },
   { id: "flat-icon", name: "플랫 아이콘", desc: "깔끔한 플랫 컬러 아이콘, 또렷한 외곽선", emoji: "🟦" },
   { id: "retro-poster", name: "레트로 포스터", desc: "미드센추리 빈티지, 따뜻한 색·할프톤", emoji: "📻" },
+  { id: "dark-neon", name: "다크 네온", desc: "어두운 배경 + 네온 글로우", emoji: "🌃" },
+  { id: "3d-iso", name: "3D 아이소메트릭", desc: "3D 블록·입체감 (채움범위↑ 권장)", emoji: "🧊" },
   { id: "minhwa", name: "민화/조선", desc: "오방색 모티프, 한국사·문화", emoji: "🐯" },
 ];
 

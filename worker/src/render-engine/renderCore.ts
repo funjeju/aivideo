@@ -21,7 +21,7 @@ export const ASPECT_SIZES: Record<string, CanvasSize> = {
   "1:1": { width: 1080, height: 1080 },
 };
 
-const PAPER_COLORS: Record<string, string> = { white: "#FFFFFF", "paper-hanji": "#FAF8F4" };
+const PAPER_COLORS: Record<string, string> = { white: "#FFFFFF", "paper-hanji": "#FAF8F4", dark: "#0B0A14" };
 // bbox 좌표계: 정규화 0~1000 (이미지 왼쪽=0 오른쪽=1000, 위=0 아래=1000).
 // 이미지의 실제 비율(9:16 생성본·16:9·1:1·임의 업로드)과 무관하게 비례 변환되므로 항상 정확.
 const BBOX_NORM = 1000;

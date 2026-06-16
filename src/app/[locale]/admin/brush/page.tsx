@@ -36,6 +36,8 @@ const STYLES: { id: StylePackId; name: string }[] = [
   { id: "joseon-reaper", name: "조선 저승사자" },
   { id: "flat-icon", name: "플랫 아이콘" },
   { id: "retro-poster", name: "레트로 포스터" },
+  { id: "dark-neon", name: "다크 네온" },
+  { id: "3d-iso", name: "3D 아이소메트릭" },
   { id: "minhwa", name: "민화" },
   { id: "doodle-edu", name: "낙서 교육" },
 ];

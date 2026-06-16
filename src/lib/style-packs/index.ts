@@ -198,6 +198,67 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     sortOrder: 7,
   },
 
+  "dark-neon": {
+    id: "dark-neon",
+    name: "다크 네온",
+    description: "어두운 배경 + 네온 글로우. 펜이 빛나는 선을 그어나감.",
+    imagePrompt: {
+      template:
+        "glowing neon educational infographic on a dark background, {subject}, bright luminous neon outlines in cyan, magenta, pink and purple, deep dark navy/black background, simple shapes and icons drawn with glowing strokes, subtle sparkles, minimal text — only short glowing keyword labels (no sentences, no paragraphs). Distinct elements with generous spacing and clear glowing outlines so they can be drawn one by one.",
+      negative: "photorealistic, 3d, daylight, white background, paper texture, muted colors, gradient fills, dense text, paragraphs, cluttered",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "in-image",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "left-to-right",
+      strokeStyle: "outline",
+      flowDirection: "left-to-right",
+      rhythm: "fast-beat",
+      handTool: "pen",
+    },
+    palette: { ink: "#22D3EE", accent: "#E879F9", paper: "#0B0A14" },
+    userSliders: { lineWeight: { min: 0, max: 1, default: 0.5 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 8,
+  },
+
+  "3d-iso": {
+    id: "3d-iso",
+    name: "3D 아이소메트릭",
+    description: "3D 아이소메트릭 블록. 외곽선이 약해 채움범위↑로 페이드 리빌 권장.",
+    imagePrompt: {
+      template:
+        "3D isometric educational illustration, {subject}, clean isometric blocks, objects and icons with soft shading and gentle depth, muted pastel color palette, subtle soft shadows, light neutral background, minimal text — only short keyword labels (no sentences, no paragraphs). Distinct objects with generous spacing.",
+      negative: "neon, glow, photorealistic, flat 2d only, busy texture, dense text, paragraphs, dark background, harsh shadows",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "hybrid",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      // 외곽선이 약함 → 펜 트레이스보다 영역 채움(페이드) 위주. 어드민에서 채움범위·번짐 튜닝 권장.
+      revealStyle: "center-out",
+      strokeStyle: "fill",
+      flowDirection: "center-out",
+      rhythm: "slow-breath",
+      handTool: "marker",
+    },
+    palette: { ink: "#3A3A44", accent: "#7C9CBF", paper: "#F2F1EE" },
+    userSliders: { colorVibrancy: { min: 0, max: 1, default: 0.5 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 9,
+  },
+
   minhwa: {
     id: "minhwa",
     name: "민화/조선",
