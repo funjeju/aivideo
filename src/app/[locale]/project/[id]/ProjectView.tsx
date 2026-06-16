@@ -202,17 +202,18 @@ export default function ProjectView({ projectId }: { projectId: string }) {
         await updateDoc(doc(db, "projects", projectId, "scenes", sceneId), { narration });
       }
 
-      // TTS 합성 — 동시 3개 제한 + 45초 타임아웃 + 1회 재시도 (행 방지)
+      // TTS 합성 — 동시 3개 + 45초 타임아웃 + 3회 시도(백오프).
+      // 이미 음성이 있고 나레이션이 안 바뀐 장면은 건너뜀(멱등) → 재시도 시 실패분만 다시.
       const targetScenes = scenes.map((s) => ({
-        ...s,
+        id: s.id,
         narration: editedNarrations[s.id] ?? s.narration,
+        hasAudio: !!s.audioUrl && !editedNarrations[s.id],
       }));
 
-      let done = 0;
       const failed: string[] = [];
 
       async function synthOne(scene: { id: string; narration: string }) {
-        for (let attempt = 0; attempt < 2; attempt++) {
+        for (let attempt = 0; attempt < 3; attempt++) {
           try {
             const res = await fetch("/api/tts", {
               method: "POST",
@@ -227,25 +228,31 @@ export default function ProjectView({ projectId }: { projectId: string }) {
             });
             if (res.ok) return;
           } catch {
-            // 타임아웃/네트워크 — 재시도
+            // 타임아웃/네트워크
           }
+          if (attempt < 2) await new Promise((r) => setTimeout(r, 1500 * (attempt + 1))); // 백오프
         }
         failed.push(scene.id);
       }
 
+      const total = Math.max(targetScenes.length, 1);
+      const pending = targetScenes.filter((s) => !s.hasAudio);
+      let done = targetScenes.length - pending.length; // 건너뛴 건 완료로 카운트
+      setTtsProgress(Math.round((done / total) * 100));
+
       const CONCURRENCY = 3;
-      for (let i = 0; i < targetScenes.length; i += CONCURRENCY) {
+      for (let i = 0; i < pending.length; i += CONCURRENCY) {
         await Promise.all(
-          targetScenes.slice(i, i + CONCURRENCY).map(async (scene) => {
+          pending.slice(i, i + CONCURRENCY).map(async (scene) => {
             await synthOne(scene);
             done++;
-            setTtsProgress(Math.round((done / targetScenes.length) * 100));
+            setTtsProgress(Math.round((done / total) * 100));
           })
         );
       }
 
       if (failed.length > 0) {
-        alert(`${failed.length}개 장면의 음성 합성에 실패했습니다. "승인하고 영상 만들기"를 다시 눌러 주세요.`);
+        alert(`${failed.length}개 장면의 음성 합성에 실패했습니다.\n"승인하고 영상 만들기"를 다시 누르면 실패한 장면만 다시 시도합니다(성공분은 건너뜀).`);
         setApproving(false);
         return;
       }
