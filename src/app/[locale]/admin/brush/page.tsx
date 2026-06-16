@@ -1,8 +1,14 @@
 "use client";
 
 import { useRef, useState, useMemo } from "react";
-import { SceneSpec, RevealObject, StylePackId, BrushType } from "@/lib/types";
+import { SceneSpec, RevealObject, StylePackId, BrushType, AspectRatio } from "@/lib/types";
 import BrushPlayer, { BrushPlayerHandle } from "./BrushPlayer";
+
+const ASPECTS: { value: AspectRatio; label: string }[] = [
+  { value: "9:16", label: "세로 9:16" },
+  { value: "16:9", label: "가로 16:9" },
+  { value: "1:1", label: "정사각 1:1" },
+];
 
 const HAND_TOOLS: { id: string; name: string; desc: string }[] = [
   { id: "brush",      name: "붓",     desc: "붓 단독" },
@@ -37,6 +43,7 @@ export default function BrushTestPage() {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [narration, setNarration] = useState("");
   const [stylePackId, setStylePackId] = useState<StylePackId>("ink-wash");
+  const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [brushType, setBrushType] = useState<BrushType>("round");
   const [handAsset, setHandAsset] = useState("brush");
   const [brushSize, setBrushSize] = useState(1);
@@ -92,7 +99,7 @@ export default function BrushTestPage() {
       const res = await fetch("/api/admin/sample-image", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ stylePackId: packId, subject: sampleSubject, quality: sampleHiQ ? "medium" : "low" }),
+        body: JSON.stringify({ stylePackId: packId, subject: sampleSubject, quality: sampleHiQ ? "medium" : "low", aspect }),
       });
       const data = await res.json();
       if (!res.ok) { setSamples((s) => ({ ...s, [packId]: { loading: false, error: data.error ?? "실패" } })); return; }
@@ -185,7 +192,7 @@ export default function BrushTestPage() {
         fetch("/api/admin/brush-test", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize }),
+          body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, aspect }),
         }),
         narration.trim()
           ? fetch("/api/admin/tts-preview", {
@@ -221,7 +228,7 @@ export default function BrushTestPage() {
           const reRes = await fetch("/api/admin/brush-test", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-            body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, durationSec: ttsDuration }),
+            body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, durationSec: ttsDuration, aspect }),
           });
           if (reRes.ok) {
             const reData = await reRes.json();
@@ -353,11 +360,16 @@ export default function BrushTestPage() {
             />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <label className="text-sm text-[var(--ink)]">화풍</label>
             <select value={stylePackId} onChange={(e) => setStylePackId(e.target.value as StylePackId)}
               className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--paper-sunken)] text-sm">
               {STYLES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <label className="text-sm text-[var(--ink)] ml-2">화면 비율</label>
+            <select value={aspect} onChange={(e) => setAspect(e.target.value as AspectRatio)}
+              className="px-2 py-1 rounded border border-[var(--line)] bg-[var(--paper-sunken)] text-sm">
+              {ASPECTS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
             </select>
           </div>
 

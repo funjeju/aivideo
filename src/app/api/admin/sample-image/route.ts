@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getAuthedUser, isAdmin } from "@/lib/auth";
-import { getStylePack } from "@/lib/style-packs";
+import { getStylePack, imageSizeForAspect } from "@/lib/style-packs";
 
 // 이미지 1장 생성에 수십 초 걸릴 수 있음
 export const maxDuration = 120;
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   if (!me || !isAdmin(me.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   try {
-    const { stylePackId, subject, quality } = await req.json();
+    const { stylePackId, subject, quality, aspect } = await req.json();
     if (!subject || !String(subject).trim()) {
       return NextResponse.json({ error: "subject required" }, { status: 400 });
     }
@@ -28,12 +28,14 @@ export async function POST(req: NextRequest) {
 
     // 샘플은 스타일 비교용이라 기본 low(가장 저렴). 요청 시 medium까지만 허용(비용 보호).
     const q: "low" | "medium" = quality === "medium" ? "medium" : "low";
+    // 선택한 화면 비율에 맞춰 이미지 크기 결정 (없으면 9:16)
+    const size = imageSizeForAspect(aspect ?? "9:16");
 
     const r = await openai.images.generate({
       model: "gpt-image-2",
       prompt,
       n: 1,
-      size: pack.imagePrompt.size as "1024x1024" | "1024x1536" | "1536x1024",
+      size,
       quality: q,
     });
 

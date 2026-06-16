@@ -5,7 +5,7 @@ import { SceneSpec, BrushType } from "@/lib/types";
 import { renderSceneFrame, ASPECT_SIZES } from "@/lib/render/renderCore";
 
 export interface BrushPlayerHandle {
-  /** 재생을 처음부터 녹화해 webm(영상+나레이션)으로 다운로드 */
+  /** 재생을 처음부터 녹화해 영상+나레이션으로 다운로드 (mp4 지원 시 mp4, 아니면 webm) */
   record(): Promise<void>;
 }
 
@@ -41,6 +41,11 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const size = useMemo(() => {
+    // 분석 후엔 선택한 화면 비율(scene.canvas.aspect)을 캔버스 기준으로 — 실제 영상과 동일.
+    // (이미지는 renderCore가 contain-fit. 분석 전에는 업로드 이미지 비율로 미리보기)
+    if (scene?.canvas?.aspect) {
+      return ASPECT_SIZES[scene.canvas.aspect] ?? ASPECT_SIZES["9:16"];
+    }
     if (image && image.width > 0 && image.height > 0) {
       const LONG = 1600;
       const r = image.width / image.height;
@@ -48,7 +53,7 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
         ? { width: LONG, height: Math.round(LONG / r) }
         : { width: Math.round(LONG * r), height: LONG };
     }
-    return ASPECT_SIZES[scene?.canvas?.aspect ?? "9:16"] ?? ASPECT_SIZES["9:16"];
+    return ASPECT_SIZES["9:16"];
   }, [image, scene?.canvas?.aspect]);
 
   // audioUrl 바뀌면 Audio 객체 교체
@@ -154,8 +159,15 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
         ]);
       }
 
-      const mime = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"]
-        .find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+      // mp4 지원 브라우저(최신 Chrome/Safari)면 mp4 우선, 아니면 webm 폴백
+      const mime = [
+        "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+        "video/mp4",
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+      ].find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+      const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
       const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
       const chunks: Blob[] = [];
       rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
@@ -173,11 +185,11 @@ const BrushPlayer = forwardRef<BrushPlayerHandle, {
       recAudio?.pause();
       ac?.close();
 
-      const blob = new Blob(chunks, { type: "video/webm" });
+      const blob = new Blob(chunks, { type: mime || "video/webm" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `brush-test-${Date.now()}.webm`;
+      a.download = `brush-test-${Date.now()}.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
     },

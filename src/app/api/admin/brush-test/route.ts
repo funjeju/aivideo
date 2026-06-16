@@ -32,7 +32,8 @@ export async function POST(req: NextRequest) {
   if (!me || !isAdmin(me.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   try {
-    const { imageBase64, narration, stylePackId, brushSize, durationSec } = await req.json();
+    const { imageBase64, narration, stylePackId, brushSize, durationSec, aspect } = await req.json();
+    const asp: "9:16" | "16:9" | "1:1" = aspect === "16:9" || aspect === "1:1" ? aspect : "9:16";
     if (!imageBase64) return NextResponse.json({ error: "imageBase64 required" }, { status: 400 });
     const narr = (narration as string) ?? "";
 
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
       imageUrl: "", // 클라가 로컬 이미지로 렌더
       objects,
       stylePack: pack,
-      aspect: "9:16",
+      aspect: asp,
       brushSize: Number(brushSize) || 1,
     });
 
