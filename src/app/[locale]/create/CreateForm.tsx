@@ -61,6 +61,9 @@ export default function CreateForm() {
   const [logoDataUrl, setLogoDataUrl] = useState("");
   const [useLogoRef, setUseLogoRef] = useState(true);
   const logoRef = useRef<HTMLInputElement>(null);
+  // 업소용 입력 방식: 주제로 AI 생성 vs 원고 직접 입력
+  const [corpInput, setCorpInput] = useState<"topic" | "script">("topic");
+  const [scriptText, setScriptText] = useState("");
   const [targetLength, setTargetLength] = useState<TargetLength>(60);
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
@@ -97,12 +100,14 @@ export default function CreateForm() {
     if (mode === "generate" && !topic.trim()) { setError("주제를 입력해 주세요"); return; }
     if (mode === "faithful" && !file) { setError("파일을 업로드해 주세요"); return; }
     if (mode === "corporate") {
-      if (!topic.trim()) { setError("회사 소개 핵심 메시지를 입력해 주세요"); return; }
+      if (corpInput === "topic" && !topic.trim()) { setError("회사 소개 핵심 메시지를 입력해 주세요"); return; }
+      if (corpInput === "script" && !scriptText.trim()) { setError("원고를 입력해 주세요"); return; }
       if (!companyKo.trim() && !companyEn.trim()) { setError("회사명(국문 또는 영문)을 입력해 주세요"); return; }
     }
 
-    // 업소용은 주제 기반(generate)으로 원고를 만든 뒤 매 장면에 사명/로고를 반영한다
-    const submitMode = mode === "corporate" ? "generate" : mode;
+    // 업소용: 주제→AI 생성(generate) / 원고 직접 입력→충실 변환(faithful). 그 뒤 매 장면에 사명/로고 반영.
+    const submitMode =
+      mode === "corporate" ? (corpInput === "script" ? "faithful" : "generate") : mode;
 
     setLoading(true);
     setError("");
@@ -119,6 +124,8 @@ export default function CreateForm() {
       formData.append("contentLocale", "ko");
       if (submitMode === "generate") formData.append("topic", topic);
       if (submitMode === "faithful" && file) formData.append("file", file);
+      // 업소용 원고 직접 입력은 파일이 아니라 텍스트로 전달
+      if (mode === "corporate" && corpInput === "script") formData.append("sourceText", scriptText);
       if (mode === "corporate") {
         formData.append("companyKo", companyKo);
         formData.append("companyEn", companyEn);
@@ -250,14 +257,40 @@ export default function CreateForm() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-[var(--ink-soft)]">회사 소개 핵심 메시지 / 주제</label>
-                <Textarea
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="예: 우리 회사는 철갑상어 오일을 연구하는 바이오 기업입니다. 제품 신뢰성과 연구 역량을 강조해 주세요."
-                  rows={3}
-                  className="mt-1 resize-none bg-[var(--paper-sunken)] border-[var(--line)] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus-visible:ring-[var(--accent)]"
-                />
+                {/* 입력 방식: 주제로 AI 생성 vs 원고 직접 입력 */}
+                <div className="flex gap-2 mb-2">
+                  {([["topic", "주제로 생성"], ["script", "원고 직접 입력"]] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setCorpInput(val)}
+                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                        corpInput === val
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] font-medium"
+                          : "border-[var(--line)] text-[var(--ink-soft)] hover:border-[var(--accent)]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {corpInput === "topic" ? (
+                  <Textarea
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    placeholder="예: 우리 회사는 철갑상어 오일을 연구하는 바이오 기업입니다. 제품 신뢰성과 연구 역량을 강조해 주세요. (AI가 홍보 원고를 작성합니다)"
+                    rows={3}
+                    className="resize-none bg-[var(--paper-sunken)] border-[var(--line)] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus-visible:ring-[var(--accent)]"
+                  />
+                ) : (
+                  <Textarea
+                    value={scriptText}
+                    onChange={(e) => setScriptText(e.target.value)}
+                    placeholder="완성된 홍보 원고를 그대로 붙여넣으세요. 사실·문구를 보존하며 장면별 나레이션으로 변환합니다."
+                    rows={6}
+                    className="resize-none bg-[var(--paper-sunken)] border-[var(--line)] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus-visible:ring-[var(--accent)]"
+                  />
+                )}
               </div>
             </div>
           </TabsContent>

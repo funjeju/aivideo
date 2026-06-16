@@ -36,7 +36,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "mode required" }, { status: 400 });
     }
 
-    let sourceText = "";
+    // 붙여넣은 원고(파일 없이 textarea로 직접 입력) — faithful에서 파일 대신 사용
+    const pastedSource = (formData.get("sourceText") as string | null)?.trim() ?? "";
+
+    let sourceText = pastedSource;
     let sourceFileUrl = "";
 
     if (mode === "faithful" && file) {
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
     const db = adminDb();
     const docRef = await db.collection("projects").add({
       ownerId,
-      title: topic ?? file?.name ?? "새 프로젝트",
+      title: topic || companyKo || companyEn || file?.name || "새 프로젝트",
       mode,
       sourceText,
       sourceFileUrl,

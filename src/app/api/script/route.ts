@@ -26,10 +26,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
+    // faithful(원고 충실)인데 body에 sourceText가 없으면 project doc에서 읽는다.
+    // (파일 업로드/원고 붙여넣기 모두 /api/projects가 doc.sourceText에 저장한다)
+    let resolvedSource = sourceText as string | undefined;
+    if (!resolvedSource && mode === "faithful") {
+      const pd = (await adminDb().collection("projects").doc(projectId).get()).data();
+      resolvedSource = pd?.sourceText ?? "";
+    }
+
     const prompt = buildScriptPrompt({
       mode: mode as ProjectMode,
       topic,
-      sourceText,
+      sourceText: resolvedSource,
       targetLength: targetLength as TargetLength,
       contentLocale: contentLocale ?? "ko",
     });
