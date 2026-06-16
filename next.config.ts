@@ -8,6 +8,10 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 // transpilePackages로 강제 번들하여 해결.
 const nextConfig: NextConfig = {
   transpilePackages: ["firebase-admin"],
+  // @google-cloud/tasks는 gRPC 동적 require(proto 로딩)라 번들하면
+  // "Cannot find module as expression is too dynamic"로 빌드 실패.
+  // 번들에서 제외하고 런타임 node_modules require로 로드.
+  serverExternalPackages: ["@google-cloud/tasks"],
 };
 
 export default withNextIntl(nextConfig);
