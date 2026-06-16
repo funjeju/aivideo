@@ -30,6 +30,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   const [renderJob, setRenderJob] = useState<RenderJobDoc | null>(null);
   const [rendering, setRendering] = useState(false);
   const [thumbBusy, setThumbBusy] = useState<string | null>(null); // 합성 중인 장면 이미지 URL
+  const [cancelling, setCancelling] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -96,6 +97,11 @@ export default function ProjectView({ projectId }: { projectId: string }) {
         setProgressChangedAt(Date.now());
       }
 
+      // 처리 상태를 벗어나면 취소 버튼 상태 리셋
+      if (data.status !== "generating" && data.status !== "rendering" && data.status !== "approved") {
+        setCancelling(false);
+      }
+
       if (data.status === "script_ready" && !data.scriptApproved) setViewState("script_approval");
       else if (data.status === "approved" || data.status === "generating") {
         setViewState("generating");
@@ -132,6 +138,18 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     // triggerGenerate는 projectId 클로저라 재실행 불필요 (구독은 projectId에만 의존)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  async function cancelProcessing() {
+    if (cancelling) return;
+    setCancelling(true);
+    try {
+      // 플래그만 세움 — 생성 루프(Vercel)·워커가 사이사이 확인해 중단한다
+      await updateDoc(doc(db, "projects", projectId), { cancelRequested: true });
+    } catch (e) {
+      console.error("cancel failed:", e);
+      setCancelling(false);
+    }
+  }
 
   async function chooseThumbnail(url: string) {
     if (thumbBusy) return;
@@ -359,6 +377,14 @@ export default function ProjectView({ projectId }: { projectId: string }) {
               </Button>
             </div>
           )}
+
+          <button
+            onClick={cancelProcessing}
+            disabled={cancelling}
+            className="mt-5 text-sm text-[var(--ink-faint)] hover:text-[var(--accent)] disabled:opacity-50 underline"
+          >
+            {cancelling ? "취소 중…" : "생성 취소"}
+          </button>
         </div>
       </main>
     );
@@ -395,6 +421,13 @@ export default function ProjectView({ projectId }: { projectId: string }) {
           <p className="text-xs text-[var(--ink-faint)] mt-2">
             프레임 캡처 → 음성 합성 → mp4 인코딩. 영상 길이에 따라 수 분 걸릴 수 있습니다.
           </p>
+          <button
+            onClick={cancelProcessing}
+            disabled={cancelling}
+            className="mt-3 text-sm text-[var(--ink-faint)] hover:text-[var(--accent)] disabled:opacity-50 underline"
+          >
+            {cancelling ? "취소 중…" : "렌더링 취소"}
+          </button>
         </div>
       </main>
     );

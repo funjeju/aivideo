@@ -198,6 +198,13 @@ export async function renderProject(
     const total = rawScenes.length;
 
     for (let i = 0; i < rawScenes.length; i++) {
+      // 취소 요청 확인 (세그먼트 사이마다) — 클라가 cancelRequested를 켜면 중단
+      const pcur = (await db.collection("projects").doc(projectId).get()).data();
+      if (pcur?.cancelRequested) {
+        log("cancel requested → 중단");
+        await db.collection("projects").doc(projectId).update({ status: "done", cancelRequested: false });
+        throw new Error("RENDER_CANCELLED");
+      }
       const s = rawScenes[i];
       log(`scene ${i + 1}/${total} start (id ${s.id})`);
       const spec = ((s.sceneSpec as Record<string, unknown>) ?? {}) as Record<string, unknown>;

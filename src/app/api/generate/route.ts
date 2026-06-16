@@ -74,6 +74,17 @@ export async function POST(req: NextRequest) {
     // 간헐 429는 images 라우트의 SDK 백오프가 흡수). 더 빠르게 = Tier 2 업그레이드.
     const BATCH = 4;
     for (let i = 0; i < scenes.length; i += BATCH) {
+      // 취소 요청 확인 (배치 사이마다) — 클라가 cancelRequested를 켜면 즉시 중단
+      const cur = (await db.collection("projects").doc(projectId).get()).data();
+      if (cur?.cancelRequested) {
+        await db.collection("projects").doc(projectId).update({
+          status: "script_ready",
+          cancelRequested: false,
+          generateProgress: 0,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return NextResponse.json({ ok: true, cancelled: true });
+      }
       const batch = scenes.slice(i, i + BATCH);
       await Promise.all(
         batch.map(async (scene: Record<string, unknown>) => {

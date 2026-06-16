@@ -103,6 +103,9 @@ export interface SceneSpec {
   hand?: { enabled: boolean; asset: string; size?: number; count?: number; speed?: number; brushType?: BrushType; inkSpread?: number; fillRange?: number };
   /** 하단 자막 표시 (기본 true). 나레이션 구절을 음성에 맞춰 자동 표시 */
   subtitles?: boolean;
+
+  /** 사용자가 처리(생성/렌더) 중단을 요청 — 생성 루프·워커가 사이사이 확인해 멈춘다 */
+  cancelRequested?: boolean;
 }
 
 export interface SceneDoc {

@@ -86,16 +86,18 @@ const server = createServer(async (req, res) => {
           updatedAt: FieldValue.serverTimestamp(),
         });
       } catch (renderErr) {
-        console.error("render failed:", renderErr);
-        await jobRef.update({
-          status: "error",
-          error: String(renderErr),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-        await firestore.collection("projects").doc(projectId).update({
-          status: "error",
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+        const msg = String(renderErr);
+        if (msg.includes("RENDER_CANCELLED")) {
+          // 사용자 취소 — 프로젝트는 renderProject가 이미 done으로 되돌림. 잡만 cancelled.
+          await jobRef.update({ status: "cancelled", updatedAt: FieldValue.serverTimestamp() });
+        } else {
+          console.error("render failed:", renderErr);
+          await jobRef.update({ status: "error", error: msg, updatedAt: FieldValue.serverTimestamp() });
+          await firestore.collection("projects").doc(projectId).update({
+            status: "error",
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
       }
     } catch (e) {
       console.error(e);
