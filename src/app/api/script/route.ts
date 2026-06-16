@@ -4,7 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { buildScriptPrompt } from "@/lib/llm/prompts";
 import { ProjectMode, TargetLength } from "@/lib/types";
 import { resolveLlmModel, isReasoningModel } from "@/lib/llm/model";
-import { isGeminiModel, geminiGenerateJSON } from "@/lib/llm/gemini";
+import { isGeminiModel, geminiGenerateJSON, geminiAvailable } from "@/lib/llm/gemini";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
 
@@ -37,18 +37,20 @@ export async function POST(req: NextRequest) {
     // 어드민에서 고른 LLM 모델 (settings/global.llmModel, 기본 gpt-4o). gemini면 Gemini.
     const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};
     const model = resolveLlmModel(settings.llmModel);
+    const useGemini = isGeminiModel(model) && geminiAvailable();
 
     let raw: string;
     let llmCostUsd = 0;
-    if (isGeminiModel(model)) {
+    if (useGemini) {
       raw = await geminiGenerateJSON({ model, prompt });
     } else {
+      // gemini 선택했는데 키가 없으면 gpt-4o로 폴백(500 방지)
+      const oaModel = isGeminiModel(model) ? "gpt-4o" : model;
       const completion = await openai.chat.completions.create({
-        model,
+        model: oaModel,
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
-        // 추론 모델(gpt-5/o-시리즈)은 temperature 미지원 → 비추론 모델에만 설정
-        ...(isReasoningModel(model) ? {} : { temperature: 0.7 }),
+        ...(isReasoningModel(oaModel) ? {} : { temperature: 0.7 }),
       });
       raw = completion.choices[0].message.content ?? "{}";
       llmCostUsd = estimateLlmCost(completion.usage);

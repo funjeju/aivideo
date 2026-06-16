@@ -5,7 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { RevealObject } from "@/lib/types";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
 import { resolveLlmModel, isReasoningModel } from "@/lib/llm/model";
-import { isGeminiModel, geminiGenerateJSON, fetchImageBase64 } from "@/lib/llm/gemini";
+import { isGeminiModel, geminiGenerateJSON, fetchImageBase64, geminiAvailable } from "@/lib/llm/gemini";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -55,16 +55,19 @@ export async function POST(req: NextRequest) {
     // 어드민에서 고른 LLM 모델 (기본 gpt-4o). gemini면 Gemini, 아니면 OpenAI.
     const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};
     const model = resolveLlmModel(settings.llmModel);
+    const useGemini = isGeminiModel(model) && geminiAvailable();
     const prompt = buildVisionPrompt(narration ?? "");
 
     let raw: string;
-    if (isGeminiModel(model)) {
+    if (useGemini) {
       const imageBase64 = await fetchImageBase64(imageUrl);
       raw = await geminiGenerateJSON({ model, prompt, imageBase64 });
     } else {
-      const reasoning = isReasoningModel(model);
+      // gemini 선택했는데 키 없으면 gpt-4o로 폴백
+      const oaModel = isGeminiModel(model) ? "gpt-4o" : model;
+      const reasoning = isReasoningModel(oaModel);
       const response = await openai.chat.completions.create({
-        model,
+        model: oaModel,
         messages: [
           {
             role: "user",

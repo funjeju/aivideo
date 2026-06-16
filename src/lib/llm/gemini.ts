@@ -5,6 +5,11 @@ export function isGeminiModel(model: string): boolean {
   return model.startsWith("gemini");
 }
 
+/** Gemini 키가 설정돼 있는지 (없으면 호출부에서 gpt-4o로 폴백) */
+export function geminiAvailable(): boolean {
+  return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+}
+
 /**
  * Gemini로 JSON 텍스트 생성. imageBase64가 있으면 비전(이미지+프롬프트).
  * 503(과부하) 등은 짧게 재시도.
