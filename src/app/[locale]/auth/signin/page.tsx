@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -10,23 +10,11 @@ export default function SignInPage() {
   const t = useTranslations("auth");
   const locale = useLocale();
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function handleGoogle() {
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
-      router.push(`/${locale}/dashboard`);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "오류가 발생했습니다");
-    }
-  }
-
-  async function handleEmail(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
       router.push(`/${locale}/dashboard`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "오류가 발생했습니다");
@@ -52,38 +40,11 @@ export default function SignInPage() {
           {t("signInWithGoogle")}
         </button>
 
-        <div className="relative my-4">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[var(--line)]" />
-          </div>
-          <div className="relative flex justify-center text-xs text-[var(--ink-faint)] bg-[var(--paper-raised)] px-2">또는</div>
-        </div>
+        {error && <p className="text-xs text-[var(--accent)] text-center">{error}</p>}
 
-        <form onSubmit={handleEmail} className="flex flex-col gap-3">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={t("email")}
-            className="w-full px-4 py-3 rounded-[var(--radius)] bg-[var(--paper-sunken)] border border-[var(--line)] text-sm text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:outline-none focus:border-[var(--accent)]"
-            required
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder={t("password")}
-            className="w-full px-4 py-3 rounded-[var(--radius)] bg-[var(--paper-sunken)] border border-[var(--line)] text-sm text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:outline-none focus:border-[var(--accent)]"
-            required
-          />
-          {error && <p className="text-xs text-[var(--accent)]">{error}</p>}
-          <button
-            type="submit"
-            className="w-full py-3 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            {t("signIn")}
-          </button>
-        </form>
+        <p className="text-xs text-[var(--ink-faint)] text-center mt-6">
+          Google 계정으로 간편하게 시작하세요.
+        </p>
       </div>
     </main>
   );
