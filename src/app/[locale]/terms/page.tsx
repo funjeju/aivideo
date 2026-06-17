@@ -81,7 +81,7 @@ export default function TermsPage() {
           <ul className="space-y-0.5">
             <li>상호: (주)펀제주 · 대표: 심대훈</li>
             <li>사업자등록번호: 213-86-43462</li>
-            <li>주소: 제주특별자치도 (준비중)</li>
+            <li>주소: 제주특별자치도 제주시 연삼로 411 314호</li>
             <li>문의: 010-4434-2483 · naggu1999@naver.com</li>
           </ul>
         </Section>

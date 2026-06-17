@@ -30,7 +30,7 @@ export default function Footer({ locale = "ko" }: { locale?: string }) {
         {/* 사업자 정보 */}
         <div className="text-xs text-[var(--ink-faint)] leading-relaxed border-t border-[var(--line)] pt-6">
           <p>(주)펀제주 · 대표 심대훈 · 사업자등록번호 213-86-43462</p>
-          <p>주소 : 제주특별자치도 ○○ (준비중)</p>
+          <p>주소 : 제주특별자치도 제주시 연삼로 411 314호</p>
           <p>문의 : 010-4434-2483 / naggu1999@naver.com</p>
           <p className="mt-2">© 2025 FunJeju. All rights reserved.</p>
         </div>
