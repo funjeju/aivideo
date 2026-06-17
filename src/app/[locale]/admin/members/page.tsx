@@ -75,6 +75,14 @@ export default function AdminMembersPage() {
     adminAction({ action: "setBillingExempt", userId: m.id, exempt: !m.billingExempt }, m.id);
   }
 
+  function grantSub(m: MemberRow) {
+    const next = prompt(`${m.email} 구독 부여 (tier1=Lite / tier2=Pro / tier3=VIP). 빈칸+확인=해지`, m.subscription?.tier ?? "tier2");
+    if (next === null) return;
+    if (next === "") { adminAction({ action: "cancelSubscription", userId: m.id }, m.id); return; }
+    if (!["tier1", "tier2", "tier3"].includes(next)) return;
+    adminAction({ action: "grantSubscription", userId: m.id, tier: next }, m.id);
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-semibold text-[var(--ink)] mb-6">회원 관리</h1>
@@ -104,7 +112,13 @@ export default function AdminMembersPage() {
                       {ROLE_LABEL[m.role] ?? m.role}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-[var(--ink-soft)]">{m.plan ?? "-"}</td>
+                  <td className="px-4 py-3 text-[var(--ink-soft)]">
+                    {m.subscription
+                      ? <span className={m.subscription.status === "active" ? "text-[var(--accent)]" : "text-[var(--ink-faint)] line-through"}>
+                          {{ free: "무료", tier1: "Lite", tier2: "Pro", tier3: "VIP" }[m.subscription.tier] ?? m.subscription.tier}
+                        </span>
+                      : (m.plan ?? "-")}
+                  </td>
                   <td className="px-4 py-3 text-right tabular-nums text-[var(--ink)]">{m.credits ?? 0}</td>
                   <td className="px-4 py-3 text-center">
                     {m.billingExempt ? (
@@ -132,9 +146,16 @@ export default function AdminMembersPage() {
                       <button
                         onClick={() => toggleExempt(m)}
                         disabled={busy === m.id}
-                        className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)] disabled:opacity-40"
+                        className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)] disabled:opacity-40 mr-3"
                       >
                         {m.billingExempt ? "과금적용" : "면제"}
+                      </button>
+                      <button
+                        onClick={() => grantSub(m)}
+                        disabled={busy === m.id}
+                        className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)] disabled:opacity-40"
+                      >
+                        구독
                       </button>
                     </td>
                   )}
