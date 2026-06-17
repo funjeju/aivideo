@@ -547,7 +547,8 @@ export default function ProjectView({ projectId }: { projectId: string }) {
             <>
               <a
                 href={outputUrl}
-                download
+                target="_blank"
+                rel="noopener noreferrer"
                 className="px-5 py-3 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 mp4 다운로드
