@@ -2,7 +2,7 @@
 
 /** 길이 입력 허용 범위(초). 슬라이더/검증 공용. */
 export const MIN_LENGTH = 20;
-export const MAX_LENGTH = 1200; // 20분
+export const MAX_LENGTH = 300; // 5분 (그 이상은 이어붙이는 게 현실적)
 
 /**
  * 판서 1장면(이미지 1장) = 약 7초. 길이 → 장면 수.
