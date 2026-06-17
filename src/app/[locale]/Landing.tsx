@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { TEMPLATE_SAMPLES, VOICE_SAMPLES, TemplateSample } from "@/lib/landing-samples";
+import { TEMPLATE_SAMPLES, VOICE_SAMPLES, WORKFLOW_STEPS, TemplateSample } from "@/lib/landing-samples";
 
 export default function Landing() {
   const t = useTranslations("landing");
@@ -75,22 +75,25 @@ export default function Landing() {
             <p className="text-sm text-[var(--ink-soft)]">{t("howSubtitle")}</p>
           </div>
 
-          {/* 3단계 */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-10">
-            {[
-              { n: "1", title: t("step1Title"), desc: t("step1Desc") },
-              { n: "2", title: t("step2Title"), desc: t("step2Desc") },
-              { n: "3", title: t("step3Title"), desc: t("step3Desc") },
-            ].map((step, i, arr) => (
-              <div key={step.n} className="relative text-center">
-                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center text-lg font-bold">
-                  {step.n}
+          {/* 워크플로우 — 실제 제품 화면 */}
+          <div className="flex flex-col gap-12 mb-12 max-w-3xl mx-auto">
+            {WORKFLOW_STEPS.map((s, i) => (
+              <div
+                key={s.key}
+                className={`flex flex-col gap-6 items-center ${i % 2 ? "sm:flex-row-reverse" : "sm:flex-row"}`}
+              >
+                <div className="sm:w-1/2 w-full">
+                  <WorkflowShot src={s.img} alt={s.title} emoji={s.emoji} />
                 </div>
-                <h3 className="font-medium text-[var(--ink)] mb-2">{step.title}</h3>
-                <p className="text-sm text-[var(--ink-soft)] leading-relaxed">{step.desc}</p>
-                {i < arr.length - 1 && (
-                  <span className="hidden sm:block absolute top-6 -right-4 text-[var(--ink-faint)]">→</span>
-                )}
+                <div className="sm:w-1/2 w-full">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-8 h-8 rounded-full bg-[var(--accent)] text-white flex items-center justify-center text-sm font-bold shrink-0">
+                      {i + 1}
+                    </span>
+                    <h3 className="font-semibold text-[var(--ink)]">{s.emoji} {s.title}</h3>
+                  </div>
+                  <p className="text-sm text-[var(--ink-soft)] leading-relaxed">{s.caption}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -270,6 +273,21 @@ export default function Landing() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// 워크플로우 스크린샷 — 이미지 없으면 이모지 placeholder로 폴백(업로드 전에도 레이아웃 유지)
+function WorkflowShot({ src, alt, emoji }: { src: string; alt: string; emoji: string }) {
+  const [ok, setOk] = useState(true);
+  return (
+    <div className="rounded-xl border border-[var(--line)] overflow-hidden bg-[var(--paper-sunken)] shadow-[var(--shadow-md)] aspect-[4/3] flex items-center justify-center">
+      {ok ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={alt} loading="lazy" onError={() => setOk(false)} className="w-full h-full object-contain" />
+      ) : (
+        <span className="text-5xl opacity-30">{emoji}</span>
       )}
     </div>
   );
