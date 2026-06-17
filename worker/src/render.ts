@@ -426,12 +426,31 @@ export async function renderProject(
       // copy 실패 시 재인코딩 폴백
       await run(FFMPEG, ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", outPath]);
     }
+    // 썸네일을 mp4 커버아트(attached_pic)로 임베드 → 폴더/카톡/플레이어 미리보기가 썸네일로 뜸
+    // (윈도우 탐색기는 첫 프레임을 안 쓰는 경우가 많아 인트로만으론 부족 → 메타 커버가 표준)
+    let uploadPath = outPath;
+    try {
+      const proj2 = (await db.collection("projects").doc(projectId).get()).data();
+      const thumbUrl2 = proj2?.thumbnailUrl as string | undefined;
+      if (thumbUrl2) {
+        const tPng = join(workDir, "cover_src.png");
+        await download(thumbUrl2, tPng);
+        const tJpg = join(workDir, "cover.jpg");
+        await run(FFMPEG, ["-y", "-i", tPng, tJpg]);
+        const coverOut = join(workDir, "out_cover.mp4");
+        await run(FFMPEG, ["-y", "-i", outPath, "-i", tJpg, "-map", "0", "-map", "1", "-c", "copy", "-disposition:v:1", "attached_pic", coverOut]);
+        uploadPath = coverOut;
+        log("cover art embedded");
+      }
+    } catch (e) {
+      log("cover embed skipped:", String(e));
+    }
     if (onProgress) onProgress(95);
 
     // 최종 업로드
     log("concat done, uploading final mp4");
     const destPath = `projects/${projectId}/output/video_${Date.now()}.mp4`;
-    await bucket.upload(outPath, { destination: destPath, metadata: { contentType: "video/mp4" } });
+    await bucket.upload(uploadPath, { destination: destPath, metadata: { contentType: "video/mp4" } });
     const outFile = bucket.file(destPath);
     await outFile.makePublic();
     const outputUrl = `https://storage.googleapis.com/${bucket.name}/${destPath}`;
