@@ -42,8 +42,9 @@ export default function SignInPage() {
 
         {error && <p className="text-xs text-[var(--accent)] text-center">{error}</p>}
 
-        <p className="text-xs text-[var(--ink-faint)] text-center mt-6">
-          Google 계정으로 간편하게 시작하세요.
+        <p className="text-xs text-[var(--ink-faint)] text-center mt-6 leading-relaxed">
+          계속하면 <a href={`/${locale}/terms`} className="underline hover:text-[var(--accent)]">이용약관</a> 및{" "}
+          <a href={`/${locale}/privacy`} className="underline hover:text-[var(--accent)]">개인정보처리방침</a>에<br />동의하는 것으로 간주됩니다.
         </p>
       </div>
     </main>

@@ -1,4 +1,4 @@
-export default function Footer() {
+export default function Footer({ locale = "ko" }: { locale?: string }) {
   return (
     <footer id="contact" className="border-t border-[var(--line)] bg-[var(--paper-raised)] scroll-mt-20">
       <div className="max-w-4xl mx-auto px-6 py-12 text-center">
@@ -18,6 +18,13 @@ export default function Footer() {
           >
             010-4434-2483
           </a>
+        </div>
+
+        {/* 약관 링크 */}
+        <div className="flex items-center justify-center gap-4 text-xs text-[var(--ink-soft)] mb-5">
+          <a href={`/${locale}/terms`} className="hover:text-[var(--accent)]">이용약관</a>
+          <span className="text-[var(--ink-faint)]">·</span>
+          <a href={`/${locale}/privacy`} className="hover:text-[var(--accent)] font-medium">개인정보처리방침</a>
         </div>
 
         {/* 사업자 정보 */}
