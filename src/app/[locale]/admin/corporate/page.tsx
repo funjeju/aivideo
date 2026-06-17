@@ -34,7 +34,7 @@ export default function CorporateTestPage() {
   const [subject, setSubject] = useState("");
   const [stylePackId, setStylePackId] = useState<StylePackId>("flat-icon");
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
-  const [quality, setQuality] = useState<"low" | "medium" | "high">("high");
+  const [quality, setQuality] = useState<"low" | "medium" | "high">("low");
   const [useLogoRef, setUseLogoRef] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");

@@ -76,11 +76,14 @@ export async function POST(req: NextRequest) {
       ? `${styleDesc} 제공된 업소 실제 사진의 구도·공간·핵심 피사체를 유지하되, 위 화풍으로 다시 그려라(사진을 그대로 베끼지 말고 화풍으로 재해석).${brandInstr}`
       : styleDesc + brandInstr;
 
-    // 이미지 화질: 어드민 전역 설정(settings/global.imageQuality) 우선, 없으면 화풍 기본값
+    // 이미지 화질: 업체(corporate) 영상은 기본 low(장면 多 + 사진 변환 edit라 비용·부하↑).
+    // 일반 영상은 어드민 전역 설정(settings/global.imageQuality) 우선, 없으면 화풍 기본값.
     const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};
-    const quality = (["low", "medium", "high"].includes(settings.imageQuality)
-      ? settings.imageQuality
-      : pack.imagePrompt.quality) as "low" | "medium" | "high";
+    const quality: "low" | "medium" | "high" = corp
+      ? "low"
+      : ((["low", "medium", "high"].includes(settings.imageQuality)
+          ? settings.imageQuality
+          : pack.imagePrompt.quality) as "low" | "medium" | "high");
 
     let imageUrl = "";
     let cost = 0;
