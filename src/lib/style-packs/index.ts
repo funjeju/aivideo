@@ -416,25 +416,25 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
   "graphic-novel": {
     id: "graphic-novel",
     name: "그래픽노블",
-    description: "다큐 그래픽노블. 굵은 잉크 라인 + 해칭 음영 + 차분한 자연색 평면 채색. 시네마틱 풀씬. 역사·인류·교양 스토리텔링.",
+    description: "다큐 그래픽노블 선화. 굵은 잉크 라인 + 해칭, 흰 배경에 소재 중심. 역사·인류·교양.",
     imagePrompt: {
       template:
-        "graphic novel / documentary comic illustration, {subject}, bold confident black ink linework with fine cross-hatching and stippling for shading, naturalistic muted earth-tone coloring with soft flat cel shading, semi-realistic human proportions and expressive faces, cinematic full-scene composition with a detailed environment/landscape background, atmospheric depth, mature serious storytelling tone like a historical documentary graphic novel. One clear focal subject within a rich scene.",
-      negative: "chibi, cute anime, moe, kawaii, neon, 3d render, photograph, photorealistic photo, blank whiteboard, sparse empty background, multi-panel comic grid, speech bubbles, dense text, paragraphs, oversaturated colors, glossy",
+        "graphic novel ink illustration, {subject}, drawn with bold confident black ink outlines and selective cross-hatching, semi-realistic expressive figures, on a CLEAN WHITE background — subject-focused with NO detailed scenery (at most a few suggestive bold lines for context), generous white space. Muted naturalistic accent color kept minimal, mostly line art. Distinct elements with crisp clear outlines and spacing so a pen can draw them one by one.",
+      negative: "full detailed background, dense scenery, architecture or landscape filling the frame, photograph, photorealistic, 3d render, busy texture, heavy color fill, chibi, kawaii, neon, multi-panel grid, dense text, paragraphs",
       model: "gpt-image-2",
       quality: "medium",
       size: "1024x1536",
     },
-    textStrategy: "overlay",
+    textStrategy: "hybrid",
     fontTitle: "Pretendard",
     fontLabel: "Pretendard",
     overlays: [],
     plannerDefaults: {
-      // 풀씬(배경 가득)이라 펜 트레이스보다 잉크선이 차오르는 페이드/채움 리빌이 자연스럽다.
-      revealStyle: "center-out",
-      strokeStyle: "fill",
-      flowDirection: "center-out",
-      rhythm: "slow-breath",
+      // 흰 배경 + 굵은 선화 → 펜이 윤곽을 따라 그리는 판서 리빌.
+      revealStyle: "left-to-right",
+      strokeStyle: "outline",
+      flowDirection: "left-to-right",
+      rhythm: "fast-beat",
       handTool: "pen",
     },
     palette: { ink: "#2B2620", accent: "#A0573B", paper: "#EDE7DB" },
@@ -477,24 +477,24 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
   "euro-graphic-novel": {
     id: "euro-graphic-novel",
     name: "유럽 그래픽노블",
-    description: "유럽 BD(리뉴클레르). 정교한 잉크선 + 디테일한 유럽풍 배경 + 차분한 채색. 인물·여행·역사.",
+    description: "유럽 BD(리뉴클레르) 선화. 깔끔한 굵은 잉크선, 흰 배경에 인물 중심. 인물·여행·역사.",
     imagePrompt: {
       template:
-        "European graphic novel / bande dessinée (ligne claire) illustration, {subject}, clean confident ink linework with refined cross-hatching, semi-realistic characters with expressive faces, richly detailed European architecture and scenery in the background, muted yet warm naturalistic coloring with soft flat shading, refined literary comic aesthetic. One clear focal subject within a detailed scene.",
-      negative: "chibi, kawaii, cute anime, neon, 3d render, photograph, blank empty background, heavy manga screentone, dense text, paragraphs, multi-panel grid",
+        "European graphic novel / bande dessinée (ligne claire) illustration, {subject}, clean confident bold ink linework, semi-realistic expressive characters, on a CLEAN WHITE background — character/subject focused with minimal background (only a few light bold lines to hint at setting, NO detailed architecture or full scenery), generous white space, restrained accent color, mostly line art. Crisp clear outlines and spacing so each element can be drawn one by one.",
+      negative: "detailed European architecture background, full scene, dense scenery filling frame, photograph, 3d render, heavy color fill, chibi, kawaii, neon, manga screentone, dense text, paragraphs, multi-panel grid",
       model: "gpt-image-2",
       quality: "medium",
       size: "1024x1536",
     },
-    textStrategy: "overlay",
+    textStrategy: "hybrid",
     fontTitle: "Pretendard",
     fontLabel: "Pretendard",
     overlays: [],
     plannerDefaults: {
-      revealStyle: "center-out",
-      strokeStyle: "fill",
-      flowDirection: "center-out",
-      rhythm: "slow-breath",
+      revealStyle: "left-to-right",
+      strokeStyle: "outline",
+      flowDirection: "left-to-right",
+      rhythm: "fast-beat",
       handTool: "pen",
     },
     palette: { ink: "#2A2622", accent: "#8C5A3C", paper: "#EFE9DC" },
@@ -537,11 +537,11 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
   webtoon: {
     id: "webtoon",
     name: "웹툰",
-    description: "네이버웹툰풍 디지털 작화. 깔끔한 선 + 부드러운 셀셰이딩 + 생생한 색. 인물·드라마·일상.",
+    description: "네이버웹툰풍 작화. 깔끔한 굵은 선 + 가벼운 셀셰이딩, 흰 배경에 인물 중심. 인물·드라마·일상.",
     imagePrompt: {
       template:
-        "Korean webtoon (Naver webtoon) digital illustration style, {subject}, clean crisp digital line art, soft smooth cell shading with gentle gradients, glossy polished finish, vivid yet soft coloring, attractive expressive characters, modern Korean webtoon aesthetic. ONE clear single illustration (not a multi-panel grid), light clean background. Minimal text — only short keyword labels (no paragraphs).",
-      negative: "rough pencil sketch, photograph, 3d render, western cartoon, halftone dots, muted sepia, gritty ink, multi-panel comic grid, dense text, paragraphs",
+        "Korean webtoon (Naver webtoon) style illustration, {subject}, clean crisp digital line art with bold clear outlines, light soft cell shading, attractive expressive characters, on a CLEAN WHITE background — character/subject focused with NO busy background (at most a few simple bold lines), generous white space, vivid but restrained coloring. ONE clear single illustration (not a multi-panel grid). Distinct elements with clear outlines so they can be drawn one by one.",
+      negative: "busy detailed background, full scene, dense scenery, photograph, 3d render, halftone dots, muted sepia, multi-panel comic grid, dense text, paragraphs",
       model: "gpt-image-2",
       quality: "medium",
       size: "1024x1536",
