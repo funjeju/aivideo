@@ -255,8 +255,8 @@ export default function Landing() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-7">
             {[
               { n: "무료", p: "0원", d: "1분 2편 체험" },
-              { n: "Lite", p: "6,930원~", d: "월 ~12편 · 5분" },
-              { n: "Pro", p: "20,300원~", d: "월 ~38편 · 동시제작", hot: true },
+              { n: "Lite", p: "6,930원~", d: "월 10편 · 5분" },
+              { n: "Pro", p: "20,300원~", d: "월 35편 · 동시제작", hot: true },
               { n: "VIP", p: "69,300원~", d: "비즈니스·팀" },
             ].map((t) => (
               <div key={t.n} className={`rounded-[var(--radius)] border p-4 ${t.hot ? "border-[var(--accent)] ring-1 ring-[var(--accent)]" : "border-[var(--line)]"}`}>

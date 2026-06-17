@@ -24,9 +24,9 @@ export interface TierSpec {
 
 export const TIERS: Record<TierId, TierSpec> = {
   free:  { id: "free",  name: "무료", priceKrw: 0,     monthlyCredits: 0,     maxLengthSec: 60,  concurrency: 1, watermark: true },
-  tier1: { id: "tier1", name: "Lite", priceKrw: 9900,  monthlyCredits: 1100,  maxLengthSec: 300, concurrency: 1, watermark: false },
-  tier2: { id: "tier2", name: "Pro",  priceKrw: 29000, monthlyCredits: 3500,  maxLengthSec: 600, concurrency: 3, watermark: false },
-  tier3: { id: "tier3", name: "VIP",  priceKrw: 99000, monthlyCredits: 13000, maxLengthSec: 600, concurrency: 5, watermark: false },
+  tier1: { id: "tier1", name: "Lite", priceKrw: 9900,  monthlyCredits: 900,   maxLengthSec: 300, concurrency: 1, watermark: false },
+  tier2: { id: "tier2", name: "Pro",  priceKrw: 29000, monthlyCredits: 3150,  maxLengthSec: 600, concurrency: 3, watermark: false },
+  tier3: { id: "tier3", name: "VIP",  priceKrw: 99000, monthlyCredits: 11700, maxLengthSec: 600, concurrency: 5, watermark: false },
 };
 
 export function getTier(id: string | undefined | null): TierSpec {
