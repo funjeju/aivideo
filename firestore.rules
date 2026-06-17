@@ -23,10 +23,15 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && request.resource.data.role == 'user'
         && request.resource.data.credits == 0;
+      // role/credits/plan/freeVideosUsed/subscription 은 서버(admin SDK)만 변경 가능.
+      // 클라이언트는 uiLocale/themePref 등만 수정 — 위 민감필드는 기존값 유지 강제.
       allow update: if isOwner(userId)
         && request.resource.data.role == resource.data.role
         && request.resource.data.credits == resource.data.credits
-        && request.resource.data.plan == resource.data.plan;
+        && request.resource.data.plan == resource.data.plan
+        && request.resource.data.get('freeVideosUsed', 0) == resource.data.get('freeVideosUsed', 0)
+        && request.resource.data.get('subscription', {}) == resource.data.get('subscription', {})
+        && request.resource.data.get('billingExempt', false) == resource.data.get('billingExempt', false);
       allow delete: if false;
     }
 
