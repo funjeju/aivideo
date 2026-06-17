@@ -47,6 +47,9 @@ export default function Header() {
           ))}
         </nav>
       )}
+      <Link href={`/${locale}/pricing`} className="text-sm text-[var(--ink-soft)] hover:text-[var(--accent)] mr-4">
+        요금제
+      </Link>
       {user ? (
         <div className="flex items-center gap-4">
           {userDoc?.role !== "user" && (
