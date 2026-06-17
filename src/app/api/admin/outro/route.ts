@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { getAuthedUser, isAdmin } from "@/lib/auth";
 import { FieldValue } from "firebase-admin/firestore";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer", "ash", "coral", "sage"] as const;
-type OpenAIVoice = typeof OPENAI_VOICES[number];
+import { synthesizeTTS } from "@/lib/tts";
+import { getVoice } from "@/lib/voices";
 
 /**
  * 영상 끝 고정 브랜드 아웃트로 설정. 워커가 settings/global.outro를 읽어 매 영상 끝에 합성.
@@ -29,7 +26,7 @@ export async function POST(req: NextRequest) {
     const brand = String(body.brand ?? "Easyshorts").slice(0, 40);
     const text = String(body.text ?? "다음 영상에서 또 만나요").slice(0, 60);
     const subtext = String(body.subtext ?? "구독하고 더 많은 영상 보기").slice(0, 60);
-    const voiceId = OPENAI_VOICES.includes(body.voiceId as OpenAIVoice) ? (body.voiceId as OpenAIVoice) : "nova";
+    const voiceId = getVoice(body.voiceId).id; // 레지스트리 검증(없으면 기본)
 
     const db = adminDb();
     const prev = ((await db.collection("settings").doc("global").get()).data()?.outro ?? {}) as {
@@ -40,8 +37,7 @@ export async function POST(req: NextRequest) {
     let audioUrl = prev.audioUrl ?? "";
     const needTts = !audioUrl || prev.text !== text || prev.voiceId !== voiceId;
     if (needTts) {
-      const mp3 = await openai.audio.speech.create({ model: "tts-1", voice: voiceId, input: text });
-      const buffer = Buffer.from(await mp3.arrayBuffer());
+      const buffer = await synthesizeTTS(text, voiceId);
       const bucket = adminStorage().bucket();
       const path = `system/outro.mp3`;
       const file = bucket.file(path);

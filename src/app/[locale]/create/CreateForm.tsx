@@ -1,16 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { StylePackId, TargetLength, AspectRatio } from "@/lib/types";
 import { MIN_LENGTH, MAX_LENGTH, formatLength, sceneCountForLength } from "@/lib/length";
+import { VOICES } from "@/lib/voices";
 
 // 슬라이더 빠른선택 프리셋(틱)
 const LENGTH_PRESETS = [60, 300, 600];
@@ -37,13 +36,8 @@ const ASPECTS: { value: AspectRatio; label: string; sub: string; icon: string }[
   { value: "1:1", label: "정사각", sub: "피드", icon: "▢" },
 ];
 
-// voices 컬렉션 로드 실패 시 폴백
-const FALLBACK_VOICES = [
-  { id: "nova", name: "따뜻한 여성" },
-  { id: "shimmer", name: "차분한 여성" },
-  { id: "echo", name: "낮은 남성" },
-  { id: "onyx", name: "중후한 남성" },
-];
+// 보이스 = 통합 레지스트리(Google Chirp3-HD 한국어 + OpenAI). 미리듣기는 /api/voice-preview가 생성·캐시.
+const VOICE_LIST = VOICES.map((v) => ({ id: v.id, name: v.name }));
 
 export default function CreateForm() {
   const t = useTranslations("create");
@@ -71,32 +65,12 @@ export default function CreateForm() {
   const [targetLength, setTargetLength] = useState<TargetLength>(60);
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
-  const [voiceId, setVoiceId] = useState("nova");
-  const [voices, setVoices] = useState<{ id: string; name: string; previewUrl?: string }[]>(FALLBACK_VOICES);
+  const [voiceId, setVoiceId] = useState(VOICE_LIST[0].id);
+  const voices = VOICE_LIST;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-
-  // voices 컬렉션에서 노출 보이스 로드 (실패 시 폴백 유지)
-  useEffect(() => {
-    (async () => {
-      try {
-        const snap = await getDocs(query(collection(db, "voices"), where("enabled", "==", true)));
-        if (!snap.empty) {
-          const list = snap.docs
-            .map((d) => d.data() as { id: string; displayName: string; sortOrder?: number; previewUrl?: string })
-            .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99))
-            .map((v) => ({ id: v.id, name: v.displayName, previewUrl: v.previewUrl }));
-          setVoices(list);
-          if (!list.find((v) => v.id === voiceId)) setVoiceId(list[0].id);
-        }
-      } catch {
-        // 폴백 유지
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

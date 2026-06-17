@@ -2,15 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const VOICES = [
-  { id: "nova", name: "Nova (따뜻한 여성)" },
-  { id: "shimmer", name: "Shimmer (차분한 여성)" },
-  { id: "coral", name: "Coral (밝은 여성)" },
-  { id: "sage", name: "Sage (부드러운)" },
-  { id: "echo", name: "Echo (낮은 남성)" },
-  { id: "onyx", name: "Onyx (중후한 남성)" },
-  { id: "ash", name: "Ash (담백한 남성)" },
-];
+import { VOICES } from "@/lib/voices";
 
 interface Outro {
   enabled: boolean;
@@ -26,7 +18,7 @@ const DEFAULTS: Outro = {
   brand: "Easyshorts",
   text: "다음 영상에서 또 만나요",
   subtext: "구독하고 더 많은 영상 보기",
-  voiceId: "nova",
+  voiceId: "kr-aoede",
 };
 
 export default function OutroPage() {

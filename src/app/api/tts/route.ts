@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer", "ash", "coral", "sage"] as const;
-type OpenAIVoice = typeof OPENAI_VOICES[number];
+import { synthesizeTTS } from "@/lib/tts";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,17 +18,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
-    const voice: OpenAIVoice = OPENAI_VOICES.includes(voiceId as OpenAIVoice)
-      ? (voiceId as OpenAIVoice)
-      : "nova";
-
-    const mp3 = await openai.audio.speech.create({
-      model: "tts-1",
-      voice,
-      input: narration,
-    });
-
-    const buffer = Buffer.from(await mp3.arrayBuffer());
+    const buffer = await synthesizeTTS(narration, voiceId);
     const charCount = narration.length;
     // tts-1 기준: $15/1M chars
     const ttsCostUsd = (charCount * 15) / 1_000_000;

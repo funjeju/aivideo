@@ -1,4 +1,5 @@
 import { StylePackId } from "@/lib/types";
+import { VOICES } from "@/lib/voices";
 
 /**
  * 랜딩 페이지 템플릿 갤러리 / 목소리 샘플 설정.
@@ -7,7 +8,6 @@ import { StylePackId } from "@/lib/types";
  *   → 유튜브에 샘플 업로드하면 여기 id만 채우면 라이브됨.
  */
 const STYLE_BASE = "https://storage.googleapis.com/golpo-b6407.firebasestorage.app/style-samples";
-const VOICE_BASE = "https://storage.googleapis.com/golpo-b6407.firebasestorage.app/voice-previews";
 
 export interface TemplateSample {
   id: StylePackId;
@@ -98,14 +98,9 @@ export interface VoiceSample {
   preview: string;
 }
 
-export const VOICE_SAMPLES: VoiceSample[] = [
-  { id: "nova", name: "따뜻한 여성" },
-  { id: "shimmer", name: "차분한 여성" },
-  { id: "alloy", name: "중립 톤" },
-  { id: "echo", name: "낮은 남성" },
-  { id: "onyx", name: "중후한 남성" },
-  { id: "fable", name: "이야기꾼" },
-  { id: "ash", name: "담담한 남성" },
-  { id: "coral", name: "밝은 여성" },
-  { id: "sage", name: "부드러운 여성" },
-].map((v) => ({ ...v, preview: `${VOICE_BASE}/${v.id}.mp3` }));
+// 통합 보이스 레지스트리에서 — 미리듣기는 /api/voice-preview가 생성·캐시(첫 재생 시 1회).
+export const VOICE_SAMPLES: VoiceSample[] = VOICES.map((v) => ({
+  id: v.id,
+  name: v.name,
+  preview: `/api/voice-preview?voiceId=${v.id}`,
+}));
