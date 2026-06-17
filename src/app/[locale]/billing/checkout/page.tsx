@@ -21,9 +21,12 @@ export default function CheckoutPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [phone, setPhone] = useState("");
 
   async function subscribe(tier: string) {
     if (!user) { router.push(`/${locale}/auth/signin`); return; }
+    const phoneNumber = phone.replace(/[^0-9]/g, "");
+    if (phoneNumber.length < 10) { setErr("휴대폰 번호를 입력해주세요 (이니시스 빌링키 발급 필수)"); return; }
     setErr(""); setMsg(""); setBusy(tier);
     try {
       // 1) 카드 등록창 → 빌링키 발급
@@ -31,6 +34,7 @@ export default function CheckoutPage() {
         customerId: user.uid,
         fullName: userDoc?.displayName || user.displayName || undefined,
         email: userDoc?.email || user.email || undefined,
+        phoneNumber,
       });
       // 2) 서버에 첫 달 결제 + 구독 활성화 요청
       const token = await getIdToken();
@@ -60,6 +64,15 @@ export default function CheckoutPage() {
       )}
       {msg && <p className="text-center text-sm text-green-600 mb-6">{msg}</p>}
       {err && <p className="text-center text-sm text-[var(--accent)] mb-6">{err}</p>}
+
+      <div className="max-w-xs mx-auto mb-8">
+        <label className="block text-xs text-[var(--ink-soft)] mb-1">휴대폰 번호 <span className="text-[var(--accent)]">*</span></label>
+        <input
+          type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01012345678"
+          className="w-full px-3 py-2 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-sunken)] text-sm text-[var(--ink)] text-center"
+        />
+        <p className="text-[11px] text-[var(--ink-faint)] mt-1 text-center">카드 등록(빌링키) 발급에 필요해요.</p>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {TIERS.map((t) => (

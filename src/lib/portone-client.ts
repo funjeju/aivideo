@@ -45,6 +45,7 @@ export async function issueBillingKey(customer: {
   customerId: string;
   fullName?: string;
   email?: string;
+  phoneNumber: string; // 이니시스 V2 빌링키 발급 필수
 }): Promise<string> {
   const PortOne = await loadSdk();
   const res = await PortOne.requestIssueBillingKey({
@@ -57,6 +58,7 @@ export async function issueBillingKey(customer: {
       customerId: customer.customerId,
       fullName: customer.fullName,
       email: customer.email,
+      phoneNumber: customer.phoneNumber,
     },
   });
   if (res.code != null) throw new Error(res.message || "카드 등록이 취소되었습니다");
