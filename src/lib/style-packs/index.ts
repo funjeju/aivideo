@@ -412,6 +412,37 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     thumbnailUrls: [],
     sortOrder: 13,
   },
+
+  "graphic-novel": {
+    id: "graphic-novel",
+    name: "그래픽노블",
+    description: "다큐 그래픽노블. 굵은 잉크 라인 + 해칭 음영 + 차분한 자연색 평면 채색. 시네마틱 풀씬. 역사·인류·교양 스토리텔링.",
+    imagePrompt: {
+      template:
+        "graphic novel / documentary comic illustration, {subject}, bold confident black ink linework with fine cross-hatching and stippling for shading, naturalistic muted earth-tone coloring with soft flat cel shading, semi-realistic human proportions and expressive faces, cinematic full-scene composition with a detailed environment/landscape background, atmospheric depth, mature serious storytelling tone like a historical documentary graphic novel. One clear focal subject within a rich scene.",
+      negative: "chibi, cute anime, moe, kawaii, neon, 3d render, photograph, photorealistic photo, blank whiteboard, sparse empty background, multi-panel comic grid, speech bubbles, dense text, paragraphs, oversaturated colors, glossy",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "overlay",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      // 풀씬(배경 가득)이라 펜 트레이스보다 잉크선이 차오르는 페이드/채움 리빌이 자연스럽다.
+      revealStyle: "center-out",
+      strokeStyle: "fill",
+      flowDirection: "center-out",
+      rhythm: "slow-breath",
+      handTool: "pen",
+    },
+    palette: { ink: "#2B2620", accent: "#A0573B", paper: "#EDE7DB" },
+    userSliders: { colorTemperature: { min: -1, max: 1, default: 0.1 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 14,
+  },
 };
 
 export function getStylePack(id: string): StylePackDoc {
