@@ -164,6 +164,50 @@ async function renderSegment(
   return frameCount;
 }
 
+/** 인트로 세그먼트 — 썸네일을 정지 화면으로 ~1.3s(무음). 영상 첫 프레임 = 썸네일 → PC 폴더/카톡 파일 미리보기가 썸네일로 뜬다. */
+async function renderIntroSegment(thumbUrl: string, durationSec: number, aspect: string, outPath: string): Promise<number> {
+  const size = ASPECT_SIZES[aspect] ?? ASPECT_SIZES["9:16"];
+  const W = size.width, H = size.height;
+  // 썸네일 로드(임시파일 경유 — @napi-rs loadImage buffer 오판 회피)
+  const resp = await fetch(thumbUrl);
+  if (!resp.ok) throw new Error(`thumb fetch ${resp.status}`);
+  const tmp = join(tmpdir(), `intro_${Date.now()}.png`);
+  await writeFile(tmp, Buffer.from(await resp.arrayBuffer()));
+  const img = await loadImage(tmp);
+
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, W, H);
+  // cover-fit
+  const scale = Math.max(W / img.width, H / img.height);
+  const dw = img.width * scale, dh = img.height * scale;
+  ctx.drawImage(img as unknown as Parameters<typeof ctx.drawImage>[0], (W - dw) / 2, (H - dh) / 2, dw, dh);
+  const frame = Buffer.from(canvas.data()); // 정지 화면 — 한 프레임 재사용
+
+  const frameCount = Math.max(1, Math.ceil(durationSec * FPS));
+  const ff = spawn(FFMPEG, [
+    "-y",
+    "-f", "rawvideo", "-pixel_format", "rgba", "-video_size", `${W}x${H}`, "-framerate", String(FPS), "-i", "pipe:0",
+    "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+    "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-r", String(FPS),
+    "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-shortest", outPath,
+  ]);
+  let ffErr = "";
+  ff.stderr.on("data", (d) => (ffErr += d));
+  const ffDone = new Promise<void>((resolve, reject) => {
+    ff.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg(intro) exited ${code}: ${ffErr.slice(-400)}`))));
+    ff.on("error", reject);
+  });
+  ff.stdin.on("error", () => {});
+  for (let i = 0; i < frameCount; i++) {
+    if (!ff.stdin.write(frame)) await new Promise<void>((r) => ff.stdin.once("drain", r));
+  }
+  ff.stdin.end();
+  await ffDone;
+  return frameCount;
+}
+
 /** 고정 브랜드 아웃트로 세그먼트 (브랜드 + 마무리 멘트 + TTS 음성). scene 세그먼트와 동일 인코딩 파라미터 → concat copy 호환 */
 async function renderOutroSegment(
   outro: { brand?: string; text?: string; subtext?: string },
@@ -345,6 +389,24 @@ export async function renderProject(
       }
     } catch (e) {
       log("outro skipped:", String(e));
+    }
+
+    // 인트로: 썸네일을 첫 ~1.3s 타이틀 카드로 prepend → 영상 첫 프레임 = 썸네일
+    // (PC 폴더 미리보기 / 카톡 '파일 보내기' 미리보기가 썸네일로 뜨게)
+    try {
+      const proj = (await db.collection("projects").doc(projectId).get()).data();
+      const thumbUrl = proj?.thumbnailUrl as string | undefined;
+      if (thumbUrl) {
+        log("rendering intro (thumbnail) segment");
+        const aspect = ((rawScenes[0]?.sceneSpec as { canvas?: { aspect?: string } })?.canvas?.aspect) ?? "9:16";
+        const introSeg = join(workDir, "seg_000_intro.mp4");
+        const fc = await renderIntroSegment(thumbUrl, 1.3, aspect, introSeg);
+        totalFrames += fc;
+        segmentLocalPaths.unshift(introSeg); // 맨 앞
+        log("intro prepended");
+      }
+    } catch (e) {
+      log("intro skipped:", String(e));
     }
 
     // 세그먼트 concat → 최종 mp4
