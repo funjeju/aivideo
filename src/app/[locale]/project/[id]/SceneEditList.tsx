@@ -88,7 +88,7 @@ function SceneEditCard({
         onClick={downloadImage}
         disabled={!scene.imageUrl}
         title={scene.imageUrl ? "클릭해서 이미지 저장" : undefined}
-        className="group relative w-20 h-28 flex-shrink-0 rounded overflow-hidden bg-[var(--paper-sunken)] flex items-center justify-center disabled:cursor-default"
+        className="group relative w-28 h-44 flex-shrink-0 rounded-lg overflow-hidden bg-[var(--paper-sunken)] flex items-center justify-center disabled:cursor-default"
       >
         {scene.imageUrl ? (
           <>

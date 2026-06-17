@@ -31,6 +31,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   const [rendering, setRendering] = useState(false);
   const [thumbBusy, setThumbBusy] = useState<string | null>(null); // 합성 중인 장면 이미지 URL
   const [thumbTitle, setThumbTitle] = useState(""); // 썸네일에 합성할 문구(편집 가능)
+  const [localThumb, setLocalThumb] = useState(""); // 합성 직후 즉시 보여줄 로컬 미리보기(dataURL)
   const thumbTitleInitRef = useRef(false); // thumbTitle 초기화 1회
   const thumbAutoRef = useRef(false); // 자동 썸네일 생성 1회
   const [cancelling, setCancelling] = useState(false);
@@ -192,17 +193,20 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     try {
       const text = (title ?? thumbTitle ?? project?.title ?? "").trim();
       const dataUrl = await composeThumbnail(url, text);
+      // 합성 즉시 로컬 미리보기 갱신 — 업로드 왕복을 기다리지 않아 체감이 빠르다
+      setLocalThumb(dataUrl);
+      setThumbBusy(null);
+      // 저장은 백그라운드 (UI는 이미 반영됨)
       const { getIdToken } = await import("@/lib/clientAuth");
       const token = await getIdToken();
-      const res = await fetch("/api/thumbnail", {
+      fetch("/api/thumbnail", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ projectId, dataUrl, sourceUrl: url }),
-      });
-      if (!res.ok) console.error("thumbnail save failed", res.status);
+      }).then((res) => { if (!res.ok) console.error("thumbnail save failed", res.status); })
+        .catch((e) => console.error("thumbnail save failed:", e));
     } catch (e) {
       console.error("thumbnail compose failed:", e);
-    } finally {
       setThumbBusy(null);
     }
   }
@@ -567,7 +571,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
             </div>
 
             <p className="text-xs text-[var(--ink-soft)] mb-2">장면 선택 (클릭 시 현재 문구로 합성)</p>
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            <div className="flex gap-3 overflow-x-auto pb-2">
               {scenes.filter((s) => s.imageUrl).map((s, i) => {
                 const selected = (project?.thumbnailSourceUrl ?? "") === s.imageUrl;
                 const busy = thumbBusy === s.imageUrl;
@@ -577,27 +581,27 @@ export default function ProjectView({ projectId }: { projectId: string }) {
                     onClick={() => chooseThumbnail(s.imageUrl!, thumbTitle)}
                     disabled={thumbBusy !== null}
                     title={`장면 ${i + 1}`}
-                    className={`relative flex-shrink-0 w-16 h-24 rounded overflow-hidden border-2 transition-colors disabled:opacity-60 ${
-                      selected ? "border-[var(--accent)]" : "border-[var(--line)] hover:border-[var(--accent)]"
+                    className={`relative flex-shrink-0 w-28 h-44 rounded-lg overflow-hidden border-2 transition-colors disabled:opacity-60 ${
+                      selected ? "border-[var(--accent)] ring-2 ring-[var(--accent)]" : "border-[var(--line)] hover:border-[var(--accent)]"
                     }`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={s.imageUrl} alt={`장면 ${i + 1}`} className="w-full h-full object-cover" />
                     {busy && (
-                      <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-[10px]">합성 중…</span>
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-xs">합성 중…</span>
                     )}
                     {selected && !busy && (
-                      <span className="absolute bottom-0 inset-x-0 bg-[var(--accent)] text-white text-[10px] text-center leading-4">대표</span>
+                      <span className="absolute bottom-0 inset-x-0 bg-[var(--accent)] text-white text-[11px] text-center leading-5">대표</span>
                     )}
                   </button>
                 );
               })}
             </div>
-            {project?.thumbnailUrl && (
-              <div className="mt-3">
+            {(localThumb || project?.thumbnailUrl) && (
+              <div className="mt-4">
                 <p className="text-xs text-[var(--ink-soft)] mb-1">현재 썸네일</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={project.thumbnailUrl} alt="썸네일" className="h-40 rounded border border-[var(--line)]" />
+                <img src={localThumb || project?.thumbnailUrl} alt="썸네일" className="w-64 max-w-full rounded-lg border border-[var(--line)] shadow-[var(--shadow-md)]" />
               </div>
             )}
           </div>
@@ -675,7 +679,7 @@ async function composeThumbnail(imageUrl: string, title: string): Promise<string
     im.onerror = reject;
     im.src = imageUrl;
   });
-  const maxW = 1080;
+  const maxW = 720; // 썸네일용 — 1080은 과해서 합성·업로드만 느려짐. 720이면 충분히 또렷.
   const scale = Math.min(1, maxW / img.width);
   const W = Math.round(img.width * scale);
   const H = Math.round(img.height * scale);
