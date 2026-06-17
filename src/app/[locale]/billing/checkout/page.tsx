@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { issueBillingKey, portoneClientConfigured } from "@/lib/portone-client";
+import { issueBillingKey, portoneClientConfigured, availableMethods, type PayMethod } from "@/lib/portone-client";
 import { getIdToken } from "@/lib/clientAuth";
+
+const METHOD_LABEL: Record<PayMethod, string> = { CARD: "신용/체크카드", KAKAOPAY: "카카오페이" };
 
 const TIERS = [
   { id: "tier1", name: "Lite", price: 9900, desc: "월 크레딧 1,100 · 최대 5분" },
@@ -18,19 +20,21 @@ export default function CheckoutPage() {
   const params = useParams();
   const locale = params.locale as string;
 
+  const methods = availableMethods();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [phone, setPhone] = useState("");
+  const [method, setMethod] = useState<PayMethod>(methods[0] ?? "CARD");
 
   async function subscribe(tier: string) {
     if (!user) { router.push(`/${locale}/auth/signin`); return; }
     const phoneNumber = phone.replace(/[^0-9]/g, "");
-    if (phoneNumber.length < 10) { setErr("휴대폰 번호를 입력해주세요 (이니시스 빌링키 발급 필수)"); return; }
+    if (phoneNumber.length < 10) { setErr("휴대폰 번호를 입력해주세요 (빌링키 발급 필수)"); return; }
     setErr(""); setMsg(""); setBusy(tier);
     try {
-      // 1) 카드 등록창 → 빌링키 발급
-      const billingKey = await issueBillingKey({
+      // 1) 결제수단 등록창 → 빌링키 발급
+      const billingKey = await issueBillingKey(method, {
         customerId: user.uid,
         fullName: userDoc?.displayName || user.displayName || undefined,
         email: userDoc?.email || user.email || undefined,
@@ -71,7 +75,24 @@ export default function CheckoutPage() {
           type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01012345678"
           className="w-full px-3 py-2 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-sunken)] text-sm text-[var(--ink)] text-center"
         />
-        <p className="text-[11px] text-[var(--ink-faint)] mt-1 text-center">카드 등록(빌링키) 발급에 필요해요.</p>
+        <p className="text-[11px] text-[var(--ink-faint)] mt-1 text-center">결제수단 등록(빌링키) 발급에 필요해요.</p>
+
+        {methods.length > 1 && (
+          <div className="mt-4">
+            <label className="block text-xs text-[var(--ink-soft)] mb-1">결제수단</label>
+            <div className="flex gap-2">
+              {methods.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMethod(m)}
+                  className={`flex-1 py-2 rounded-[var(--radius)] text-sm font-medium border ${method === m ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--ink-soft)]"}`}
+                >
+                  {METHOD_LABEL[m]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -85,7 +106,7 @@ export default function CheckoutPage() {
               disabled={busy !== null}
               className={`w-full py-2.5 rounded-[var(--radius)] text-sm font-semibold disabled:opacity-50 ${t.hot ? "bg-[var(--accent)] text-white hover:opacity-90" : "border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent-soft)]"}`}
             >
-              {busy === t.id ? "처리 중..." : "카드 등록 후 구독"}
+              {busy === t.id ? "처리 중..." : `${METHOD_LABEL[method]}로 구독`}
             </button>
           </div>
         ))}
