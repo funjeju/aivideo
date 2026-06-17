@@ -332,8 +332,10 @@ export default function ProjectView({ projectId }: { projectId: string }) {
       if (apRes.status === 403) {
         const d = await apRes.json().catch(() => ({}));
         if (d.error === "free_limit") {
-          alert(`무료로 만들 수 있는 영상은 ${d.limit ?? 2}편까지예요. (유료 플랜 출시 예정)`);
           setApproving(false);
+          if (confirm(`무료 영상 ${d.limit ?? 2}편을 모두 사용했어요.\n지금 사전예약하면 출시 시 30% 할인! 요금제를 볼까요?`)) {
+            router.push(`/${locale}/pricing`);
+          }
           return;
         }
       }
