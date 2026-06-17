@@ -473,6 +473,96 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     thumbnailUrls: [],
     sortOrder: 15,
   },
+
+  "euro-graphic-novel": {
+    id: "euro-graphic-novel",
+    name: "유럽 그래픽노블",
+    description: "유럽 BD(리뉴클레르). 정교한 잉크선 + 디테일한 유럽풍 배경 + 차분한 채색. 인물·여행·역사.",
+    imagePrompt: {
+      template:
+        "European graphic novel / bande dessinée (ligne claire) illustration, {subject}, clean confident ink linework with refined cross-hatching, semi-realistic characters with expressive faces, richly detailed European architecture and scenery in the background, muted yet warm naturalistic coloring with soft flat shading, refined literary comic aesthetic. One clear focal subject within a detailed scene.",
+      negative: "chibi, kawaii, cute anime, neon, 3d render, photograph, blank empty background, heavy manga screentone, dense text, paragraphs, multi-panel grid",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "overlay",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "center-out",
+      strokeStyle: "fill",
+      flowDirection: "center-out",
+      rhythm: "slow-breath",
+      handTool: "pen",
+    },
+    palette: { ink: "#2A2622", accent: "#8C5A3C", paper: "#EFE9DC" },
+    userSliders: { colorTemperature: { min: -1, max: 1, default: 0.05 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 16,
+  },
+
+  "pop-art": {
+    id: "pop-art",
+    name: "팝아트",
+    description: "로이 리히텐슈타인식 팝아트. 굵은 외곽선 + 벤데이 도트 + 강렬한 원색. 시선강탈 후킹.",
+    imagePrompt: {
+      template:
+        "Roy Lichtenstein-style pop art comic illustration, {subject}, bold thick black outlines, Ben-Day halftone dot shading, flat bright primary colors (red, yellow, blue, white), high contrast retro 1960s comic-book pop aesthetic, energetic and eye-catching. Picture-driven, minimal text — at most a short bold keyword (no paragraphs). Distinct elements with clear outlines so they can be drawn one by one.",
+      negative: "muted desaturated colors, realistic soft shading, gradient, 3d render, photograph, pastel, sepia, dense text, paragraphs",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "in-image",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "left-to-right",
+      strokeStyle: "outline",
+      flowDirection: "left-to-right",
+      rhythm: "fast-beat",
+      handTool: "marker",
+    },
+    palette: { ink: "#111111", accent: "#E4002B", paper: "#FFE600" },
+    userSliders: { colorVibrancy: { min: 0, max: 1, default: 0.85 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 17,
+  },
+
+  webtoon: {
+    id: "webtoon",
+    name: "웹툰",
+    description: "네이버웹툰풍 디지털 작화. 깔끔한 선 + 부드러운 셀셰이딩 + 생생한 색. 인물·드라마·일상.",
+    imagePrompt: {
+      template:
+        "Korean webtoon (Naver webtoon) digital illustration style, {subject}, clean crisp digital line art, soft smooth cell shading with gentle gradients, glossy polished finish, vivid yet soft coloring, attractive expressive characters, modern Korean webtoon aesthetic. ONE clear single illustration (not a multi-panel grid), light clean background. Minimal text — only short keyword labels (no paragraphs).",
+      negative: "rough pencil sketch, photograph, 3d render, western cartoon, halftone dots, muted sepia, gritty ink, multi-panel comic grid, dense text, paragraphs",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "overlay",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "left-to-right",
+      strokeStyle: "outline",
+      flowDirection: "left-to-right",
+      rhythm: "fast-beat",
+      handTool: "pen",
+    },
+    palette: { ink: "#2A2A33", accent: "#5B8DEF", paper: "#FFFDFB" },
+    userSliders: { lineWeight: { min: 0, max: 1, default: 0.45 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 18,
+  },
 };
 
 /** id → 생성 화면 표시용 이모지 (관리/선택 UI 공용). */
@@ -481,6 +571,7 @@ export const STYLE_EMOJI: Record<string, string> = {
   "flat-icon": "🟦", "retro-poster": "📻", "dark-neon": "🌃", "3d-iso": "🧊",
   "newspaper-cartoon": "🗞️", "comic-essay": "💬", collage: "✂️", minhwa: "🐯",
   "drone-light": "✨", "graphic-novel": "📖", "cinematic-hype": "🎬",
+  "euro-graphic-novel": "🏛️", "pop-art": "💥", webtoon: "📱",
 };
 
 export function getStylePack(id: string): StylePackDoc {
