@@ -214,7 +214,8 @@ async function renderOutroSegment(
   durationSec: number,
   audioPath: string,
   aspect: string,
-  outPath: string
+  outPath: string,
+  audioDelayMs = 0
 ): Promise<number> {
   const size = ASPECT_SIZES[aspect] ?? ASPECT_SIZES["9:16"];
   const canvas = createCanvas(size.width, size.height);
@@ -226,16 +227,19 @@ async function renderOutroSegment(
   const subtext = outro.subtext || "구독하고 더 많은 영상 보기";
 
   const frameCount = Math.max(1, Math.ceil(durationSec * FPS));
+  // 음성을 audioDelayMs 만큼 늦춰 시작(카드가 먼저 뜬 뒤 멘트). 길이는 영상(durationSec)이 결정 → -shortest 제거.
+  const audioArgs = audioDelayMs > 0 ? ["-af", `adelay=${audioDelayMs}:all=1`] : [];
   const ff = spawn(FFMPEG, [
     "-y",
     "-f", "rawvideo", "-pixel_format", "rgba",
     "-video_size", `${W}x${H}`, "-framerate", String(FPS),
     "-i", "pipe:0",
     "-i", audioPath,
+    ...audioArgs,
     "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
     "-r", String(FPS),
     "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-    "-shortest", outPath,
+    "-t", String(durationSec), outPath,
   ]);
   let ffErr = "";
   ff.stderr.on("data", (d) => (ffErr += d));
@@ -379,13 +383,15 @@ export async function renderProject(
         const aspect = ((rawScenes[0]?.sceneSpec as { canvas?: { aspect?: string } })?.canvas?.aspect) ?? "9:16";
         const outroAudio = join(workDir, "outro.mp3");
         await download(outro.audioUrl, outroAudio);
-        let od = await probeDuration(outroAudio);
-        od = Math.max(od + 0.3, 2.5);
+        let ad = await probeDuration(outroAudio);
+        if (ad <= 0) ad = 1.5;
+        const lead = 2.0; // 멘트 전 2초 텀(카드만 보임)
+        const od = lead + ad + 0.5; // 2초 텀 + 멘트 + 0.5초 여운
         const outroSeg = join(workDir, "seg_zzz_outro.mp4");
-        const fc = await renderOutroSegment(outro, od, outroAudio, aspect, outroSeg);
+        const fc = await renderOutroSegment(outro, od, outroAudio, aspect, outroSeg, Math.round(lead * 1000));
         totalFrames += fc;
         segmentLocalPaths.push(outroSeg);
-        log(`outro appended (${od.toFixed(1)}s)`);
+        log(`outro appended (${od.toFixed(1)}s, 음성 +${lead}s 지연)`);
       }
     } catch (e) {
       log("outro skipped:", String(e));
