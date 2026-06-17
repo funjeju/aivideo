@@ -3,6 +3,7 @@ import { getMessages } from "next-intl/server";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
 
 export default async function LocaleLayout({
   children,
@@ -24,6 +25,7 @@ export default async function LocaleLayout({
               <div className="flex-1 flex flex-col">
                 {children}
               </div>
+              <Footer />
             </AuthProvider>
           </ThemeProvider>
         </NextIntlClientProvider>

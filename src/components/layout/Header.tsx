@@ -50,6 +50,9 @@ export default function Header() {
       <Link href={`/${locale}/pricing`} className="text-sm text-[var(--ink-soft)] hover:text-[var(--accent)] mr-4">
         요금제
       </Link>
+      <a href="#contact" className="text-sm text-[var(--ink-soft)] hover:text-[var(--accent)] mr-4">
+        Contact
+      </a>
       {user ? (
         <div className="flex items-center gap-4">
           {userDoc?.role !== "user" && (
