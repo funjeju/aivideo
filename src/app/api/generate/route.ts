@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject, internalHeaders } from "@/lib/auth";
-import { isBillingEnabled } from "@/lib/billing";
+import { refundCredits } from "@/lib/credits";
 
 // Vercel(Pro/fluid) 최대 실행 시간 — 이미지 N장 생성이 길어 기본 한도를 넘김
 export const maxDuration = 800;
@@ -208,27 +208,23 @@ export async function POST(req: NextRequest) {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // 크레딧 차감 (토글 ON & 비면제 계정만). 실비 = 이번 생성의 외부 API 원가.
+    // 크레딧은 승인(approve) 시 이미 선차감(hold)됨 → 성공 시 확정(settled) 표시만.
     try {
-      const ownerId = project.ownerId as string;
-      const userRef = db.collection("users").doc(ownerId);
-      const userData = (await userRef.get()).data();
-      const exempt = userData?.billingExempt === true;
-      if ((await isBillingEnabled()) && !exempt) {
-        const projData = (await db.collection("projects").doc(projectId).get()).data();
-        const c = projData?.costLog ?? {};
-        const spent = (c.imageCostUsd ?? 0) + (c.llmCostUsd ?? 0) + (c.ttsCostUsd ?? 0);
-        if (spent > 0) {
-          await userRef.update({ credits: FieldValue.increment(-spent) });
-        }
-      }
-    } catch (e) {
-      console.error("credit deduction failed:", e);
-    }
+      await db.collection("projects").doc(projectId).update({ creditSettled: true });
+    } catch { /* noop */ }
 
     return NextResponse.json({ ok: true, total });
   } catch (e) {
     console.error(e);
+    // 생성 실패 → 선차감했던 크레딧 환불(확정 전·미환불 건만)
+    try {
+      const projData = (await db.collection("projects").doc(projectId).get()).data() ?? {};
+      const hold = (projData.creditHold as number) ?? 0;
+      if (hold > 0 && !projData.creditSettled && !projData.creditRefunded && projData.ownerId) {
+        await refundCredits(projData.ownerId as string, hold, projectId, "생성 실패 환불");
+        await db.collection("projects").doc(projectId).update({ creditRefunded: true });
+      }
+    } catch (re) { console.error("refund failed:", re); }
     await db.collection("projects").doc(projectId).update({
       status: "error",
       updatedAt: FieldValue.serverTimestamp(),

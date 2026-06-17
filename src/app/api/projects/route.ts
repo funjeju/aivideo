@@ -3,7 +3,7 @@ import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest } from "@/lib/auth";
 import { MIN_LENGTH, MAX_LENGTH } from "@/lib/length";
-import { FREE_MAX_LENGTH, isExemptUser } from "@/lib/billing";
+import { maxLengthForUser } from "@/lib/billing";
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,9 +21,9 @@ export async function POST(req: NextRequest) {
       MAX_LENGTH,
       Math.max(MIN_LENGTH, Math.round(Number(formData.get("targetLength") ?? 180)) || 180)
     );
-    // 무료(비면제) 사용자는 편당 최대 1분으로 강제(런칭 비용 보호)
+    // 등급별 최대 길이 강제(무료 1분 / Lite 5분 / Pro·VIP 10분). 면제는 무제한.
     const me = (await adminDb().collection("users").doc(ownerId).get()).data();
-    if (!isExemptUser(me)) targetLength = Math.min(targetLength, FREE_MAX_LENGTH);
+    targetLength = Math.min(targetLength, maxLengthForUser(me));
     const aspect = (formData.get("aspect") as string) ?? "9:16";
     const stylePackId = formData.get("stylePackId") as string ?? "whiteboard";
     const voiceId = formData.get("voiceId") as string ?? "nova";

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminAuth } from "@/lib/firebase/admin";
 import { getAuthedUser, isSuperAdmin } from "@/lib/auth";
 import { FieldValue } from "firebase-admin/firestore";
+import { activateSubscription, cancelSubscription } from "@/lib/credits";
+import { getTier, type TierId } from "@/lib/pricing";
 
 export async function POST(req: NextRequest) {
   const me = await getAuthedUser(req);
@@ -40,6 +42,24 @@ export async function POST(req: NextRequest) {
 
     if (action === "setBillingExempt") {
       await ref.update({ billingExempt: !!body.exempt, updatedAt: FieldValue.serverTimestamp() });
+      return NextResponse.json({ ok: true });
+    }
+
+    // PG 없이 구독 흐름 테스트용 — 구독 부여(한 달, 포함 크레딧 충전).
+    if (action === "grantSubscription") {
+      const tier = body.tier as TierId;
+      if (!getTier(tier) || tier === "free") {
+        return NextResponse.json({ error: "invalid tier" }, { status: 400 });
+      }
+      const now = new Date();
+      const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const periodEnd = now.getTime() + 31 * 24 * 60 * 60 * 1000;
+      const res = await activateSubscription(userId, tier, periodEnd, period, { note: "관리자 수동 부여" });
+      return NextResponse.json({ ok: true, granted: res.granted });
+    }
+
+    if (action === "cancelSubscription") {
+      await cancelSubscription(userId);
       return NextResponse.json({ ok: true });
     }
 

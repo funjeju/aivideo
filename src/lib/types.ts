@@ -26,6 +26,14 @@ export type BrushType =
   | "round" | "dry" | "flat" | "bristle" | "ink"
   | "pencil" | "charcoal" | "watercolor" | "crayon";
 
+export interface UserSubscription {
+  tier: "free" | "tier1" | "tier2" | "tier3";
+  status: "active" | "canceled" | "past_due";
+  currentPeriodEnd: number;   // epoch ms
+  billingKey?: string;        // 포트원 빌링키(정기결제)
+  lastGrantedPeriod?: string; // 'YYYY-MM' — 같은 주기 중복충전 방지
+}
+
 export interface UserDoc {
   email: string;
   displayName: string;
@@ -36,6 +44,10 @@ export interface UserDoc {
   themePref: ThemePref;
   /** 과금 면제 (true면 토글 ON이어도 무제한) */
   billingExempt?: boolean;
+  /** 무료 체험 사용 편수(런칭 비용 보호 하드캡) */
+  freeVideosUsed?: number;
+  /** 구독 상태(구독제). 없으면 무료. */
+  subscription?: UserSubscription;
   createdAt: Timestamp;
 }
 

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
-import { checkBillingGate, FREE_VIDEO_LIMIT, isExemptUser } from "@/lib/billing";
+import { FREE_VIDEO_LIMIT, isExemptUser, isBillingEnabled, activeTierId, estimateCredits } from "@/lib/billing";
+import { holdCredits } from "@/lib/credits";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,28 +24,41 @@ export async function POST(req: NextRequest) {
     const ownerId = projData.ownerId as string;
     const targetLength = (projData.targetLength as number) ?? 180;
 
-    // 무료 한도 게이트 — 비면제 사용자는 최대 FREE_VIDEO_LIMIT편 (런칭 비용 보호).
+    // 과금 게이트 (이미지 생성 = 진짜 비용 발생 직전).
+    //  - 면제(운영자/billingExempt) → 통과
+    //  - 무료 티어 또는 과금 토글 OFF → 무료 체험 하드캡(편수)
+    //  - 구독자 & 토글 ON → 선차감(hold): 필요 크레딧을 즉시 차감, 부족하면 거절
     const userRef = adminDb().collection("users").doc(ownerId);
     const u = (await userRef.get()).data() ?? {};
     if (!isExemptUser(u)) {
-      const used = (u.freeVideosUsed as number) ?? 0;
-      const alreadyCounted = projData.countedFree === true;
-      if (!alreadyCounted && used >= FREE_VIDEO_LIMIT) {
-        return NextResponse.json({ error: "free_limit", used, limit: FREE_VIDEO_LIMIT }, { status: 403 });
-      }
-      // 이 프로젝트를 처음 승인할 때만 1편 카운트(재승인·재시도 중복 방지)
-      if (!alreadyCounted) {
-        await userRef.set({ freeVideosUsed: FieldValue.increment(1) }, { merge: true });
-        await adminDb().collection("projects").doc(projectId).update({ countedFree: true });
-      }
-    }
+      const billingOn = await isBillingEnabled();
+      const tier = activeTierId(u);
 
-    const gate = await checkBillingGate(ownerId, targetLength);
-    if (!gate.allowed) {
-      return NextResponse.json(
-        { error: "insufficient_credits", credits: gate.credits, estimate: gate.estimate },
-        { status: 402 }
-      );
+      if (tier === "free" || !billingOn) {
+        // 무료 체험 캡 — 최대 FREE_VIDEO_LIMIT편(런칭 비용 보호). 처음 승인 시 1편 카운트.
+        const used = (u.freeVideosUsed as number) ?? 0;
+        const alreadyCounted = projData.countedFree === true;
+        if (!alreadyCounted && used >= FREE_VIDEO_LIMIT) {
+          return NextResponse.json({ error: "free_limit", used, limit: FREE_VIDEO_LIMIT }, { status: 403 });
+        }
+        if (!alreadyCounted) {
+          await userRef.set({ freeVideosUsed: FieldValue.increment(1) }, { merge: true });
+          await adminDb().collection("projects").doc(projectId).update({ countedFree: true });
+        }
+      } else {
+        // 구독자 선차감 — 이 프로젝트를 처음 승인할 때만(재승인·재시도 중복차감 방지)
+        const need = estimateCredits(targetLength);
+        if (!(projData.creditHold > 0)) {
+          const res = await holdCredits(ownerId, need, projectId, "영상 생성 선차감");
+          if (!res.ok) {
+            return NextResponse.json(
+              { error: "insufficient_credits", credits: res.balance, estimate: need },
+              { status: 402 }
+            );
+          }
+          await adminDb().collection("projects").doc(projectId).update({ creditHold: need });
+        }
+      }
     }
 
     await adminDb()
