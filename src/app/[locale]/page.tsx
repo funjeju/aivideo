@@ -4,7 +4,7 @@ import Landing from "./Landing";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "landing" });
-  return { title: `DrawNarrate — ${t("heroTitle")}` };
+  return { title: `Easyshorts — ${t("heroTitle")}` };
 }
 
 export default function LocaleRootPage() {

@@ -23,7 +23,7 @@ interface Outro {
 
 const DEFAULTS: Outro = {
   enabled: true,
-  brand: "easyshorts",
+  brand: "Easyshorts",
   text: "다음 영상에서 또 만나요",
   subtext: "구독하고 더 많은 영상 보기",
   voiceId: "nova",

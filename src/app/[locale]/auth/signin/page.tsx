@@ -36,7 +36,7 @@ export default function SignInPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-[var(--paper)]">
       <div className="w-full max-w-sm bg-[var(--paper-raised)] rounded-[var(--radius)] p-8 shadow-[var(--shadow-md)]">
-        <h1 className="text-2xl font-semibold text-[var(--ink)] mb-2 text-center">DrawNarrate</h1>
+        <h1 className="text-2xl font-semibold text-[var(--ink)] mb-2 text-center">Easyshorts</h1>
         <p className="text-sm text-[var(--ink-soft)] text-center mb-8">지식을 영상으로 만드세요</p>
 
         <button

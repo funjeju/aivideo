@@ -177,7 +177,7 @@ async function renderOutroSegment(
   const ctx = canvas.getContext("2d");
   const W = size.width;
   const H = size.height;
-  const brand = outro.brand || "easyshorts";
+  const brand = outro.brand || "Easyshorts";
   const text = outro.text || "다음 영상에서 또 만나요";
   const subtext = outro.subtext || "구독하고 더 많은 영상 보기";
 

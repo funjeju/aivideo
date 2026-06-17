@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
-  title: "DrawNarrate",
+  title: "Easyshorts",
   description: "주제를 입력하면 드로잉-리빌 교육 영상을 자동 생성합니다",
 };
 

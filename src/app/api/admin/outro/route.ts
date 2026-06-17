@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const enabled = !!body.enabled;
-    const brand = String(body.brand ?? "easyshorts").slice(0, 40);
+    const brand = String(body.brand ?? "Easyshorts").slice(0, 40);
     const text = String(body.text ?? "다음 영상에서 또 만나요").slice(0, 60);
     const subtext = String(body.subtext ?? "구독하고 더 많은 영상 보기").slice(0, 60);
     const voiceId = OPENAI_VOICES.includes(body.voiceId as OpenAIVoice) ? (body.voiceId as OpenAIVoice) : "nova";

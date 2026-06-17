@@ -31,8 +31,12 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40 h-14 border-b border-[var(--line)] bg-[var(--paper-raised)]/95 backdrop-blur flex items-center px-6">
-      <Link href={`/${locale}`} className="font-semibold text-[var(--ink)] mr-auto">
-        DrawNarrate
+      <Link href={`/${locale}`} className="flex items-center gap-2 mr-auto">
+        <span className="w-8 h-8 rounded-lg bg-white overflow-hidden flex items-center justify-center shadow-[var(--shadow-sm)]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="https://storage.googleapis.com/golpo-b6407.firebasestorage.app/brand/easyshorts-mark.png" alt="Easyshorts" className="w-full h-full object-cover" />
+        </span>
+        <span className="font-semibold text-[var(--ink)] tracking-tight">Easyshorts</span>
       </Link>
       {isLanding && (
         <nav className="hidden md:flex items-center gap-6 mr-6">
