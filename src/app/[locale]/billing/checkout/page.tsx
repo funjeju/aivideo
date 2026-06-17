@@ -9,9 +9,9 @@ import { getIdToken } from "@/lib/clientAuth";
 const METHOD_LABEL: Record<PayMethod, string> = { CARD: "신용/체크카드", KAKAOPAY: "카카오페이" };
 
 const TIERS = [
-  { id: "tier1", name: "Lite", price: 9900, desc: "월 크레딧 900 · 최대 5분" },
-  { id: "tier2", name: "Pro", price: 29000, desc: "월 크레딧 3,150 · 10분 · 동시 3편", hot: true },
-  { id: "tier3", name: "VIP", price: 99000, desc: "월 크레딧 11,700 · 10분 · 동시 5편" },
+  { id: "tier1", name: "Lite", price: 9900, desc: "월 10크레딧(10분) · 최대 5분" },
+  { id: "tier2", name: "Pro", price: 29000, desc: "월 35크레딧(35분) · 10분 · 동시 3편", hot: true },
+  { id: "tier3", name: "VIP", price: 99000, desc: "월 130크레딧(130분) · 10분 · 동시 5편" },
 ];
 
 export default function CheckoutPage() {

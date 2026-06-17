@@ -151,6 +151,26 @@ export async function activateSubscription(
   });
 }
 
+/** 관리자 수동 크레딧 조정(+부여/-회수). 원장에 'adjust'로 기록. */
+export async function adminAdjustCredits(uid: string, delta: number, note?: string): Promise<{ balance: number }> {
+  if (delta === 0) {
+    const cur = (await userRef(uid).get()).data()?.credits ?? 0;
+    return { balance: cur };
+  }
+  const db = adminDb();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef(uid));
+    const credits = (snap.data()?.credits as number) ?? 0;
+    const balanceAfter = Math.max(0, credits + delta);
+    tx.update(userRef(uid), { credits: FieldValue.increment(balanceAfter - credits) });
+    tx.set(ledgerCol(uid).doc(), {
+      type: "adjust", amount: balanceAfter - credits, balanceAfter,
+      ref: "admin", note: note ?? "관리자 조정", createdAt: FieldValue.serverTimestamp(),
+    });
+    return { balance: balanceAfter };
+  });
+}
+
 /** 구독 해지(현재 주기까지는 유효, 다음 갱신 없음). */
 export async function cancelSubscription(uid: string): Promise<void> {
   const snap = await userRef(uid).get();

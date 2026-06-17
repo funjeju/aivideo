@@ -20,15 +20,15 @@ const TIERS: Tier[] = [
   },
   {
     id: "tier1", name: "Lite", price: 9900, desc: "취미·입문",
-    features: ["월 크레딧 900 (1분 10편)", "최대 5분", "워터마크 제거", "장면 수정"],
+    features: ["월 10크레딧 (영상 10분 분량)", "최대 5분", "워터마크 제거", "장면 수정"],
   },
   {
     id: "tier2", name: "Pro", price: 29000, desc: "크리에이터", highlight: true,
-    features: ["월 크레딧 3,150 (1분 35편)", "최대 10분", "동시 제작 3편 + 우선 처리", "업소 홍보영상(사진→화풍)"],
+    features: ["월 35크레딧 (영상 35분 분량)", "최대 10분", "동시 제작 3편 + 우선 처리", "업소 홍보영상(사진→화풍)"],
   },
   {
     id: "tier3", name: "VIP", price: 99000, desc: "비즈니스·팀",
-    features: ["월 크레딧 11,700 (1분 130편)", "최대 10분", "동시 제작 5편 + 최우선", "업소용 사진 다수", "(향후) API·대량"],
+    features: ["월 130크레딧 (영상 130분 분량)", "최대 10분", "동시 제작 5편 + 최우선", "업소용 사진 다수", "(향후) API·대량"],
   },
 ];
 
@@ -152,7 +152,10 @@ export default function PricingPage() {
         })}
       </div>
 
-      <p className="text-center text-xs text-[var(--ink-faint)] mt-8">
+      <p className="text-center text-xs text-[var(--ink-soft)] mt-8">
+        <b>1 크레딧 = 영상 1분.</b> (2분 영상이면 2크레딧 차감)
+      </p>
+      <p className="text-center text-xs text-[var(--ink-faint)] mt-2">
         얼리버드는 <b>결제가 아니에요.</b> 2주 한정으로 신청하면 출시 시 20% 할인 안내를 보내드리며, 언제든 취소할 수 있어요.
       </p>
 

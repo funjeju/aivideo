@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminAuth } from "@/lib/firebase/admin";
 import { getAuthedUser, isSuperAdmin } from "@/lib/auth";
 import { FieldValue } from "firebase-admin/firestore";
-import { activateSubscription, cancelSubscription } from "@/lib/credits";
+import { activateSubscription, cancelSubscription, adminAdjustCredits } from "@/lib/credits";
 import { getTier, type TierId } from "@/lib/pricing";
 
 export async function POST(req: NextRequest) {
@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
     if (action === "adjustCredits") {
       const delta = Number(body.delta);
       if (isNaN(delta)) return NextResponse.json({ error: "invalid delta" }, { status: 400 });
-      await ref.update({ credits: FieldValue.increment(delta), updatedAt: FieldValue.serverTimestamp() });
-      return NextResponse.json({ ok: true });
+      const res = await adminAdjustCredits(userId, delta, body.note);
+      return NextResponse.json({ ok: true, balance: res.balance });
     }
 
     if (action === "setRole") {

@@ -58,7 +58,7 @@ export default function AdminMembersPage() {
   }
 
   function adjustCredits(m: MemberRow) {
-    const input = prompt(`${m.email} 크레딧 조정 (증감값, 예: 100 또는 -50)`, "100");
+    const input = prompt(`${m.email} 크레딧 조정 (1크레딧=영상 1분, 증감값 예: 10 또는 -5)`, "10");
     if (input === null) return;
     const delta = Number(input);
     if (isNaN(delta)) return;
