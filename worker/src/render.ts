@@ -164,6 +164,71 @@ async function renderSegment(
   return frameCount;
 }
 
+/** 고정 브랜드 아웃트로 세그먼트 (브랜드 + 마무리 멘트 + TTS 음성). scene 세그먼트와 동일 인코딩 파라미터 → concat copy 호환 */
+async function renderOutroSegment(
+  outro: { brand?: string; text?: string; subtext?: string },
+  durationSec: number,
+  audioPath: string,
+  aspect: string,
+  outPath: string
+): Promise<number> {
+  const size = ASPECT_SIZES[aspect] ?? ASPECT_SIZES["9:16"];
+  const canvas = createCanvas(size.width, size.height);
+  const ctx = canvas.getContext("2d");
+  const W = size.width;
+  const H = size.height;
+  const brand = outro.brand || "easyshorts";
+  const text = outro.text || "다음 영상에서 또 만나요";
+  const subtext = outro.subtext || "구독하고 더 많은 영상 보기";
+
+  const frameCount = Math.max(1, Math.ceil(durationSec * FPS));
+  const ff = spawn(FFMPEG, [
+    "-y",
+    "-f", "rawvideo", "-pixel_format", "rgba",
+    "-video_size", `${W}x${H}`, "-framerate", String(FPS),
+    "-i", "pipe:0",
+    "-i", audioPath,
+    "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+    "-r", String(FPS),
+    "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+    "-shortest", outPath,
+  ]);
+  let ffErr = "";
+  ff.stderr.on("data", (d) => (ffErr += d));
+  const ffDone = new Promise<void>((resolve, reject) => {
+    ff.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg(outro) exited ${code}: ${ffErr.slice(-400)}`))));
+    ff.on("error", reject);
+  });
+  ff.stdin.on("error", () => {});
+
+  const FONT = '"Pretendard", "Noto Sans KR", sans-serif';
+  for (let i = 0; i < frameCount; i++) {
+    const t = i / FPS;
+    const fade = Math.min(1, t / 0.4); // 0.4초 페이드인
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#111018";
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = fade;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#E8604C";
+    ctx.font = `800 ${Math.round(W * 0.11)}px ${FONT}`;
+    ctx.fillText(brand, W / 2, H * 0.42);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = `700 ${Math.round(W * 0.058)}px ${FONT}`;
+    ctx.fillText(text, W / 2, H * 0.53);
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.font = `500 ${Math.round(W * 0.036)}px ${FONT}`;
+    ctx.fillText(subtext, W / 2, H * 0.60);
+    ctx.globalAlpha = 1;
+    const frame = Buffer.from(canvas.data());
+    if (!ff.stdin.write(frame)) await new Promise<void>((r) => ff.stdin.once("drain", r));
+  }
+  ff.stdin.end();
+  await ffDone;
+  return frameCount;
+}
+
 /**
  * 세그먼트 기반 렌더. 장면별로 해시를 비교해 변경된 장면만 재렌더,
  * 나머지는 Storage 캐시 세그먼트를 재사용한 뒤 concat → 최종 mp4.
@@ -257,6 +322,29 @@ export async function renderProject(
 
       segmentLocalPaths.push(localSeg);
       if (onProgress) onProgress(Math.round(((i + 1) / total) * 85));
+    }
+
+    // 고정 브랜드 아웃트로 append (settings/global.outro.enabled & audioUrl 있을 때)
+    try {
+      const settings = (await db.collection("settings").doc("global").get()).data() ?? {};
+      const outro = settings.outro as
+        | { enabled?: boolean; audioUrl?: string; brand?: string; text?: string; subtext?: string }
+        | undefined;
+      if (outro?.enabled && outro.audioUrl) {
+        log("rendering outro segment");
+        const aspect = ((rawScenes[0]?.sceneSpec as { canvas?: { aspect?: string } })?.canvas?.aspect) ?? "9:16";
+        const outroAudio = join(workDir, "outro.mp3");
+        await download(outro.audioUrl, outroAudio);
+        let od = await probeDuration(outroAudio);
+        od = Math.max(od + 0.3, 2.5);
+        const outroSeg = join(workDir, "seg_zzz_outro.mp4");
+        const fc = await renderOutroSegment(outro, od, outroAudio, aspect, outroSeg);
+        totalFrames += fc;
+        segmentLocalPaths.push(outroSeg);
+        log(`outro appended (${od.toFixed(1)}s)`);
+      }
+    } catch (e) {
+      log("outro skipped:", String(e));
     }
 
     // 세그먼트 concat → 최종 mp4
