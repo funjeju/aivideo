@@ -1,5 +1,5 @@
 import { StylePackId } from "@/lib/types";
-import { VOICES } from "@/lib/voices";
+import { VOICES, voicePreviewUrl } from "@/lib/voices";
 
 /**
  * 랜딩 페이지 템플릿 갤러리 / 목소리 샘플 설정.
@@ -102,5 +102,5 @@ export interface VoiceSample {
 export const VOICE_SAMPLES: VoiceSample[] = VOICES.map((v) => ({
   id: v.id,
   name: v.name,
-  preview: `/api/voice-preview?voiceId=${v.id}`,
+  preview: voicePreviewUrl(v.id), // 사전 캐시된 직접 Storage URL (즉시 재생)
 }));

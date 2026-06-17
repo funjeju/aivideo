@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { StylePackId, TargetLength, AspectRatio } from "@/lib/types";
 import { MIN_LENGTH, MAX_LENGTH, formatLength, sceneCountForLength } from "@/lib/length";
-import { VOICES } from "@/lib/voices";
+import { VOICES, voicePreviewUrl } from "@/lib/voices";
 
 // 슬라이더 빠른선택 프리셋(틱)
 const LENGTH_PRESETS = [60, 300, 600];
@@ -37,7 +37,7 @@ const ASPECTS: { value: AspectRatio; label: string; sub: string; icon: string }[
 ];
 
 // 보이스 = 통합 레지스트리(Google Chirp3-HD 한국어 + OpenAI). 미리듣기는 /api/voice-preview가 생성·캐시.
-const VOICE_LIST = VOICES.map((v) => ({ id: v.id, name: v.name }));
+const VOICE_LIST = VOICES.map((v) => ({ id: v.id, name: v.name, previewUrl: voicePreviewUrl(v.id) }));
 
 export default function CreateForm() {
   const t = useTranslations("create");

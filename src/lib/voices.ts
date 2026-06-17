@@ -39,3 +39,8 @@ const BY_ID = new Map(VOICES.map((v) => [v.id, v]));
 export function getVoice(id: string | undefined): VoiceDef {
   return (id && BY_ID.get(id)) || VOICES[0];
 }
+
+/** 미리듣기 직접 Storage URL (전부 사전 캐시됨 — 서버 경유 없이 즉시 재생). */
+export function voicePreviewUrl(id: string): string {
+  return `https://storage.googleapis.com/golpo-b6407.firebasestorage.app/voice-previews/${id}.mp3`;
+}
