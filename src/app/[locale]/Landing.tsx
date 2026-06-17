@@ -248,16 +248,16 @@ export default function Landing() {
       <section id="pricing" className="py-20">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <span className="inline-block text-xs font-medium text-[var(--accent)] bg-[var(--accent-soft)] rounded-full px-3 py-1 mb-3">
-            🎉 출시 전 사전예약 시 평생 30% 할인
+            🎁 2주 한정 얼리버드 · 출시 시 20% 할인
           </span>
           <h2 className="text-2xl font-semibold text-[var(--ink)] mb-2">요금제</h2>
-          <p className="text-sm text-[var(--ink-soft)] mb-8">무료로 시작하고, 더 필요하면 사전예약으로 줄 서두세요.</p>
+          <p className="text-sm text-[var(--ink-soft)] mb-8">무료로 시작하고, 더 필요하면 얼리버드로 신청해두세요.</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-7">
             {[
               { n: "무료", p: "0원", d: "1분 2편 체험" },
-              { n: "Lite", p: "6,930원~", d: "월 10편 · 5분" },
-              { n: "Pro", p: "20,300원~", d: "월 35편 · 동시제작", hot: true },
-              { n: "VIP", p: "69,300원~", d: "비즈니스·팀" },
+              { n: "Lite", p: "7,920원~", d: "월 10편 · 5분" },
+              { n: "Pro", p: "23,200원~", d: "월 35편 · 동시제작", hot: true },
+              { n: "VIP", p: "79,200원~", d: "비즈니스·팀" },
             ].map((t) => (
               <div key={t.n} className={`rounded-[var(--radius)] border p-4 ${t.hot ? "border-[var(--accent)] ring-1 ring-[var(--accent)]" : "border-[var(--line)]"}`}>
                 <p className="text-sm font-semibold text-[var(--ink)]">{t.n}</p>

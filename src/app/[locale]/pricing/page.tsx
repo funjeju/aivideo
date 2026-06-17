@@ -92,14 +92,14 @@ export default function PricingPage() {
           </button>
         ) : (
           <span className="inline-block text-sm font-medium text-[var(--accent)] bg-[var(--accent-soft)] rounded-full px-4 py-2">
-            🎉 정식 출시 전 <b>사전예약</b>하면 <b>평생 30% 할인</b> — 지금 줄 서두세요
+            🎁 <b>2주 한정 얼리버드</b> — 이메일 신청 시 출시할 때 <b>20% 할인</b>
           </span>
         )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {TIERS.map((t) => {
-          const discounted = Math.round((t.price * 0.7) / 10) * 10;
+          const discounted = Math.round((t.price * 0.8) / 10) * 10;
           return (
             <div
               key={t.id}
@@ -115,7 +115,7 @@ export default function PricingPage() {
                 <div className="mb-4">
                   <p className="text-xs text-[var(--ink-faint)] line-through">월 {won(t.price)}원</p>
                   <p className="text-2xl font-bold text-[var(--ink)]">{won(discounted)}원<span className="text-sm font-normal text-[var(--ink-soft)]">/월</span></p>
-                  <p className="text-[11px] text-[var(--accent)]">사전예약 30% 할인가</p>
+                  <p className="text-[11px] text-[var(--accent)]">얼리버드 20% 할인가</p>
                 </div>
               )}
 
@@ -144,7 +144,7 @@ export default function PricingPage() {
                   onClick={() => openReserve(t)}
                   className={`w-full py-2.5 rounded-[var(--radius)] text-sm font-semibold ${t.highlight ? "bg-[var(--accent)] text-white hover:opacity-90" : "border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent-soft)]"}`}
                 >
-                  사전예약 (30% 할인)
+                  얼리버드 신청 (20% 할인)
                 </button>
               )}
             </div>
@@ -153,7 +153,7 @@ export default function PricingPage() {
       </div>
 
       <p className="text-center text-xs text-[var(--ink-faint)] mt-8">
-        사전예약은 <b>결제가 아니에요.</b> 출시 시 30% 할인 안내를 받기 위한 신청이며, 언제든 취소할 수 있어요.
+        얼리버드는 <b>결제가 아니에요.</b> 2주 한정으로 신청하면 출시 시 20% 할인 안내를 보내드리며, 언제든 취소할 수 있어요.
       </p>
 
       {/* 사전예약 모달 */}
@@ -163,20 +163,20 @@ export default function PricingPage() {
             {done ? (
               <>
                 <h3 className="text-lg font-semibold text-[var(--ink)] mb-2">신청 완료 🎉</h3>
-                <p className="text-sm text-[var(--ink-soft)] mb-5">출시되면 <b>{modalTier.name} 30% 할인</b> 안내를 메일로 보내드릴게요. 그동안 무료로 만들어보세요!</p>
+                <p className="text-sm text-[var(--ink-soft)] mb-5">출시되면 <b>{modalTier.name} 20% 할인</b> 안내를 메일로 보내드릴게요. 그동안 무료로 만들어보세요!</p>
                 <button onClick={() => setModalTier(null)} className="w-full py-2.5 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium">닫기</button>
               </>
             ) : (
               <>
-                <h3 className="text-lg font-semibold text-[var(--ink)] mb-1">{modalTier.name} 사전예약</h3>
-                <p className="text-xs text-[var(--ink-soft)] mb-4">출시 시 <b>평생 30% 할인</b>. 결제 아님 — 안내받을 이메일만 남겨주세요.</p>
+                <h3 className="text-lg font-semibold text-[var(--ink)] mb-1">{modalTier.name} 얼리버드 신청</h3>
+                <p className="text-xs text-[var(--ink-soft)] mb-4">2주 한정 — 출시 시 <b>20% 할인</b>. 결제 아님, 안내받을 이메일만 남겨주세요.</p>
                 <input
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="예: 123@123.com"
                   className="w-full px-3 py-2 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-sunken)] text-sm text-[var(--ink)] mb-3"
                 />
                 {err && <p className="text-xs text-[var(--accent)] mb-2">{err}</p>}
                 <button onClick={submit} disabled={busy} className="w-full py-2.5 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-semibold disabled:opacity-50">
-                  {busy ? "신청 중..." : "30% 할인 사전예약"}
+                  {busy ? "신청 중..." : "20% 할인 얼리버드 신청"}
                 </button>
               </>
             )}
