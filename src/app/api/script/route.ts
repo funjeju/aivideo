@@ -86,9 +86,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 프로젝트 상태 갱신
+    // 프로젝트 상태 갱신 (썸네일 훅/대표 장면도 저장 — 자동 썸네일 생성에 사용)
     batch.update(projectRef, {
       title: parsed.title ?? "",
+      thumbnailHook: typeof parsed.thumbnailHook === "string" ? parsed.thumbnailHook : (parsed.title ?? ""),
+      keySceneOrder: Number.isFinite(parsed.keySceneOrder) ? Math.round(parsed.keySceneOrder) : 1,
       status: "script_ready",
       updatedAt: FieldValue.serverTimestamp(),
       "costLog.llmCostUsd": llmCostUsd,

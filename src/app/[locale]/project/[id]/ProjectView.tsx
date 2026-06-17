@@ -30,6 +30,9 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   const [renderJob, setRenderJob] = useState<RenderJobDoc | null>(null);
   const [rendering, setRendering] = useState(false);
   const [thumbBusy, setThumbBusy] = useState<string | null>(null); // 합성 중인 장면 이미지 URL
+  const [thumbTitle, setThumbTitle] = useState(""); // 썸네일에 합성할 문구(편집 가능)
+  const thumbTitleInitRef = useRef(false); // thumbTitle 초기화 1회
+  const thumbAutoRef = useRef(false); // 자동 썸네일 생성 1회
   const [cancelling, setCancelling] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [resuming, setResuming] = useState(false);
@@ -46,6 +49,24 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
+
+  // 썸네일 편집 문구 초기화(1회): LLM 훅 → 없으면 제목
+  useEffect(() => {
+    if (thumbTitleInitRef.current || !project) return;
+    setThumbTitle((project.thumbnailHook || project.title || "").trim());
+    thumbTitleInitRef.current = true;
+  }, [project]);
+
+  // 자동 썸네일(1회): 완료됐고 아직 썸네일이 없으면 대표 장면+훅으로 자동 합성
+  useEffect(() => {
+    if (thumbAutoRef.current || !project) return;
+    if (project.status !== "done" || project.thumbnailUrl) return;
+    const src = keySceneImageUrl();
+    if (!src) return;
+    thumbAutoRef.current = true;
+    chooseThumbnail(src, (project.thumbnailHook || project.title || "").trim());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, scenes]);
 
   // 생성 파이프라인을 클라이언트에서 직접 트리거(브라우저 디스패치는 Vercel처럼 잘리지 않음).
   // 서버측 approve→generate fire-and-forget이 실패해도 이 경로로 확실히 시작된다.
@@ -151,12 +172,13 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     }
   }
 
-  async function chooseThumbnail(url: string) {
+  // 장면 이미지 + 편집 문구를 합성(브라우저 canvas)해 서버에 저장. title 미지정 시 현재 thumbTitle 사용.
+  async function chooseThumbnail(url: string, title?: string) {
     if (thumbBusy) return;
     setThumbBusy(url);
     try {
-      // 장면 이미지에 훅 제목을 중앙 대형으로 합성(브라우저 canvas) → 서버에 업로드
-      const dataUrl = await composeThumbnail(url, (project?.title ?? "").trim());
+      const text = (title ?? thumbTitle ?? project?.title ?? "").trim();
+      const dataUrl = await composeThumbnail(url, text);
       const { getIdToken } = await import("@/lib/clientAuth");
       const token = await getIdToken();
       const res = await fetch("/api/thumbnail", {
@@ -170,6 +192,20 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     } finally {
       setThumbBusy(null);
     }
+  }
+
+  // 편집한 문구를 현재 선택된(없으면 대표 장면) 이미지에 다시 합성·적용
+  function applyThumbnail() {
+    const src = project?.thumbnailSourceUrl || keySceneImageUrl();
+    if (src) chooseThumbnail(src, thumbTitle);
+  }
+
+  // keySceneOrder 장면 이미지(없으면 첫 이미지 장면) URL
+  function keySceneImageUrl(): string | undefined {
+    const withImg = scenes.filter((s) => s.imageUrl);
+    if (withImg.length === 0) return undefined;
+    const key = withImg.find((s) => s.order === project?.keySceneOrder);
+    return (key ?? withImg[0]).imageUrl!;
   }
 
   async function handleRender() {
@@ -496,8 +532,27 @@ export default function ProjectView({ projectId }: { projectId: string }) {
         {/* 썸네일 선택 — 대시보드 대표 이미지 */}
         {scenes.some((s) => s.imageUrl) && (
           <div className="mt-10">
-            <h2 className="text-sm font-semibold text-[var(--ink)] mb-1">썸네일 선택</h2>
-            <p className="text-xs text-[var(--ink-soft)] mb-3">대표 이미지를 고르면 제목(훅)이 가운데 크게 합성돼 대시보드 썸네일이 됩니다.</p>
+            <h2 className="text-sm font-semibold text-[var(--ink)] mb-1">썸네일 (자동 생성 — 수정 가능)</h2>
+            <p className="text-xs text-[var(--ink-soft)] mb-3">완성되면 가장 임팩트 있는 장면 + 자극적 훅으로 자동 생성됩니다. 아래에서 <b>문구·장면을 바꿔</b> 다시 적용할 수 있어요.</p>
+
+            {/* 훅 문구 편집 */}
+            <div className="flex gap-2 mb-3 max-w-md">
+              <input
+                value={thumbTitle}
+                onChange={(e) => setThumbTitle(e.target.value)}
+                placeholder="썸네일 문구 (자극적인 훅)"
+                className="flex-1 px-3 py-2 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-sunken)] text-sm text-[var(--ink)]"
+              />
+              <button
+                onClick={applyThumbnail}
+                disabled={thumbBusy !== null}
+                className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium disabled:opacity-50 whitespace-nowrap"
+              >
+                {thumbBusy ? "적용 중…" : "문구 적용"}
+              </button>
+            </div>
+
+            <p className="text-xs text-[var(--ink-soft)] mb-2">장면 선택 (클릭 시 현재 문구로 합성)</p>
             <div className="flex gap-2 overflow-x-auto pb-2">
               {scenes.filter((s) => s.imageUrl).map((s, i) => {
                 const selected = (project?.thumbnailSourceUrl ?? "") === s.imageUrl;
@@ -505,7 +560,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
                 return (
                   <button
                     key={s.id}
-                    onClick={() => chooseThumbnail(s.imageUrl!)}
+                    onClick={() => chooseThumbnail(s.imageUrl!, thumbTitle)}
                     disabled={thumbBusy !== null}
                     title={`장면 ${i + 1}`}
                     className={`relative flex-shrink-0 w-16 h-24 rounded overflow-hidden border-2 transition-colors disabled:opacity-60 ${

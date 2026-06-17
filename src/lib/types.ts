@@ -62,6 +62,10 @@ export interface ProjectDoc {
   thumbnailUrl?: string;
   /** 썸네일 원본으로 고른 장면 이미지 URL (선택 하이라이트용) */
   thumbnailSourceUrl?: string;
+  /** 썸네일에 합성할 자극적 훅 문구 (LLM 생성, 사용자 수정 가능) */
+  thumbnailHook?: string;
+  /** 썸네일 배경으로 쓸 대표 장면의 order (LLM 선정) */
+  keySceneOrder?: number;
   /** 업소용(기업 홍보) 영상이면 브랜드 메타 — 매 장면 이미지에 사명/로고를 반영한다 */
   corporate?: CorporateBrand;
   createdAt: Timestamp;
