@@ -60,7 +60,13 @@ export default function Landing() {
 
         {/* 스펙 칩 — 사실 기반 신뢰 요소 */}
         <div className="flex flex-wrap items-center justify-center gap-2 mt-9">
-          {[t("spec1"), t("spec2"), t("spec3"), t("spec4"), t("spec5")].map((s) => (
+          {[
+            t("spec1", { count: TEMPLATE_SAMPLES.length }),
+            t("spec2", { count: VOICE_SAMPLES.length }),
+            t("spec3"),
+            t("spec4"),
+            t("spec5"),
+          ].map((s) => (
             <span key={s} className="text-xs text-[var(--ink-soft)] border border-[var(--line)] rounded-full px-3 py-1">
               {s}
             </span>

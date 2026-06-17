@@ -13,7 +13,7 @@ import { StylePackId, TargetLength, AspectRatio } from "@/lib/types";
 import { MIN_LENGTH, MAX_LENGTH, formatLength, sceneCountForLength } from "@/lib/length";
 
 // 슬라이더 빠른선택 프리셋(틱)
-const LENGTH_PRESETS = [60, 180, 300];
+const LENGTH_PRESETS = [60, 300, 600];
 
 const STYLE_PACKS: { id: StylePackId; name: string; desc: string; emoji: string }[] = [
   { id: "whiteboard", name: "클래식 화이트보드", desc: "깔끔한 설명 영상 기본기", emoji: "✏️" },

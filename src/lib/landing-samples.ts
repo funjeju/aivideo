@@ -101,8 +101,11 @@ export interface VoiceSample {
 export const VOICE_SAMPLES: VoiceSample[] = [
   { id: "nova", name: "따뜻한 여성" },
   { id: "shimmer", name: "차분한 여성" },
-  { id: "coral", name: "밝은 여성" },
-  { id: "onyx", name: "중후한 남성" },
+  { id: "alloy", name: "중립 톤" },
   { id: "echo", name: "낮은 남성" },
-  { id: "ash", name: "담백한 남성" },
+  { id: "onyx", name: "중후한 남성" },
+  { id: "fable", name: "이야기꾼" },
+  { id: "ash", name: "담담한 남성" },
+  { id: "coral", name: "밝은 여성" },
+  { id: "sage", name: "부드러운 여성" },
 ].map((v) => ({ ...v, preview: `${VOICE_BASE}/${v.id}.mp3` }));
