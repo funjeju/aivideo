@@ -304,16 +304,16 @@ export default function Landing() {
   );
 }
 
-// 워크플로우 스크린샷 — 이미지 없으면 이모지 placeholder로 폴백(업로드 전에도 레이아웃 유지)
+// 워크플로우 스크린샷 — 비율 제각각이라 자연 높이(max-h)로. 이미지 없으면 이모지 placeholder.
 function WorkflowShot({ src, alt, emoji }: { src: string; alt: string; emoji: string }) {
   const [ok, setOk] = useState(true);
   return (
-    <div className="rounded-xl border border-[var(--line)] overflow-hidden bg-[var(--paper-sunken)] shadow-[var(--shadow-md)] aspect-[4/3] flex items-center justify-center">
+    <div className="rounded-xl border border-[var(--line)] overflow-hidden bg-[var(--paper-sunken)] shadow-[var(--shadow-md)] flex items-center justify-center min-h-[180px]">
       {ok ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={alt} loading="lazy" onError={() => setOk(false)} className="w-full h-full object-contain" />
+        <img src={src} alt={alt} loading="lazy" onError={() => setOk(false)} className="w-full h-auto max-h-[460px] object-contain" />
       ) : (
-        <span className="text-5xl opacity-30">{emoji}</span>
+        <span className="text-5xl opacity-30 py-12">{emoji}</span>
       )}
     </div>
   );
