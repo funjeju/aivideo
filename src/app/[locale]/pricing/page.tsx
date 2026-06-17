@@ -48,7 +48,7 @@ export default function PricingPage() {
 
   function openReserve(t: Tier) {
     setErr(""); setDone(false);
-    setEmail(user?.email ?? "");
+    setEmail(""); // 자동 채움 X — 사용자가 직접 입력하게(흐린 예시만)
     setModalTier(t);
   }
 
@@ -150,7 +150,7 @@ export default function PricingPage() {
                 <h3 className="text-lg font-semibold text-[var(--ink)] mb-1">{modalTier.name} 사전예약</h3>
                 <p className="text-xs text-[var(--ink-soft)] mb-4">출시 시 <b>평생 30% 할인</b>. 결제 아님 — 안내받을 이메일만 남겨주세요.</p>
                 <input
-                  type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
+                  type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="예: 123@123.com"
                   className="w-full px-3 py-2 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-sunken)] text-sm text-[var(--ink)] mb-3"
                 />
                 {err && <p className="text-xs text-[var(--accent)] mb-2">{err}</p>}
