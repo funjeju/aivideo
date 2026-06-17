@@ -1,35 +1,10 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
-
-const SAMPLE_INK_WASH =
-  "https://storage.googleapis.com/golpo-b6407.firebasestorage.app/_test/image-korean.png";
-
-const STYLES = [
-  {
-    id: "whiteboard",
-    name: "클래식 화이트보드",
-    desc: "깔끔한 설명 영상의 기본기",
-    emoji: "✏️",
-    bg: "linear-gradient(135deg, #FFFFFF 0%, #F2EEE7 100%)",
-  },
-  {
-    id: "ink-wash",
-    name: "수묵담채",
-    desc: "한지 위 먹선, 심리·철학·역사",
-    emoji: "🖌️",
-    image: SAMPLE_INK_WASH,
-  },
-  {
-    id: "minhwa",
-    name: "민화 / 조선",
-    desc: "오방색 모티프, 한국사·문화",
-    emoji: "🐯",
-    bg: "linear-gradient(135deg, #FDF6E3 0%, #E8C9C7 100%)",
-  },
-];
+import { TEMPLATE_SAMPLES, VOICE_SAMPLES, TemplateSample } from "@/lib/landing-samples";
 
 export default function Landing() {
   const t = useTranslations("landing");
@@ -38,15 +13,26 @@ export default function Landing() {
   const locale = params.locale as string;
   const { user, loading } = useAuth();
 
+  const [sel, setSel] = useState<TemplateSample | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
   function goStart() {
-    if (user) router.push(`/${locale}/create`);
-    else router.push(`/${locale}/auth/signin`);
+    router.push(user ? `/${locale}/create` : `/${locale}/auth/signin`);
+  }
+
+  function playVoice(url: string) {
+    const a = audioRef.current;
+    if (!a) return;
+    a.pause();
+    a.src = url;
+    a.load();
+    a.play().catch(() => {});
   }
 
   return (
     <div className="flex-1">
       {/* HERO */}
-      <section className="max-w-5xl mx-auto px-6 pt-20 pb-24 text-center">
+      <section className="max-w-5xl mx-auto px-6 pt-20 pb-20 text-center">
         <span className="inline-block text-xs font-medium text-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 rounded-full mb-6">
           {t("heroBadge")}
         </span>
@@ -57,21 +43,12 @@ export default function Landing() {
           {t("heroSubtitle")}
         </p>
         <div className="flex items-center justify-center gap-3">
-          {!loading && user ? (
-            <button
-              onClick={() => router.push(`/${locale}/dashboard`)}
-              className="px-7 py-3.5 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-            >
-              {t("heroCtaDashboard")}
-            </button>
-          ) : (
-            <button
-              onClick={goStart}
-              className="px-7 py-3.5 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-            >
-              {t("heroCtaPrimary")}
-            </button>
-          )}
+          <button
+            onClick={() => (user ? router.push(`/${locale}/dashboard`) : goStart())}
+            className="px-7 py-3.5 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+          >
+            {!loading && user ? t("heroCtaDashboard") : t("heroCtaPrimary")}
+          </button>
           <a
             href="#how"
             className="px-7 py-3.5 rounded-[var(--radius)] border border-[var(--line)] text-[var(--ink)] text-sm font-semibold hover:bg-[var(--paper-sunken)] transition-colors"
@@ -81,64 +58,96 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* 화풍 미리보기 */}
-      <section className="bg-[var(--paper-raised)] border-y border-[var(--line)] py-20">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl font-semibold text-[var(--ink)] mb-2">{t("stylesTitle")}</h2>
-            <p className="text-sm text-[var(--ink-soft)]">{t("stylesSubtitle")}</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {STYLES.map((s) => (
-              <div
-                key={s.id}
-                className="rounded-[var(--radius)] border border-[var(--line)] overflow-hidden hover:shadow-[var(--shadow-md)] transition-shadow"
-              >
-                <div
-                  className="aspect-[3/4] flex items-center justify-center"
-                  style={s.image ? undefined : { background: s.bg }}
-                >
-                  {s.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={s.image} alt={s.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-6xl opacity-80">{s.emoji}</span>
-                  )}
-                </div>
-                <div className="p-4">
-                  <p className="font-medium text-[var(--ink)] text-sm flex items-center gap-1.5">
-                    <span>{s.emoji}</span> {s.name}
-                  </p>
-                  <p className="text-xs text-[var(--ink-soft)] mt-1">{s.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* 작동 방식 */}
-      <section id="how" className="py-20">
+      <section id="how" className="bg-[var(--paper-raised)] border-y border-[var(--line)] py-20">
         <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-12">
+          <div className="text-center mb-10">
             <h2 className="text-2xl font-semibold text-[var(--ink)] mb-2">{t("howTitle")}</h2>
             <p className="text-sm text-[var(--ink-soft)]">{t("howSubtitle")}</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+
+          {/* 3단계 */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-10">
             {[
               { n: "1", title: t("step1Title"), desc: t("step1Desc") },
               { n: "2", title: t("step2Title"), desc: t("step2Desc") },
               { n: "3", title: t("step3Title"), desc: t("step3Desc") },
-            ].map((step) => (
-              <div key={step.n} className="text-center">
+            ].map((step, i, arr) => (
+              <div key={step.n} className="relative text-center">
                 <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center text-lg font-bold">
                   {step.n}
                 </div>
                 <h3 className="font-medium text-[var(--ink)] mb-2">{step.title}</h3>
                 <p className="text-sm text-[var(--ink-soft)] leading-relaxed">{step.desc}</p>
+                {i < arr.length - 1 && (
+                  <span className="hidden sm:block absolute top-6 -right-4 text-[var(--ink-faint)]">→</span>
+                )}
               </div>
             ))}
           </div>
+
+          {/* 혜택 — 필요 없는 것들 */}
+          <div className="flex flex-wrap items-center justify-center gap-2 text-sm">
+            <span className="text-[var(--ink-faint)]">{t("benefitLabel")}:</span>
+            {[t("benefit1"), t("benefit2"), t("benefit3")].map((b) => (
+              <span key={b} className="px-3 py-1 rounded-full bg-[var(--paper-sunken)] text-[var(--ink-soft)] line-through decoration-[var(--accent)]/60">
+                {b}
+              </span>
+            ))}
+            <span className="font-semibold text-[var(--accent)]">{t("benefitTail")}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* 템플릿 갤러리 */}
+      <section className="py-20">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl font-semibold text-[var(--ink)] mb-2">{t("galleryTitle")}</h2>
+            <p className="text-sm text-[var(--ink-soft)]">{t("gallerySubtitle")}</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {TEMPLATE_SAMPLES.map((tpl) => (
+              <button
+                key={tpl.id}
+                onClick={() => setSel(tpl)}
+                className="group rounded-[var(--radius)] border border-[var(--line)] overflow-hidden text-left hover:shadow-[var(--shadow-md)] hover:border-[var(--accent)] transition-all"
+              >
+                <div className="aspect-[3/4] bg-[var(--paper-sunken)] overflow-hidden relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={tpl.poster} alt={tpl.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  <span className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-black/55 text-white flex items-center justify-center text-xs">▶</span>
+                </div>
+                <div className="p-2.5">
+                  <p className="text-sm font-medium text-[var(--ink)] truncate">{tpl.name}</p>
+                  <p className="text-xs text-[var(--ink-soft)] line-clamp-1">{tpl.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 목소리 샘플 */}
+      <section className="bg-[var(--paper-raised)] border-y border-[var(--line)] py-20">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-semibold text-[var(--ink)] mb-2">{t("voicesTitle")}</h2>
+            <p className="text-sm text-[var(--ink-soft)]">{t("voicesSubtitle")}</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {VOICE_SAMPLES.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => playVoice(v.preview)}
+                className="flex items-center justify-between p-3 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper)] hover:border-[var(--accent)] transition-colors"
+              >
+                <span className="text-sm text-[var(--ink)]">{v.name}</span>
+                <span className="w-7 h-7 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center text-xs">▶</span>
+              </button>
+            ))}
+          </div>
+          <audio ref={audioRef} className="hidden" />
         </div>
       </section>
 
@@ -155,6 +164,55 @@ export default function Landing() {
           </button>
         </div>
       </section>
+
+      {/* 템플릿 미리보기 모달 */}
+      {sel && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setSel(null)}
+        >
+          <div
+            className="bg-[var(--paper)] rounded-[var(--radius)] overflow-hidden max-w-md w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--line)]">
+              <div>
+                <p className="text-sm font-semibold text-[var(--ink)]">{sel.name}</p>
+                <p className="text-xs text-[var(--ink-soft)]">{sel.desc}</p>
+              </div>
+              <button onClick={() => setSel(null)} className="text-[var(--ink-faint)] hover:text-[var(--ink)] text-xl leading-none px-1">×</button>
+            </div>
+            {/* 영상: youtubeId 있으면 임베드(클릭 시에만 로드=트래픽0), 없으면 포스터+곧공개 */}
+            {sel.youtubeId ? (
+              <div className="aspect-[9/16] bg-black">
+                <iframe
+                  src={`https://www.youtube.com/embed/${sel.youtubeId}`}
+                  title={sel.name}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full"
+                />
+              </div>
+            ) : (
+              <div className="relative aspect-[3/4] bg-[var(--paper-sunken)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={sel.poster} alt={sel.name} className="w-full h-full object-cover" />
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <span className="px-3 py-1.5 rounded-full bg-black/60 text-white text-xs">{t("comingSoon")}</span>
+                </span>
+              </div>
+            )}
+            <div className="p-4">
+              <button
+                onClick={goStart}
+                className="w-full py-3 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+              >
+                {t("heroCtaPrimary")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
