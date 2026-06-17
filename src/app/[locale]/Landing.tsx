@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { TEMPLATE_SAMPLES, VOICE_SAMPLES, WORKFLOW_STEPS, TemplateSample } from "@/lib/landing-samples";
+import SampleRequestCTA from "@/components/SampleRequestCTA";
 
 export default function Landing() {
   const t = useTranslations("landing");
@@ -269,6 +270,8 @@ export default function Landing() {
           <a href={`/${locale}/pricing`} className="inline-block px-7 py-3 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-semibold hover:opacity-90 transition-opacity">
             요금제 자세히 보기
           </a>
+          <p className="text-sm text-[var(--ink-soft)] mt-8 mb-3">직접 만들기 어려우면 <b>주제만 주세요 — 샘플 영상을 무료로</b> 만들어 드려요.</p>
+          <SampleRequestCTA label="🎬 샘플 영상 무료로 받기" />
         </div>
       </section>
 

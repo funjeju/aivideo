@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
+import SampleRequestCTA from "@/components/SampleRequestCTA";
 
 interface Tier {
   id: string;
@@ -152,7 +153,12 @@ export default function PricingPage() {
         })}
       </div>
 
-      <p className="text-center text-xs text-[var(--ink-soft)] mt-8">
+      <div className="text-center mt-8 mb-2">
+        <p className="text-sm text-[var(--ink-soft)] mb-3">직접 만들기 부담스러우세요? <b>주제만 주시면 샘플 영상을 무료로</b> 만들어 드려요.</p>
+        <SampleRequestCTA label="🎬 샘플 영상 무료로 받기" />
+      </div>
+
+      <p className="text-center text-xs text-[var(--ink-soft)] mt-6">
         <b>1 크레딧 = 영상 1분.</b> (2분 영상이면 2크레딧 차감)
       </p>
       <p className="text-center text-xs text-[var(--ink-faint)] mt-2">
