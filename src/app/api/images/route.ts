@@ -76,14 +76,8 @@ export async function POST(req: NextRequest) {
       ? `${styleDesc} 제공된 업소 실제 사진의 구도·공간·핵심 피사체를 유지하되, 위 화풍으로 다시 그려라(사진을 그대로 베끼지 말고 화풍으로 재해석).${brandInstr}`
       : styleDesc + brandInstr;
 
-    // 이미지 화질: 업체(corporate) 영상은 기본 low(장면 多 + 사진 변환 edit라 비용·부하↑).
-    // 일반 영상은 어드민 전역 설정(settings/global.imageQuality) 우선, 없으면 화풍 기본값.
-    const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};
-    const quality: "low" | "medium" | "high" = corp
-      ? "low"
-      : ((["low", "medium", "high"].includes(settings.imageQuality)
-          ? settings.imageQuality
-          : pack.imagePrompt.quality) as "low" | "medium" | "high");
+    // 화질은 전 영상 low 고정(비용 단순화·예측가능). 티어 차이는 크레딧·멀티큐·길이로만.
+    const quality = "low" as const;
 
     let imageUrl = "";
     let cost = 0;
@@ -115,8 +109,8 @@ export async function POST(req: NextRequest) {
         await file.makePublic();
         imageUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
-        // gpt-image-2 1024x1536 대략 원가: high≈$0.19, medium≈$0.06, low≈$0.02
-        cost = quality === "high" ? 0.19 : quality === "low" ? 0.02 : 0.06;
+        // gpt-image-2 1024x1536 low 원가 ≈ $0.02 (전 영상 low 고정)
+        cost = 0.02;
         if (attempt > 0) regenerations = attempt;
         break;
       } catch (e) {

@@ -256,7 +256,7 @@ export default function Landing() {
             {[
               { n: "무료", p: "0원", d: "1분 2편 체험" },
               { n: "Lite", p: "6,930원~", d: "월 ~12편 · 5분" },
-              { n: "Pro", p: "20,300원~", d: "고화질 · 동시제작", hot: true },
+              { n: "Pro", p: "20,300원~", d: "월 ~38편 · 동시제작", hot: true },
               { n: "VIP", p: "69,300원~", d: "비즈니스·팀" },
             ].map((t) => (
               <div key={t.n} className={`rounded-[var(--radius)] border p-4 ${t.hot ? "border-[var(--accent)] ring-1 ring-[var(--accent)]" : "border-[var(--line)]"}`}>
