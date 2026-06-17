@@ -1,6 +1,16 @@
+import crypto from "node:crypto";
 import { adminDb } from "./firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { getTier, type TierId } from "./pricing";
+
+/**
+ * 구독 결제용 멱등 paymentId. 같은 (uid, period)면 항상 동일 → 같은 달 중복청구 방지.
+ * 이니시스 oid 길이 제한(≤40) 때문에 uid를 짧은 해시로 축약. 형식: sub_{12hex}_{period} (24자).
+ */
+export function subscriptionPaymentId(uid: string, period: string): string {
+  const h = crypto.createHash("sha256").update(uid).digest("hex").slice(0, 12);
+  return `sub_${h}_${period}`;
+}
 
 /**
  * 크레딧 원장(ledger) + 선차감(hold)/환불(refund) + 구독 월충전(grant).

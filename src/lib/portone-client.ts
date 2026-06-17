@@ -52,7 +52,8 @@ export async function issueBillingKey(customer: {
     storeId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID,
     channelKey: process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY,
     billingKeyMethod: "CARD",
-    issueId: `bk_${customer.customerId}_${Date.now()}`,
+    // 이니시스 oid 길이 제한(≤40) — uid 미포함 짧은 고유값. (uid는 customer.customerId로 전달)
+    issueId: `bk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
     issueName: "Easyshorts 구독 카드 등록",
     customer: {
       customerId: customer.customerId,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { getTier, type TierId } from "@/lib/pricing";
 import { chargeWithBillingKey, portoneConfigured } from "@/lib/portone";
-import { activateSubscription, type Subscription } from "@/lib/credits";
+import { activateSubscription, subscriptionPaymentId, type Subscription } from "@/lib/credits";
 
 export const maxDuration = 60;
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     if (sub.lastGrantedPeriod === period) continue; // 이미 이번 달 충전됨
 
-    const paymentId = `sub_${doc.id}_${period}`;
+    const paymentId = subscriptionPaymentId(doc.id, period);
     const charge = await chargeWithBillingKey({
       paymentId,
       billingKey: sub.billingKey,

@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { getAuthedUser } from "@/lib/auth";
 import { getTier, type TierId } from "@/lib/pricing";
 import { chargeWithBillingKey, portoneConfigured } from "@/lib/portone";
-import { activateSubscription } from "@/lib/credits";
+import { activateSubscription, subscriptionPaymentId } from "@/lib/credits";
 
 export const maxDuration = 30;
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     const now = new Date();
     const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const paymentId = `sub_${me.uid}_${period}`; // 멱등 — 같은 달 중복청구 방지
+    const paymentId = subscriptionPaymentId(me.uid, period); // 멱등 — 같은 달 중복청구 방지
 
     const charge = await chargeWithBillingKey({
       paymentId,
