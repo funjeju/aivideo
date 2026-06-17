@@ -506,11 +506,29 @@ export default function ProjectView({ projectId }: { projectId: string }) {
           </Button>
         </div>
 
-        {sceneSpecs.length > 0 ? (
-          <ScenePlayer scenes={sceneSpecs} />
-        ) : (
-          <p className="text-[var(--ink-soft)]">장면 데이터를 불러오는 중...</p>
-        )}
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+          <div className="flex-1 w-full">
+            {sceneSpecs.length > 0 ? (
+              <ScenePlayer scenes={sceneSpecs} />
+            ) : (
+              <p className="text-[var(--ink-soft)]">장면 데이터를 불러오는 중...</p>
+            )}
+            <p className="text-[10px] text-[var(--ink-faint)] mt-1 text-center">▲ 영상 미리보기</p>
+          </div>
+
+          {/* 공유 썸네일 — 카톡·블로그 등에 퍼갈 때 보이는 이미지 */}
+          <div className="w-full lg:w-56 shrink-0">
+            <p className="text-xs font-semibold text-[var(--ink)] mb-1">공유 썸네일</p>
+            {(localThumb || project?.thumbnailUrl) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={localThumb || project?.thumbnailUrl} alt="공유 썸네일" className="w-full rounded-lg border border-[var(--line)] shadow-[var(--shadow-md)]" />
+            ) : (
+              <div className="w-full aspect-[3/4] rounded-lg border border-dashed border-[var(--line)] flex items-center justify-center text-xs text-[var(--ink-faint)]">자동 생성 중…</div>
+            )}
+            <p className="text-[11px] text-[var(--ink-soft)] mt-2 leading-relaxed">카톡·블로그 등에 공유할 때 보이는 대표 이미지예요.</p>
+            <a href="#thumb-editor" className="inline-block mt-1 text-xs text-[var(--accent)] hover:underline">문구·장면 수정 →</a>
+          </div>
+        </div>
 
         <div className="mt-6 flex items-center gap-3 flex-wrap">
           {outputUrl ? (
@@ -549,7 +567,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
 
         {/* 썸네일 선택 — 대시보드 대표 이미지 */}
         {scenes.some((s) => s.imageUrl) && (
-          <div className="mt-10">
+          <div id="thumb-editor" className="mt-10 scroll-mt-20">
             <h2 className="text-sm font-semibold text-[var(--ink)] mb-1">썸네일 (자동 생성 — 수정 가능)</h2>
             <p className="text-xs text-[var(--ink-soft)] mb-3">완성되면 가장 임팩트 있는 장면 + 자극적 훅으로 자동 생성됩니다. 아래에서 <b>문구·장면을 바꿔</b> 다시 적용할 수 있어요.</p>
 
