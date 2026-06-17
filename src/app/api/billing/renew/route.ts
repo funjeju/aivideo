@@ -7,15 +7,26 @@ import { activateSubscription, subscriptionPaymentId, type Subscription } from "
 export const maxDuration = 60;
 
 /**
- * 구독 자동 갱신 cron. 매일 1회 호출(Vercel Cron 또는 Cloud Scheduler).
- * - status=active & billingKey 존재 & currentPeriodEnd <= now+grace 인 구독을 청구.
- * - 성공: 다음 주기 활성화 + 포함 크레딧 충전. 실패: past_due 표시(다음날 재시도).
- * 인증: 헤더 x-cron-secret == INTERNAL_API_SECRET.
+ * 구독 자동 갱신 cron. 매일 1회 호출.
+ * - Vercel Cron: GET + 헤더 Authorization: Bearer ${CRON_SECRET} (자동 부여)
+ * - 수동/외부: x-cron-secret == INTERNAL_API_SECRET
+ * status=active & billingKey 존재 & currentPeriodEnd <= now+grace 인 구독을 청구.
+ * 성공: 다음 주기 활성화 + 포함 크레딧 충전. 실패: past_due(다음날 재시도).
  *
  * 필요 색인(Firestore): subscription.status ASC + subscription.currentPeriodEnd ASC.
  */
-export async function POST(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.INTERNAL_API_SECRET) {
+function cronAuthorized(req: NextRequest): boolean {
+  const bearer = req.headers.get("authorization");
+  if (process.env.CRON_SECRET && bearer === `Bearer ${process.env.CRON_SECRET}`) return true;
+  if (req.headers.get("x-cron-secret") === process.env.INTERNAL_API_SECRET) return true;
+  return false;
+}
+
+export async function GET(req: NextRequest) { return runRenew(req); }
+export async function POST(req: NextRequest) { return runRenew(req); }
+
+async function runRenew(req: NextRequest) {
+  if (!cronAuthorized(req)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   if (!portoneConfigured()) {
