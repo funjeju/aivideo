@@ -32,6 +32,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   const [thumbBusy, setThumbBusy] = useState<string | null>(null); // 합성 중인 장면 이미지 URL
   const [thumbTitle, setThumbTitle] = useState(""); // 썸네일에 합성할 문구(편집 가능)
   const [localThumb, setLocalThumb] = useState(""); // 합성 직후 즉시 보여줄 로컬 미리보기(dataURL)
+  const [shareCopied, setShareCopied] = useState(false);
   const thumbTitleInitRef = useRef(false); // thumbTitle 초기화 1회
   const thumbAutoRef = useRef(false); // 자동 썸네일 생성 1회
   const [cancelling, setCancelling] = useState(false);
@@ -223,6 +224,17 @@ export default function ProjectView({ projectId }: { projectId: string }) {
     if (withImg.length === 0) return undefined;
     const key = withImg.find((s) => s.order === project?.keySceneOrder);
     return (key ?? withImg[0]).imageUrl!;
+  }
+
+  async function copyShareLink() {
+    const url = `${window.location.origin}/${locale}/share/${projectId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      window.prompt("아래 링크를 복사하세요", url);
+    }
   }
 
   async function handleRender() {
@@ -543,6 +555,12 @@ export default function ProjectView({ projectId }: { projectId: string }) {
               <Button variant="outline" onClick={handleRender} disabled={rendering}>
                 {dirty ? "변경사항으로 다시 렌더링" : "다시 렌더링"}
               </Button>
+              <Button variant="outline" onClick={copyShareLink}>
+                {shareCopied ? "복사됨 ✓" : "공유 링크 복사"}
+              </Button>
+              <a href={`/${locale}/share/${projectId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)] self-center">
+                공유 페이지 열기 ↗
+              </a>
             </>
           ) : (
             <Button
