@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     projectId = body.projectId;
     sceneId = body.sceneId;
-    const { visualIntent, stylePackId } = body;
+    const { visualIntent, stylePackId, photoUrl } = body;
 
     if (!projectId || !sceneId || !visualIntent) {
       return NextResponse.json({ error: "projectId, sceneId, visualIntent required" }, { status: 400 });
@@ -61,7 +61,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const prompt = pack.imagePrompt.template.replace("{subject}", visualIntent) + brandInstr;
+    // 업소 실제 사진을 이 장면에 화풍 변환해 쓰는 경우(매칭 단계에서 photoUrl 전달)
+    let photoBuf: Buffer | null = null;
+    if (typeof photoUrl === "string" && photoUrl.startsWith("http")) {
+      try {
+        const r = await fetch(photoUrl);
+        if (r.ok) photoBuf = Buffer.from(await r.arrayBuffer());
+      } catch { /* 사진 fetch 실패 시 일반 생성으로 폴백 */ }
+    }
+
+    // 사진이 있으면 "이 사진을 화풍으로 변환"(구도 유지), 없으면 일반 생성.
+    const styleDesc = pack.imagePrompt.template.replace("{subject}", photoBuf ? "the scene in the provided photo" : visualIntent);
+    const prompt = photoBuf
+      ? `${styleDesc} 제공된 업소 실제 사진의 구도·공간·핵심 피사체를 유지하되, 위 화풍으로 다시 그려라(사진을 그대로 베끼지 말고 화풍으로 재해석).${brandInstr}`
+      : styleDesc + brandInstr;
 
     // 이미지 화질: 어드민 전역 설정(settings/global.imageQuality) 우선, 없으면 화풍 기본값
     const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};
@@ -76,11 +89,13 @@ export async function POST(req: NextRequest) {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         // gpt-image 계열은 항상 b64_json 반환 (response_format 불필요)
+        // reference 이미지(사진 먼저, 로고 다음)가 있으면 edit, 없으면 generate
         let response;
-        if (logoBuf) {
-          // 로고를 reference로 넣어 edit — 매 장면에 로고 반영 시도
-          const logoFile = await toFile(logoBuf, "logo.png", { type: "image/png" });
-          response = await openai.images.edit({ model: "gpt-image-2", image: logoFile, prompt, size, quality });
+        const refs = [];
+        if (photoBuf) refs.push(await toFile(photoBuf, "photo.png", { type: "image/png" }));
+        if (logoBuf) refs.push(await toFile(logoBuf, "logo.png", { type: "image/png" }));
+        if (refs.length > 0) {
+          response = await openai.images.edit({ model: "gpt-image-2", image: refs.length === 1 ? refs[0] : refs, prompt, size, quality });
         } else {
           response = await openai.images.generate({ model: "gpt-image-2", prompt, n: 1, size, quality });
         }

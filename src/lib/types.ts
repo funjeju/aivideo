@@ -82,6 +82,8 @@ export interface CorporateBrand {
   logoUrl?: string;
   /** true면 로고를 images.edit reference로 매 장면에 반영 시도 */
   useLogoRef?: boolean;
+  /** 업로드된 업소 실제 사진들(외관·메뉴·내부 등). 생성 시 적합한 장면에 화풍 변환해 사용 */
+  photos?: { url: string; label: string }[];
 }
 
 export interface RevealObject {
@@ -135,6 +137,8 @@ export interface SceneDoc {
   imageStatus: ImageStatus;
   audioUrl?: string;
   visualIntent?: string;
+  /** 업소용: 이 장면에 쓸 업소 사진 인덱스(corporate.photos[i]). 매칭 단계에서 지정 */
+  usePhotoIndex?: number;
 }
 
 export interface CostLog {

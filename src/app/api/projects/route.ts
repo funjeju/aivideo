@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
     const companyEn = (formData.get("companyEn") as string | null)?.trim() ?? "";
     const useLogoRef = formData.get("useLogoRef") === "true";
     const logo = formData.get("logo") as File | null;
+    const photos = formData.getAll("photos") as File[];
+    const photoLabels = formData.getAll("photoLabels") as string[];
 
     if (!mode) {
       return NextResponse.json({ error: "mode required" }, { status: 400 });
@@ -57,20 +59,37 @@ export async function POST(req: NextRequest) {
       sourceFileUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
     }
 
-    // 업소용 브랜드: 사명 또는 로고가 있으면 corporate 메타 구성
-    let corporate: { companyKo: string; companyEn: string; logoUrl: string; useLogoRef: boolean } | undefined;
-    if (companyKo || companyEn || logo) {
+    // 업소용 브랜드: 사명·로고·업소 사진 중 하나라도 있으면 corporate 메타 구성
+    let corporate:
+      | { companyKo: string; companyEn: string; logoUrl: string; useLogoRef: boolean; photos: { url: string; label: string }[] }
+      | undefined;
+    if (companyKo || companyEn || logo || photos.length > 0) {
+      const bucket = adminStorage().bucket();
       let logoUrl = "";
       if (logo) {
         const buffer = Buffer.from(await logo.arrayBuffer());
-        const bucket = adminStorage().bucket();
         const filePath = `logos/${ownerId}/${Date.now()}_${logo.name}`;
         const storageFile = bucket.file(filePath);
         await storageFile.save(buffer, { metadata: { contentType: logo.type } });
         await storageFile.makePublic();
         logoUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
       }
-      corporate = { companyKo, companyEn, logoUrl, useLogoRef: useLogoRef && !!logoUrl };
+      // 업소 실제 사진들 업로드(+라벨)
+      const uploadedPhotos: { url: string; label: string }[] = [];
+      for (let i = 0; i < photos.length; i++) {
+        const p = photos[i];
+        if (!p || typeof p === "string") continue;
+        const buffer = Buffer.from(await p.arrayBuffer());
+        const filePath = `corp-photos/${ownerId}/${Date.now()}_${i}_${p.name}`;
+        const storageFile = bucket.file(filePath);
+        await storageFile.save(buffer, { metadata: { contentType: p.type } });
+        await storageFile.makePublic();
+        uploadedPhotos.push({
+          url: `https://storage.googleapis.com/${bucket.name}/${filePath}`,
+          label: (photoLabels[i] ?? "").toString().trim(),
+        });
+      }
+      corporate = { companyKo, companyEn, logoUrl, useLogoRef: useLogoRef && !!logoUrl, photos: uploadedPhotos };
     }
 
     const db = adminDb();

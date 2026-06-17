@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject, internalHeaders } from "@/lib/auth";
@@ -6,6 +7,34 @@ import { isBillingEnabled } from "@/lib/billing";
 
 // Vercel(Pro/fluid) 최대 실행 시간 — 이미지 N장 생성이 길어 기본 한도를 넘김
 export const maxDuration = 800;
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+/** 업소 실제 사진을 어울리는 장면에 배정(텍스트 매칭 1회). 반환: {sceneOrder: photoIndex} */
+async function matchPhotosToScenes(
+  scenes: { order: number; visualIntent?: string; narration?: string }[],
+  photos: { label: string }[]
+): Promise<Record<number, number>> {
+  const sceneList = scenes.map((s) => `${s.order}: ${s.visualIntent || s.narration || ""}`).join("\n");
+  const photoList = photos.map((p, i) => `${i}: ${p.label || "(라벨 없음)"}`).join("\n");
+  const prompt = `업소(매장) 홍보 영상이다. 아래 장면 목록과 업소 실제 사진 목록을 보고, 각 사진을 가장 잘 어울리는 장면 1개에만 배정하라(매장 외관·내부·메뉴·제품을 보여주는 장면 위주). 어울리는 장면이 없으면 그 사진은 배정하지 말 것. 한 장면엔 사진 1개만.
+[장면 (번호: 설명)]
+${sceneList}
+[사진 (인덱스: 라벨)]
+${photoList}
+출력은 JSON만: {"assignments":[{"sceneOrder":번호,"photoIndex":번호}]}`;
+  const c = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+  });
+  const parsed = JSON.parse(c.choices[0].message.content || "{}");
+  const out: Record<number, number> = {};
+  for (const a of parsed.assignments || []) {
+    if (typeof a.sceneOrder === "number" && typeof a.photoIndex === "number") out[a.sceneOrder] = a.photoIndex;
+  }
+  return out;
+}
 
 /** 내부 호출 + 타임아웃 + 재시도 (응답 없는 외부 API로 인한 영구 행/누락 방지) */
 async function fetchWithTimeout(url: string, body: object, ms: number, retries = 1): Promise<Response | null> {
@@ -64,6 +93,29 @@ export async function POST(req: NextRequest) {
     const total = scenes.length;
     let done = 0;
 
+    // 업소 실제 사진 → 장면 매칭 (생성 1회). 사진이 있으면 AI가 적합 장면에 배치 → 그 장면은 사진을 화풍 변환.
+    const corp = project.corporate as { photos?: { url: string; label: string }[] } | undefined;
+    const photoByScene = new Map<string, string>();
+    if (corp?.photos?.length) {
+      try {
+        const assigns = await matchPhotosToScenes(
+          scenes as { id: string; order: number; visualIntent?: string; narration?: string }[],
+          corp.photos
+        );
+        const b = db.batch();
+        for (const s of scenes as { id: string; order: number }[]) {
+          const idx = assigns[s.order];
+          if (typeof idx === "number" && corp.photos[idx]) {
+            photoByScene.set(s.id, corp.photos[idx].url);
+            b.update(db.collection("projects").doc(projectId).collection("scenes").doc(s.id), { usePhotoIndex: idx });
+          }
+        }
+        await b.commit();
+      } catch (e) {
+        console.error("photo match failed:", e);
+      }
+    }
+
     // 비용 집계 (CORE 원칙 5: 영상 1편의 외부 API 원가 추적)
     let imageCount = 0;
     let imageCostUsd = 0;
@@ -109,6 +161,7 @@ export async function POST(req: NextRequest) {
             if (!imageUrl) {
               const imgRes = await fetchWithTimeout(`${origin}/api/images`, {
                 projectId, sceneId, visualIntent: scene.visualIntent, stylePackId: project.stylePackId,
+                photoUrl: photoByScene.get(sceneId),
               }, 180000);
               if (imgRes?.ok) {
                 const imgData = await imgRes.json();

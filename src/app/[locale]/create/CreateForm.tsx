@@ -65,6 +65,9 @@ export default function CreateForm() {
   // 업소용 입력 방식: 주제로 AI 생성 vs 원고 직접 입력
   const [corpInput, setCorpInput] = useState<"topic" | "script">("topic");
   const [scriptText, setScriptText] = useState("");
+  // 업소 실제 사진(여러 장 + 라벨) → 생성 시 AI가 적합 장면에 화풍 변환
+  const [corpPhotos, setCorpPhotos] = useState<{ file: File; label: string; preview: string }[]>([]);
+  const photosRef = useRef<HTMLInputElement>(null);
   const [targetLength, setTargetLength] = useState<TargetLength>(60);
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
@@ -132,6 +135,11 @@ export default function CreateForm() {
         formData.append("companyEn", companyEn);
         formData.append("useLogoRef", String(useLogoRef));
         if (logoFile) formData.append("logo", logoFile);
+        // 업소 실제 사진 + 라벨 (index 정렬 위해 둘 다 같은 순서로 append)
+        corpPhotos.forEach((p) => {
+          formData.append("photos", p.file);
+          formData.append("photoLabels", p.label);
+        });
       }
 
       const { getIdToken } = await import("@/lib/clientAuth");
@@ -173,6 +181,18 @@ export default function CreateForm() {
     const r = new FileReader();
     r.onload = () => setLogoDataUrl(r.result as string);
     r.readAsDataURL(f);
+  }
+
+  function onPhotos(files: FileList | null) {
+    if (!files) return;
+    const added = Array.from(files).map((f) => ({ file: f, label: "", preview: URL.createObjectURL(f) }));
+    setCorpPhotos((prev) => [...prev, ...added].slice(0, 6)); // 최대 6장
+  }
+  function setPhotoLabel(i: number, label: string) {
+    setCorpPhotos((prev) => prev.map((p, idx) => (idx === i ? { ...p, label } : p)));
+  }
+  function removePhoto(i: number) {
+    setCorpPhotos((prev) => prev.filter((_, idx) => idx !== i));
   }
 
   function previewVoice(v: { id: string; previewUrl?: string }) {
@@ -254,6 +274,36 @@ export default function CreateForm() {
                     <input type="checkbox" checked={useLogoRef} onChange={(e) => setUseLogoRef(e.target.checked)} className="accent-[var(--accent)]" />
                     로고를 매 장면 이미지에 반영 시도 (reference)
                   </label>
+                )}
+              </div>
+
+              {/* 업소 실제 사진 → 화풍 변환 */}
+              <div>
+                <label className="text-xs font-medium text-[var(--ink-soft)]">업소 사진 (선택, 최대 6장)</label>
+                <p className="text-[11px] text-[var(--ink-faint)] mb-1">매장·메뉴·제품 사진을 올리면, AI가 어울리는 장면에서 <b>선택한 화풍으로 변환</b>해 씁니다. 라벨(예: 외관, 대표메뉴)을 적으면 더 정확히 배치돼요.</p>
+                <div
+                  onClick={() => photosRef.current?.click()}
+                  className="mt-1 border-2 border-dashed border-[var(--line)] rounded-[var(--radius)] p-3 text-center cursor-pointer hover:border-[var(--accent)]"
+                >
+                  <p className="text-xs text-[var(--ink-faint)]">사진 클릭 업로드 (여러 장 가능)</p>
+                  <input ref={photosRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => onPhotos(e.target.files)} />
+                </div>
+                {corpPhotos.length > 0 && (
+                  <div className="mt-2 flex flex-col gap-2">
+                    {corpPhotos.map((p, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.preview} alt={`photo ${i + 1}`} className="w-12 h-12 rounded object-cover border border-[var(--line)]" />
+                        <input
+                          value={p.label}
+                          onChange={(e) => setPhotoLabel(i, e.target.value)}
+                          placeholder="라벨 (예: 매장 외관)"
+                          className="flex-1 px-2 py-1 rounded border border-[var(--line)] bg-[var(--paper-sunken)] text-xs text-[var(--ink)]"
+                        />
+                        <button type="button" onClick={() => removePhoto(i)} className="text-xs text-[var(--ink-faint)] hover:text-[var(--accent)] px-1">✕</button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
