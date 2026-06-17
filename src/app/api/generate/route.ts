@@ -17,7 +17,11 @@ async function matchPhotosToScenes(
 ): Promise<Record<number, number>> {
   const sceneList = scenes.map((s) => `${s.order}: ${s.visualIntent || s.narration || ""}`).join("\n");
   const photoList = photos.map((p, i) => `${i}: ${p.label || "(라벨 없음)"}`).join("\n");
-  const prompt = `업소(매장) 홍보 영상이다. 아래 장면 목록과 업소 실제 사진 목록을 보고, 각 사진을 가장 잘 어울리는 장면 1개에만 배정하라(매장 외관·내부·메뉴·제품을 보여주는 장면 위주). 어울리는 장면이 없으면 그 사진은 배정하지 말 것. 한 장면엔 사진 1개만.
+  const prompt = `업소(매장) 홍보 영상이다. 아래 "장면"과 "업소 실제 사진"을 보고, 사진을 그 사진이 실제로 보여주는 대상과 직접 일치하는 장면에만 배정하라.
+중요 규칙:
+- **사진 1장은 정확히 한 장면에만** 배정한다(같은 사진을 여러 장면에 쓰지 말 것).
+- 대부분의 장면은 사진 없이 스토리에 맞춰 일반 생성된다. 사진은 **꼭 필요한 소수 장면(매장 외관/내부/메뉴/제품을 직접 보여주는 장면)에만** 쓰는 예외다.
+- 명확히 들어맞는 장면이 없으면 **그 사진은 배정하지 마라(빈 배열 가능)**. 억지 배정 금지.
 [장면 (번호: 설명)]
 ${sceneList}
 [사진 (인덱스: 라벨)]
@@ -102,10 +106,13 @@ export async function POST(req: NextRequest) {
           scenes as { id: string; order: number; visualIntent?: string; narration?: string }[],
           corp.photos
         );
+        // 사진 1장 = 최대 1개 장면(중복 배정 차단). 나머지 장면은 스토리 기반 일반 생성.
+        const usedPhoto = new Set<number>();
         const b = db.batch();
         for (const s of scenes as { id: string; order: number }[]) {
           const idx = assigns[s.order];
-          if (typeof idx === "number" && corp.photos[idx]) {
+          if (typeof idx === "number" && corp.photos[idx] && !usedPhoto.has(idx)) {
+            usedPhoto.add(idx);
             photoByScene.set(s.id, corp.photos[idx].url);
             b.update(db.collection("projects").doc(projectId).collection("scenes").doc(s.id), { usePhotoIndex: idx });
           }
