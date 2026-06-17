@@ -69,6 +69,7 @@ export default function CreateForm() {
   const voices = VOICE_LIST;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showConfirm, setShowConfirm] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -83,10 +84,18 @@ export default function CreateForm() {
       if (!companyKo.trim() && !companyEn.trim()) { setError("회사명(국문 또는 영문)을 입력해 주세요"); return; }
     }
 
-    // 업소용: 주제→AI 생성(generate) / 원고 직접 입력→충실 변환(faithful). 그 뒤 매 장면에 사명/로고 반영.
+    // 검증 통과 → 요약 확인 모달
+    setError("");
+    setShowConfirm(true);
+  }
+
+  // 확인 모달에서 "시작" → 실제 생성
+  async function startGeneration() {
+    if (!user) return;
     const submitMode =
       mode === "corporate" ? (corpInput === "script" ? "faithful" : "generate") : mode;
 
+    setShowConfirm(false);
     setLoading(true);
     setError("");
 
@@ -453,6 +462,44 @@ export default function CreateForm() {
           {loading ? "생성 중..." : t("generate")}
         </Button>
       </form>
+
+      {/* 시작 전 요약 확인 모달 */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowConfirm(false)}>
+          <div className="bg-[var(--paper)] rounded-[var(--radius)] w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-[var(--ink)] mb-1">이대로 영상을 만들까요?</h2>
+            <p className="text-xs text-[var(--ink-soft)] mb-4">아래 설정으로 원고·이미지·음성 생성이 시작됩니다.</p>
+            <dl className="text-sm flex flex-col gap-2 mb-5">
+              {[
+                ["방식", mode === "generate" ? "주제로 생성" : mode === "faithful" ? "자료 업로드" : "업소용"],
+                ["입력", mode === "faithful" ? (file?.name ?? "-") : mode === "corporate" && corpInput === "script" ? "원고 직접 입력" : (topic.slice(0, 40) || "-")],
+                ["길이", `${formatLength(targetLength)} · 약 ${sceneCountForLength(targetLength)}장면`],
+                ["화면 비율", aspect],
+                ["화풍", STYLE_PACKS.find((p) => p.id === stylePackId)?.name ?? stylePackId],
+                ["목소리", VOICE_LIST.find((v) => v.id === voiceId)?.name ?? voiceId],
+                ...(mode === "corporate"
+                  ? [
+                      ["회사명", [companyKo, companyEn].filter(Boolean).join(" / ") || "-"] as [string, string],
+                      ["로고", logoFile ? (useLogoRef ? "반영" : "업로드(미반영)") : "없음"] as [string, string],
+                      ["업소 사진", corpPhotos.length ? `${corpPhotos.length}장 (어울리는 장면에 화풍 변환)` : "없음"] as [string, string],
+                    ]
+                  : []),
+              ].map(([k, v]) => (
+                <div key={k} className="flex gap-3">
+                  <dt className="w-20 shrink-0 text-[var(--ink-faint)]">{k}</dt>
+                  <dd className="text-[var(--ink)] flex-1">{v}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowConfirm(false)}>다시 보기</Button>
+              <Button className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)]/90 text-white" onClick={startGeneration}>
+                네, 시작할게요
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
