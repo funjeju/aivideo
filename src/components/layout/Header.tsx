@@ -55,6 +55,9 @@ export default function Header() {
       </a>
       {user ? (
         <div className="flex items-center gap-4">
+          <Link href={`/${locale}/billing`} className="text-sm text-[var(--ink-soft)] hover:text-[var(--accent)]">
+            내 구독
+          </Link>
           {userDoc?.role !== "user" && (
             <Link href={`/${locale}/admin`} className="text-sm text-[var(--ink-soft)] hover:text-[var(--ink)]">
               어드민
