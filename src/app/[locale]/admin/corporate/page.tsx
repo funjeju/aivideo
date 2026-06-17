@@ -20,12 +20,17 @@ const STYLES: { id: StylePackId; name: string }[] = [
 ];
 const ASPECTS: AspectRatio[] = ["9:16", "16:9", "1:1"];
 
-interface Result { image: string; prompt: string; quality: string; usedLogo: boolean; }
+interface Result {
+  image: string; prompt: string; quality: string; usedLogo: boolean; usedPhoto?: boolean;
+  tokens?: { imageInput: number; textInput: number; output: number };
+  costUsd?: number; costKrw?: number;
+}
 
 export default function CorporateTestPage() {
   const [companyKo, setCompanyKo] = useState("");
   const [companyEn, setCompanyEn] = useState("");
   const [logoDataUrl, setLogoDataUrl] = useState("");
+  const [photoDataUrl, setPhotoDataUrl] = useState("");
   const [subject, setSubject] = useState("");
   const [stylePackId, setStylePackId] = useState<StylePackId>("flat-icon");
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
@@ -35,6 +40,7 @@ export default function CorporateTestPage() {
   const [err, setErr] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
 
   function onLogo(f: File | null) {
     if (!f) return;
@@ -42,9 +48,15 @@ export default function CorporateTestPage() {
     r.onload = () => setLogoDataUrl(r.result as string);
     r.readAsDataURL(f);
   }
+  function onPhoto(f: File | null) {
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => setPhotoDataUrl(r.result as string);
+    r.readAsDataURL(f);
+  }
 
   async function generate() {
-    if (!subject.trim()) { setErr("그릴 장면(한 줄)을 입력하세요"); return; }
+    if (!subject.trim() && !photoDataUrl) { setErr("그릴 장면(한 줄)을 입력하거나 업소 사진을 올리세요"); return; }
     setErr("");
     setBusy(true);
     try {
@@ -57,6 +69,7 @@ export default function CorporateTestPage() {
           subject, companyKo, companyEn, quality, aspect, stylePackId,
           logoDataUrl: useLogoRef ? logoDataUrl : "",
           useLogoRef: useLogoRef && !!logoDataUrl,
+          photoDataUrl,
         }),
       });
       const d = await res.json();
@@ -112,7 +125,25 @@ export default function CorporateTestPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-[var(--ink)]">그릴 장면 / 원고 한 줄</label>
+            <label className="text-sm font-medium text-[var(--ink)]">업소 사진 → 화풍 변환 (선택)</label>
+            <div onClick={() => photoRef.current?.click()}
+              className="mt-1 border-2 border-dashed border-[var(--line)] rounded-[var(--radius)] p-4 text-center cursor-pointer hover:border-[var(--accent)]">
+              {photoDataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoDataUrl} alt="photo" className="max-h-40 mx-auto rounded" />
+              ) : (
+                <p className="text-sm text-[var(--ink-soft)]">매장·메뉴·제품 사진 클릭 업로드 → 선택한 화풍으로 변환</p>
+              )}
+              <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0] ?? null)} />
+            </div>
+            {photoDataUrl && (
+              <button type="button" onClick={() => setPhotoDataUrl("")} className="text-xs text-[var(--accent)] mt-1">사진 제거</button>
+            )}
+            <p className="text-xs text-[var(--ink-faint)] mt-1">사진을 올리면 아래 ‘장면’ 대신 이 사진을 화풍으로 변환합니다(구도 유지).</p>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-[var(--ink)]">그릴 장면 / 원고 한 줄 {photoDataUrl && <span className="text-[var(--ink-faint)]">(사진 사용 중 — 비워도 됨)</span>}</label>
             <textarea value={subject} onChange={(e) => setSubject(e.target.value)} rows={3}
               placeholder="예: 회사 건물 앞에서 직원들이 활짝 웃으며 손님을 맞이하는 장면, 입구에 회사 간판"
               className="w-full mt-1 px-3 py-2 rounded border border-[var(--line)] bg-[var(--paper-sunken)] text-sm" />
@@ -151,7 +182,15 @@ export default function CorporateTestPage() {
             <div className="flex flex-col gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={result.image} alt="결과" className="w-full rounded border border-[var(--line)]" />
-              <p className="text-xs text-[var(--ink-soft)]">화질 {result.quality} · 로고반영 {result.usedLogo ? "시도함" : "안함"}</p>
+              <p className="text-xs text-[var(--ink-soft)]">화질 {result.quality} · 로고 {result.usedLogo ? "반영" : "안함"} · 사진변환 {result.usedPhoto ? "예" : "아니오"}</p>
+              {result.costUsd != null && (
+                <div className="text-xs bg-[var(--paper-sunken)] rounded p-2 leading-relaxed">
+                  <b>실측 원가: ${result.costUsd} (≈₩{result.costKrw})</b>
+                  {result.tokens && (
+                    <span className="text-[var(--ink-faint)]"> · 토큰 입력(이미지 {result.tokens.imageInput}/텍스트 {result.tokens.textInput}) 출력 {result.tokens.output}</span>
+                  )}
+                </div>
+              )}
               <details className="text-xs text-[var(--ink-faint)]">
                 <summary className="cursor-pointer">AI에 보낸 프롬프트 보기 (사명/로고 지시 확인)</summary>
                 <p className="mt-1 whitespace-pre-wrap border border-[var(--line)] rounded p-2">{result.prompt}</p>
