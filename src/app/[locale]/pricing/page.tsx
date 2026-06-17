@@ -19,15 +19,15 @@ const TIERS: Tier[] = [
     features: ["1분 영상 2편 체험", "기본 화질(low)", "워터마크 포함", "장면 수정 불가"],
   },
   {
-    id: "tier1", name: "티어1", price: 9900, desc: "취미·입문",
+    id: "tier1", name: "Lite", price: 9900, desc: "취미·입문",
     features: ["월 크레딧 1,100 (1분 ~12편)", "화질 low·medium", "최대 5분", "워터마크 제거", "장면 수정"],
   },
   {
-    id: "tier2", name: "티어2", price: 29000, desc: "크리에이터", highlight: true,
-    features: ["월 크레딧 3,500", "고화질(high)까지", "최대 10분", "동시 제작 3편 + 우선 처리", "업소 홍보영상(사진→화풍)", "프리미엄 목소리(아이·캐릭터)"],
+    id: "tier2", name: "Pro", price: 29000, desc: "크리에이터", highlight: true,
+    features: ["월 크레딧 3,500", "고화질(high)까지", "최대 10분", "동시 제작 3편 + 우선 처리", "업소 홍보영상(사진→화풍)"],
   },
   {
-    id: "tier3", name: "티어3", price: 99000, desc: "비즈니스·팀",
+    id: "tier3", name: "VIP", price: 99000, desc: "비즈니스·팀",
     features: ["월 크레딧 13,000", "고화질(high)", "최대 10분", "동시 제작 5편 + 최우선", "업소용 사진 다수", "(향후) API·대량"],
   },
 ];
