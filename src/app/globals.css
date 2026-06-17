@@ -4,6 +4,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 앵커 메뉴: 부드러운 스크롤 + sticky 헤더(56px) 가림 방지 오프셋 */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 4.5rem;
+}
+
 @theme inline {
   --font-sans: var(--font-sans);
 

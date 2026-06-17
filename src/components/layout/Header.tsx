@@ -3,14 +3,26 @@
 import { useAuth } from "@/components/providers/AuthProvider";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 export default function Header() {
   const { user, userDoc } = useAuth();
   const router = useRouter();
   const params = useParams();
+  const pathname = usePathname();
+  const t = useTranslations("landing");
   const locale = (params?.locale as string) ?? "ko";
+  // 랜딩(루트)에서만 섹션 앵커 메뉴 노출
+  const isLanding = pathname === `/${locale}` || pathname === `/${locale}/`;
+
+  const anchors = [
+    { href: "#how", label: t("navHow") },
+    { href: "#features", label: t("navFeatures") },
+    { href: "#templates", label: t("navGallery") },
+    { href: "#voices", label: t("navVoices") },
+  ];
 
   async function handleSignOut() {
     await signOut(auth);
@@ -18,10 +30,19 @@ export default function Header() {
   }
 
   return (
-    <header className="h-14 border-b border-[var(--line)] bg-[var(--paper-raised)] flex items-center px-6">
+    <header className="sticky top-0 z-40 h-14 border-b border-[var(--line)] bg-[var(--paper-raised)]/95 backdrop-blur flex items-center px-6">
       <Link href={`/${locale}`} className="font-semibold text-[var(--ink)] mr-auto">
         DrawNarrate
       </Link>
+      {isLanding && (
+        <nav className="hidden md:flex items-center gap-6 mr-6">
+          {anchors.map((a) => (
+            <a key={a.href} href={a.href} className="text-sm text-[var(--ink-soft)] hover:text-[var(--accent)] transition-colors">
+              {a.label}
+            </a>
+          ))}
+        </nav>
+      )}
       {user ? (
         <div className="flex items-center gap-4">
           {userDoc?.role !== "user" && (

@@ -56,6 +56,15 @@ export default function Landing() {
             {t("heroCtaSecondary")}
           </a>
         </div>
+
+        {/* 스펙 칩 — 사실 기반 신뢰 요소 */}
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-9">
+          {[t("spec1"), t("spec2"), t("spec3"), t("spec4"), t("spec5")].map((s) => (
+            <span key={s} className="text-xs text-[var(--ink-soft)] border border-[var(--line)] rounded-full px-3 py-1">
+              {s}
+            </span>
+          ))}
+        </div>
       </section>
 
       {/* 작동 방식 */}
@@ -99,8 +108,34 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* 기능 */}
+      <section id="features" className="py-20">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl font-semibold text-[var(--ink)] mb-2">{t("featuresTitle")}</h2>
+            <p className="text-sm text-[var(--ink-soft)]">{t("featuresSubtitle")}</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              { icon: "🎯", title: t("feat1Title"), desc: t("feat1Desc") },
+              { icon: "🎨", title: t("feat2Title"), desc: t("feat2Desc") },
+              { icon: "✂️", title: t("feat3Title"), desc: t("feat3Desc") },
+              { icon: "🏢", title: t("feat4Title"), desc: t("feat4Desc") },
+            ].map((f) => (
+              <div key={f.title} className="flex gap-4 p-5 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-raised)]">
+                <span className="text-2xl leading-none">{f.icon}</span>
+                <div>
+                  <h3 className="font-medium text-[var(--ink)] mb-1">{f.title}</h3>
+                  <p className="text-sm text-[var(--ink-soft)] leading-relaxed">{f.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* 템플릿 갤러리 */}
-      <section className="py-20">
+      <section id="templates" className="bg-[var(--paper-raised)] border-y border-[var(--line)] py-20">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-10">
             <h2 className="text-2xl font-semibold text-[var(--ink)] mb-2">{t("galleryTitle")}</h2>
@@ -129,7 +164,7 @@ export default function Landing() {
       </section>
 
       {/* 목소리 샘플 */}
-      <section className="bg-[var(--paper-raised)] border-y border-[var(--line)] py-20">
+      <section id="voices" className="py-20">
         <div className="max-w-3xl mx-auto px-6">
           <div className="text-center mb-8">
             <h2 className="text-2xl font-semibold text-[var(--ink)] mb-2">{t("voicesTitle")}</h2>
@@ -148,6 +183,29 @@ export default function Landing() {
             ))}
           </div>
           <audio ref={audioRef} className="hidden" />
+        </div>
+      </section>
+
+      {/* 활용 사례 */}
+      <section className="bg-[var(--paper-raised)] border-y border-[var(--line)] py-20">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl font-semibold text-[var(--ink)] mb-2">{t("useTitle")}</h2>
+            <p className="text-sm text-[var(--ink-soft)]">{t("useSubtitle")}</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { icon: "📺", title: t("use1Title"), desc: t("use1Desc") },
+              { icon: "🏪", title: t("use2Title"), desc: t("use2Desc") },
+              { icon: "🎓", title: t("use3Title"), desc: t("use3Desc") },
+            ].map((u) => (
+              <div key={u.title} className="p-5 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper)] text-center">
+                <div className="text-3xl mb-3">{u.icon}</div>
+                <h3 className="font-medium text-[var(--ink)] mb-1">{u.title}</h3>
+                <p className="text-sm text-[var(--ink-soft)] leading-relaxed">{u.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
