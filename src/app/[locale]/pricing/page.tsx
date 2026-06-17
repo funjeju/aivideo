@@ -35,10 +35,15 @@ const TIERS: Tier[] = [
 const won = (n: number) => n.toLocaleString("ko-KR");
 
 export default function PricingPage() {
-  const { user } = useAuth();
+  const { user, userDoc } = useAuth();
   const router = useRouter();
   const params = useParams();
   const locale = params.locale as string;
+
+  // 현재 활성 구독 티어(없거나 만료/해지+기간경과면 없음)
+  const sub = userDoc?.subscription;
+  const activeTier = sub && (sub.status === "active" || (sub.status === "canceled" && sub.currentPeriodEnd > Date.now()))
+    ? sub.tier : null;
 
   const [modalTier, setModalTier] = useState<Tier | null>(null);
   const [email, setEmail] = useState("");
@@ -76,11 +81,20 @@ export default function PricingPage() {
         <p className="text-sm text-[var(--ink-soft)]">주제만 입력하면 그림으로 설명하는 영상이 자동으로.</p>
       </div>
 
-      {/* 사전예약 배너 */}
+      {/* 상단 배너 — 구독 중이면 내 구독 관리, 아니면 사전예약 */}
       <div className="text-center mb-10">
-        <span className="inline-block text-sm font-medium text-[var(--accent)] bg-[var(--accent-soft)] rounded-full px-4 py-2">
-          🎉 정식 출시 전 <b>사전예약</b>하면 <b>평생 30% 할인</b> — 지금 줄 서두세요
-        </span>
+        {activeTier ? (
+          <button
+            onClick={() => router.push(`/${locale}/billing`)}
+            className="inline-block text-sm font-medium text-[var(--accent)] bg-[var(--accent-soft)] rounded-full px-4 py-2 hover:opacity-90"
+          >
+            ✓ 현재 <b>{TIERS.find((t) => t.id === activeTier)?.name ?? activeTier}</b> 이용 중 — 내 구독 관리 →
+          </button>
+        ) : (
+          <span className="inline-block text-sm font-medium text-[var(--accent)] bg-[var(--accent-soft)] rounded-full px-4 py-2">
+            🎉 정식 출시 전 <b>사전예약</b>하면 <b>평생 30% 할인</b> — 지금 줄 서두세요
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -111,7 +125,14 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              {t.id === "free" ? (
+              {activeTier === t.id ? (
+                <button
+                  onClick={() => router.push(`/${locale}/billing`)}
+                  className="w-full py-2.5 rounded-[var(--radius)] bg-[var(--paper-sunken)] text-[var(--ink-soft)] text-sm font-semibold"
+                >
+                  ✓ 이용 중 — 관리
+                </button>
+              ) : t.id === "free" ? (
                 <button
                   onClick={() => router.push(user ? `/${locale}/create` : `/${locale}/auth/signin`)}
                   className="w-full py-2.5 rounded-[var(--radius)] border border-[var(--line)] text-[var(--ink)] text-sm font-medium hover:bg-[var(--paper-sunken)]"
