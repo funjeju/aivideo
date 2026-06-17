@@ -173,6 +173,19 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   }
 
   // 장면 이미지 + 편집 문구를 합성(브라우저 canvas)해 서버에 저장. title 미지정 시 현재 thumbTitle 사용.
+  // 나레이션 편집 자동저장(입력칸 포커스 아웃 시). 승인 안 해도 새로고침/이탈에 안 사라지게.
+  async function saveNarration(sceneId: string) {
+    const edited = editedNarrations[sceneId];
+    if (edited === undefined) return;
+    const scene = scenes.find((s) => s.id === sceneId);
+    if (!scene || edited === scene.narration) return;
+    try {
+      await updateDoc(doc(db, "projects", projectId, "scenes", sceneId), { narration: edited });
+    } catch (e) {
+      console.error("narration save failed:", e);
+    }
+  }
+
   async function chooseThumbnail(url: string, title?: string) {
     if (thumbBusy) return;
     setThumbBusy(url);
@@ -324,7 +337,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
           <p className="text-xs text-[var(--ink-faint)] uppercase tracking-wider mb-1">원고 검토</p>
           <h1 className="text-2xl font-semibold text-[var(--ink)]">{project?.title ?? "원고 검토"}</h1>
           <p className="text-sm text-[var(--ink-soft)] mt-1">
-            나레이션을 확인·수정하세요. 승인 후 이미지 생성이 시작됩니다.
+            나레이션을 확인·수정하세요. 수정은 자동 저장되며, 승인 후 이 원고로 음성·이미지가 만들어집니다.
           </p>
         </div>
 
@@ -341,6 +354,7 @@ export default function ProjectView({ projectId }: { projectId: string }) {
                     onChange={(e) =>
                       setEditedNarrations((prev) => ({ ...prev, [scene.id]: e.target.value }))
                     }
+                    onBlur={() => saveNarration(scene.id)}
                     rows={3}
                     className="w-full resize-none bg-transparent text-sm text-[var(--ink)] focus:outline-none leading-relaxed"
                   />
