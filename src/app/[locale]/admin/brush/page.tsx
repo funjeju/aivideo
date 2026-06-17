@@ -2,6 +2,7 @@
 
 import { useRef, useState, useMemo, useEffect } from "react";
 import { SceneSpec, RevealObject, StylePackId, BrushType, AspectRatio } from "@/lib/types";
+import { STYLE_CATALOG } from "@/lib/style-packs";
 import BrushPlayer, { BrushPlayerHandle } from "./BrushPlayer";
 
 const ASPECTS: { value: AspectRatio; label: string }[] = [
@@ -30,20 +31,8 @@ const BRUSH_TYPES: { id: BrushType; name: string; desc: string }[] = [
   { id: "crayon",     name: "크레용",       desc: "왁스 질감, 군데군데 안 발림" },
 ];
 
-const STYLES: { id: StylePackId; name: string }[] = [
-  { id: "whiteboard", name: "화이트보드" },
-  { id: "ink-wash", name: "수묵담채" },
-  { id: "joseon-reaper", name: "조선 저승사자" },
-  { id: "flat-icon", name: "플랫 아이콘" },
-  { id: "retro-poster", name: "레트로 포스터" },
-  { id: "dark-neon", name: "다크 네온" },
-  { id: "3d-iso", name: "3D 아이소메트릭" },
-  { id: "newspaper-cartoon", name: "신문 만평" },
-  { id: "comic-essay", name: "만화책" },
-  { id: "collage", name: "콜라주" },
-  { id: "minhwa", name: "민화" },
-  { id: "doodle-edu", name: "낙서 교육" },
-];
+// 화풍 목록 = 공용 카탈로그(단일 출처). 새 화풍이 자동 포함됨.
+const STYLES = STYLE_CATALOG;
 
 export default function BrushTestPage() {
   const [imageBase64, setImageBase64] = useState<string>("");

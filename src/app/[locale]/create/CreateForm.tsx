@@ -10,17 +10,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { StylePackId, TargetLength, AspectRatio } from "@/lib/types";
 import { MIN_LENGTH, MAX_LENGTH, formatLength, sceneCountForLength } from "@/lib/length";
 import { VOICES, voicePreviewUrl } from "@/lib/voices";
-import { STYLE_PACKS as STYLE_PACK_DEFS, STYLE_EMOJI } from "@/lib/style-packs";
+import { STYLE_CATALOG } from "@/lib/style-packs";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 
 // 슬라이더 빠른선택 프리셋(틱)
 const LENGTH_PRESETS = [60, 300, 600];
-
-/** 화풍 카탈로그(정렬). 노출 여부는 런타임에 settings/styles override + pack.enabled로 필터. */
-const STYLE_CATALOG = Object.values(STYLE_PACK_DEFS)
-  .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99))
-  .map((p) => ({ id: p.id as StylePackId, name: p.name, desc: p.description, emoji: STYLE_EMOJI[p.id] ?? "🎨", enabled: p.enabled !== false }));
 
 const ASPECTS: { value: AspectRatio; label: string; sub: string; icon: string }[] = [
   { value: "9:16", label: "세로", sub: "숏폼·릴스", icon: "▯" },

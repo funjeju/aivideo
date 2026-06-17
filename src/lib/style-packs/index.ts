@@ -574,6 +574,11 @@ export const STYLE_EMOJI: Record<string, string> = {
   "euro-graphic-novel": "🏛️", "pop-art": "💥", webtoon: "📱",
 };
 
+/** 화풍 카탈로그(정렬). create/admin 등 모든 화풍 선택 UI의 공용 단일 출처. */
+export const STYLE_CATALOG = Object.values(STYLE_PACKS)
+  .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99))
+  .map((p) => ({ id: p.id, name: p.name, desc: p.description, emoji: STYLE_EMOJI[p.id] ?? "🎨", enabled: p.enabled !== false }));
+
 export function getStylePack(id: string): StylePackDoc {
   return STYLE_PACKS[id] ?? STYLE_PACKS.whiteboard;
 }
