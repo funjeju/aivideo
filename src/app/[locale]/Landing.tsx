@@ -14,6 +14,7 @@ export default function Landing() {
   const { user, loading } = useAuth();
 
   const [sel, setSel] = useState<TemplateSample | null>(null);
+  const [manualOpen, setManualOpen] = useState(false); // 상세 매뉴얼 펼침(이미지는 펼칠 때만 로드=트래픽 절약)
   const audioRef = useRef<HTMLAudioElement>(null);
 
   function goStart() {
@@ -75,25 +76,15 @@ export default function Landing() {
             <p className="text-sm text-[var(--ink-soft)]">{t("howSubtitle")}</p>
           </div>
 
-          {/* 워크플로우 — 실제 제품 화면 */}
-          <div className="flex flex-col gap-12 mb-12 max-w-3xl mx-auto">
+          {/* 요약 — 텍스트만(트래픽 0) */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-5 mb-10">
             {WORKFLOW_STEPS.map((s, i) => (
-              <div
-                key={s.key}
-                className={`flex flex-col gap-6 items-center ${i % 2 ? "sm:flex-row-reverse" : "sm:flex-row"}`}
-              >
-                <div className="sm:w-1/2 w-full">
-                  <WorkflowShot src={s.img} alt={s.title} emoji={s.emoji} />
+              <div key={s.key} className="text-center">
+                <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center font-bold">
+                  {i + 1}
                 </div>
-                <div className="sm:w-1/2 w-full">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-8 h-8 rounded-full bg-[var(--accent)] text-white flex items-center justify-center text-sm font-bold shrink-0">
-                      {i + 1}
-                    </span>
-                    <h3 className="font-semibold text-[var(--ink)]">{s.emoji} {s.title}</h3>
-                  </div>
-                  <p className="text-sm text-[var(--ink-soft)] leading-relaxed">{s.caption}</p>
-                </div>
+                <h3 className="font-medium text-[var(--ink)] text-sm mb-1">{s.emoji} {s.title}</h3>
+                <p className="text-xs text-[var(--ink-soft)] leading-relaxed">{s.caption}</p>
               </div>
             ))}
           </div>
@@ -108,6 +99,41 @@ export default function Landing() {
             ))}
             <span className="font-semibold text-[var(--accent)]">{t("benefitTail")}</span>
           </div>
+
+          {/* 상세 매뉴얼 — 펼칠 때만 스크린샷 로드(트래픽 절약) */}
+          <div className="mt-10 text-center">
+            <button
+              onClick={() => setManualOpen((o) => !o)}
+              className="text-sm font-medium text-[var(--accent)] border border-[var(--accent)]/40 rounded-full px-5 py-2 hover:bg-[var(--accent-soft)] transition-colors"
+            >
+              {manualOpen ? "상세 매뉴얼 닫기 ▲" : "상세 매뉴얼 보기 ▼"}
+            </button>
+          </div>
+
+          {manualOpen && (
+            <div className="mt-8 flex flex-col gap-10 max-w-3xl mx-auto">
+              {WORKFLOW_STEPS.map((s, i) => (
+                <div key={s.key} className="bg-[var(--paper)] border border-[var(--line)] rounded-[var(--radius)] p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="w-8 h-8 rounded-full bg-[var(--accent)] text-white flex items-center justify-center text-sm font-bold shrink-0">{i + 1}</span>
+                    <h3 className="font-semibold text-[var(--ink)]">{s.emoji} {s.title}</h3>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-5">
+                    <div className="sm:w-1/2 flex flex-col gap-3">
+                      {s.shots.map((src) => (
+                        <WorkflowShot key={src} src={src} alt={s.title} emoji={s.emoji} />
+                      ))}
+                    </div>
+                    <ul className="sm:w-1/2 flex flex-col gap-2 text-sm text-[var(--ink-soft)] leading-relaxed list-disc pl-5">
+                      {s.details.map((d) => (
+                        <li key={d}>{d}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

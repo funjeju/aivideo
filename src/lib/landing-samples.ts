@@ -44,15 +44,53 @@ export interface WorkflowStep {
   emoji: string;
   title: string;
   caption: string;
-  img: string;
+  /** 상세 매뉴얼 단계별 설명(펼침 시) */
+  details: string[];
+  /** 상세 매뉴얼 스크린샷 URL들(펼침 시에만 로드 — 트래픽 절약). Storage landing/manual/ */
+  shots: string[];
 }
 
 export const WORKFLOW_STEPS: WorkflowStep[] = [
-  { key: "input", emoji: "📝", title: "주제 한 줄, 스타일 선택", caption: "만들 주제만 입력하고 길이·화면비율·화풍·목소리를 고르세요. 자료 업로드와 업소용 영상도 지원합니다." },
-  { key: "script", emoji: "✍️", title: "AI 원고 확인·수정", caption: "AI가 장면별 나레이션을 써줍니다. 마음에 안 드는 문장은 바로 고치세요 — 자동 저장됩니다." },
-  { key: "generate", emoji: "🎬", title: "그려지며 말합니다", caption: "이미지·음성·드로잉 연출을 자동 합성. 말하는 순간에 맞춰 그림이 그려집니다." },
-  { key: "done", emoji: "📤", title: "완성 · 다운로드 · 공유", caption: "mp4로 내려받고 공유 링크 한 번에. 마음에 안 드는 장면만 부분 수정도 가능합니다." },
-].map((s) => ({ ...s, img: `${LANDING_BASE}/workflow/${s.key}.png` }));
+  {
+    key: "input", emoji: "📝", title: "주제 한 줄, 스타일 선택",
+    caption: "만들 주제만 입력하고 길이·화면비율·화풍·목소리를 고르세요. 자료 업로드와 업소용 영상도 지원합니다.",
+    details: [
+      "‘주제로 생성 · 자료 업로드 · 업소용’ 중 선택",
+      "영상 길이를 슬라이더로(1~10분) — 길이에 맞춰 장면 수가 자동 결정",
+      "화면 비율: 세로(숏폼·릴스) · 가로(유튜브) · 정사각(피드)",
+      "13가지 화풍 카드에서 원하는 그림체 선택",
+      "나레이션 목소리 9종 중 선택 후 ‘영상 생성 시작’",
+    ],
+  },
+  {
+    key: "script", emoji: "✍️", title: "AI 원고 확인·수정",
+    caption: "AI가 장면별 나레이션을 써줍니다. 마음에 안 드는 문장은 바로 고치세요 — 자동 저장됩니다.",
+    details: [
+      "AI가 장면(01, 02 …)별로 나레이션을 자동 작성",
+      "각 문장을 직접 수정 가능 — 수정 즉시 자동 저장",
+      "승인하면 이 원고를 기준으로 음성·이미지가 생성됨",
+    ],
+  },
+  {
+    key: "generate", emoji: "🎬", title: "그려지며 말합니다",
+    caption: "이미지·음성·드로잉 연출을 자동 합성. 말하는 순간에 맞춰 그림이 그려집니다.",
+    details: [
+      "음성 합성 → 이미지 생성 → 연출(드로잉 순서) 자동 진행",
+      "단계별 진행률을 실시간 표시",
+      "나레이션이 발화되는 순간에 맞춰 그림이 그려지는 ‘드로잉-리빌’",
+    ],
+  },
+  {
+    key: "done", emoji: "📤", title: "완성 · 다운로드 · 공유",
+    caption: "mp4로 내려받고 공유 링크 한 번에. 마음에 안 드는 장면만 부분 수정도 가능합니다.",
+    details: [
+      "브라우저 미리보기로 확인 후 ‘mp4로 만들기’",
+      "공유 썸네일 자동 생성(문구·장면 직접 수정 가능)",
+      "mp4 다운로드 + 공유 링크 복사(카톡·SNS 미리보기 지원)",
+      "마음에 안 드는 장면만 부분 수정 후 재렌더",
+    ],
+  },
+].map((s) => ({ ...s, shots: [`${LANDING_BASE}/manual/${s.key}.png`] }));
 
 export interface VoiceSample {
   id: string;

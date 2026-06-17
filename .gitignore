@@ -60,3 +60,6 @@ templates/
 style-samples-src/
 
 .vercel
+
+# 매뉴얼 스크린샷 원본(Storage로 업로드해서 사용 — repo엔 미포함)
+images/
