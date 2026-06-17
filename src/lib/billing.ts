@@ -1,6 +1,15 @@
 import { adminDb } from "./firebase/admin";
 import { sceneCountForLength } from "./length";
 
+/** 무료(비면제) 사용자 한도 — 런칭 전 비용 보호. 결제/티어 도입 전 임시 하드캡. */
+export const FREE_VIDEO_LIMIT = 2;       // 최대 2편
+export const FREE_MAX_LENGTH = 60;       // 편당 최대 1분
+
+/** 면제 여부: billingExempt 또는 운영자(staff/superadmin)는 한도 미적용. */
+export function isExemptUser(u: { billingExempt?: boolean; role?: string } | undefined): boolean {
+  return !!u && (u.billingExempt === true || u.role === "staff" || u.role === "superadmin");
+}
+
 /**
  * 예상 외부 API 원가(USD). 승인 단계 잔액 확인용.
  * 장면 수에 비례: 장면당 이미지($0.19)+TTS+렌더 ≈ $0.25, 기본 오버헤드 $0.5.

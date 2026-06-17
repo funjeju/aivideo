@@ -329,6 +329,14 @@ export default function ProjectView({ projectId }: { projectId: string }) {
         signal: AbortSignal.timeout(30000),
         body: JSON.stringify({ projectId }),
       });
+      if (apRes.status === 403) {
+        const d = await apRes.json().catch(() => ({}));
+        if (d.error === "free_limit") {
+          alert(`무료로 만들 수 있는 영상은 ${d.limit ?? 2}편까지예요. (유료 플랜 출시 예정)`);
+          setApproving(false);
+          return;
+        }
+      }
       if (apRes.status === 402) {
         const d = await apRes.json().catch(() => ({}));
         alert(`크레딧이 부족합니다. (보유 $${(d.credits ?? 0).toFixed?.(2) ?? d.credits} / 필요 약 $${d.estimate})\n관리자에게 문의하거나 크레딧을 충전해 주세요.`);
