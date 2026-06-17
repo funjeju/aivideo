@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { ProjectDoc } from "@/lib/types";
 import { formatLength } from "@/lib/length";
+import { getTier } from "@/lib/pricing";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,7 @@ const STYLE_EMOJI: Record<string, string> = {
 
 export default function DashboardClient() {
   const t = useTranslations("dashboard");
-  const { user, loading } = useAuth();
+  const { user, userDoc, loading } = useAuth();
   const params = useParams();
   const router = useRouter();
   const locale = params.locale as string;
@@ -112,12 +113,25 @@ export default function DashboardClient() {
     <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-semibold text-[var(--ink)]">{t("title")}</h1>
-        <button
-          onClick={() => router.push(`/${locale}/create`)}
-          className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          {t("newProject")}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push(`/${locale}/billing`)}
+            className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius)] border border-[var(--line)] text-sm hover:bg-[var(--paper-sunken)]"
+            title="내 구독 · 크레딧"
+          >
+            <span className="text-[var(--ink-soft)]">{getTier(
+              userDoc?.subscription && (userDoc.subscription.status === "active" || userDoc.subscription.currentPeriodEnd > Date.now())
+                ? userDoc.subscription.tier : "free"
+            ).name}</span>
+            <span className="font-semibold text-[var(--ink)] tabular-nums">{(userDoc?.credits ?? 0).toLocaleString("ko-KR")} 크레딧</span>
+          </button>
+          <button
+            onClick={() => router.push(`/${locale}/create`)}
+            className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            {t("newProject")}
+          </button>
+        </div>
       </div>
 
       {projects.length === 0 ? (
