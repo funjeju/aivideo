@@ -67,6 +67,7 @@ export default function BrushTestPage() {
   const [playing, setPlaying] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string>("");
+  const [ttsFailed, setTtsFailed] = useState(false);
   const [error, setError] = useState("");
   const [recording, setRecording] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -178,6 +179,8 @@ export default function BrushTestPage() {
   }
 
   // 생성된 샘플을 붓 테스트 캔버스로 불러오기
+  // 위 "샘플 이미지 생성"에서 내려받는 연동 흐름 — 이미지·화풍과 함께 그 샘플의 주제를 나레이션으로 같이 가져온다.
+  // (하단 단독 업로드는 사용자가 직접 쓴 나레이션을 유지 — 연동/분리 구분)
   function loadSampleForTest(packId: StylePackId, dataUrl: string) {
     setImageBase64(dataUrl);
     const img = new Image();
@@ -185,6 +188,7 @@ export default function BrushTestPage() {
     img.onload = () => setImage(img);
     img.src = dataUrl;
     setStylePackId(packId);
+    if (sampleSubject.trim()) setNarration(sampleSubject.trim()); // 주제 → 나레이션 연동(이미지와 매칭)
     setScene(null);
     setObjects([]);
     setAudioUrl("");
@@ -238,6 +242,7 @@ export default function BrushTestPage() {
     setError("");
     setAnalyzing(true);
     setPlaying(false);
+    setTtsFailed(false);
     // 이전 blob URL 해제
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl("");
@@ -287,7 +292,8 @@ export default function BrushTestPage() {
           const reRes = await fetch("/api/admin/brush-test", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-            body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, durationSec: ttsDuration, aspect, inkSpread, fillRange, subtitles }),
+            // objects를 넘겨 Vision 재호출 스킵 — planner만 새 durationSec로 재계산(빠름)
+            body: JSON.stringify({ imageBase64, narration, stylePackId, brushSize, durationSec: ttsDuration, aspect, inkSpread, fillRange, subtitles, objects: data.objects }),
           });
           if (reRes.ok) {
             const reData = await reRes.json();
@@ -297,6 +303,11 @@ export default function BrushTestPage() {
         }
       } else {
         setObjects(data.objects ?? []);
+        // 나레이션은 있는데 TTS가 실패한 경우 → 사용자에게 표시(조용히 "나레이션 없음"으로 묻히지 않게)
+        if (narration.trim() && ttsRes && !ttsRes.ok) {
+          setTtsFailed(true);
+          console.error("tts-preview failed:", ttsRes.status, await ttsRes.text().catch(() => ""));
+        }
       }
 
       setScene(sceneSpec);
@@ -593,7 +604,11 @@ export default function BrushTestPage() {
 
           {scene && (
             <p className="text-xs text-[var(--ink-soft)]">
-              {audioUrl ? "🔊 나레이션 음성 준비됨 — 재생 시 음성과 붓이 함께 나옵니다" : "나레이션 없음 — 경과 시간 기반으로 재생됩니다"}
+              {audioUrl
+                ? "🔊 나레이션 음성 준비됨 — 재생 시 음성과 붓이 함께 나옵니다"
+                : ttsFailed
+                ? "⚠️ 음성 생성 실패 — '분석'을 다시 눌러 재시도하세요"
+                : "나레이션 없음 — 경과 시간 기반으로 재생됩니다"}
             </p>
           )}
 

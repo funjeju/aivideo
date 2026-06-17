@@ -32,30 +32,36 @@ export async function POST(req: NextRequest) {
   if (!me || !isAdmin(me.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   try {
-    const { imageBase64, narration, stylePackId, brushSize, durationSec, aspect, inkSpread, fillRange, subtitles } = await req.json();
+    const { imageBase64, narration, stylePackId, brushSize, durationSec, aspect, inkSpread, fillRange, subtitles, objects: providedObjects } = await req.json();
     const asp: "9:16" | "16:9" | "1:1" = aspect === "16:9" || aspect === "1:1" ? aspect : "9:16";
-    if (!imageBase64) return NextResponse.json({ error: "imageBase64 required" }, { status: 400 });
     const narr = (narration as string) ?? "";
 
-    // Vision: OCR/의미 분석 (Firestore 저장 없음 — 테스트 전용)
-    const res = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "user",
-          content: [
-            // high: bbox 좌표 정밀도 확보 (low=512px 분석은 박스가 뭉개져 획 배정이 틀어짐)
-            { type: "image_url", image_url: { url: imageBase64, detail: "high" } },
-            { type: "text", text: visionPrompt(narr) },
-          ],
-        },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 1200,
-    });
-    const parsed = JSON.parse(res.choices[0].message.content ?? "{}");
-    // bbox는 정규화 0~1000 그대로 — 렌더러(BBOX_NORM)가 실제 그려지는 크기에 비례 변환
-    const objects: RevealObject[] = parsed.objects ?? [];
+    // 이미 분석된 objects를 넘겨받으면 Vision 스킵(시간/TTS 길이 변경 시 planner만 재계산 → gpt-4o 재호출 방지).
+    let objects: RevealObject[];
+    if (Array.isArray(providedObjects) && providedObjects.length > 0) {
+      objects = providedObjects as RevealObject[];
+    } else {
+      if (!imageBase64) return NextResponse.json({ error: "imageBase64 required" }, { status: 400 });
+      // Vision: OCR/의미 분석 (Firestore 저장 없음 — 테스트 전용)
+      const res = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "user",
+            content: [
+              // high: bbox 좌표 정밀도 확보 (low=512px 분석은 박스가 뭉개져 획 배정이 틀어짐)
+              { type: "image_url", image_url: { url: imageBase64, detail: "high" } },
+              { type: "text", text: visionPrompt(narr) },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 1200,
+      });
+      const parsed = JSON.parse(res.choices[0].message.content ?? "{}");
+      // bbox는 정규화 0~1000 그대로 — 렌더러(BBOX_NORM)가 실제 그려지는 크기에 비례 변환
+      objects = parsed.objects ?? [];
+    }
 
     // Planner: 의미 순서 + 시간 동기화로 sceneSpec 생성
     const pack = getStylePack(stylePackId ?? "ink-wash");
