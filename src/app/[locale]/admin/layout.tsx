@@ -53,6 +53,7 @@ function AdminNav({ locale, t }: { locale: string; t: ReturnType<typeof useTrans
     { href: `/${locale}/admin/members`, label: t("members") },
     { href: `/${locale}/admin/logs`, label: "생성 로그" },
     { href: `/${locale}/admin/templates`, label: t("templates") },
+    { href: `/${locale}/admin/styles`, label: "화풍 관리" },
     { href: `/${locale}/admin/videos`, label: t("videos") },
     { href: `/${locale}/admin/voices`, label: t("voices") },
     { href: `/${locale}/admin/brush`, label: "붓 테스트" },

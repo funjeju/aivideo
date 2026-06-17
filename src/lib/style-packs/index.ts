@@ -443,6 +443,44 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     thumbnailUrls: [],
     sortOrder: 14,
   },
+
+  "cinematic-hype": {
+    id: "cinematic-hype",
+    name: "시네마틱 하이프",
+    description: "보라·청색 네온 글로우 시네마틱 3D 디지털아트. 스포츠·재테크·동기부여 후킹용. (드로잉 리빌보다 페이드 연출에 가까움 — 노출 전 검토)",
+    imagePrompt: {
+      template:
+        "cinematic dramatic 3D digital art illustration, {subject}, glowing neon holographic elements in electric blue, purple and magenta, volumetric god-rays and lighting, dark moody atmospheric background with bokeh and particles, futuristic high-energy hype aesthetic, high contrast, epic motivational cinematic mood, polished render. One bold focal subject.",
+      negative: "flat line drawing, whiteboard, pencil sketch, hand-drawn doodle, paper texture, muted pastel, daylight, plain white background, dense text, paragraphs, multi-panel",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "overlay",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "center-out",
+      strokeStyle: "fill",
+      flowDirection: "center-out",
+      rhythm: "slow-breath",
+      handTool: "pen",
+    },
+    palette: { ink: "#A78BFA", accent: "#22D3EE", paper: "#0A0816" },
+    userSliders: { colorVibrancy: { min: 0, max: 1, default: 0.7 } },
+    enabled: false, // 정의만, 기본 숨김 — 어드민 화풍 관리에서 노출 토글
+    thumbnailUrls: [],
+    sortOrder: 15,
+  },
+};
+
+/** id → 생성 화면 표시용 이모지 (관리/선택 UI 공용). */
+export const STYLE_EMOJI: Record<string, string> = {
+  whiteboard: "✏️", "doodle-edu": "🖊️", "ink-wash": "🖌️", "joseon-reaper": "👻",
+  "flat-icon": "🟦", "retro-poster": "📻", "dark-neon": "🌃", "3d-iso": "🧊",
+  "newspaper-cartoon": "🗞️", "comic-essay": "💬", collage: "✂️", minhwa: "🐯",
+  "drone-light": "✨", "graphic-novel": "📖", "cinematic-hype": "🎬",
 };
 
 export function getStylePack(id: string): StylePackDoc {

@@ -66,5 +66,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+
+    // 전역 설정(화풍 노출 override, 아웃트로 등 비민감 config). 읽기 공개, 쓰기는 서버(admin SDK)만.
+    match /settings/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }

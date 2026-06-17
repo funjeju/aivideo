@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -10,26 +10,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { StylePackId, TargetLength, AspectRatio } from "@/lib/types";
 import { MIN_LENGTH, MAX_LENGTH, formatLength, sceneCountForLength } from "@/lib/length";
 import { VOICES, voicePreviewUrl } from "@/lib/voices";
+import { STYLE_PACKS as STYLE_PACK_DEFS, STYLE_EMOJI } from "@/lib/style-packs";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 
 // 슬라이더 빠른선택 프리셋(틱)
 const LENGTH_PRESETS = [60, 300, 600];
 
-const STYLE_PACKS: { id: StylePackId; name: string; desc: string; emoji: string }[] = [
-  { id: "whiteboard", name: "클래식 화이트보드", desc: "깔끔한 설명 영상 기본기", emoji: "✏️" },
-  { id: "doodle-edu", name: "낙서 교육", desc: "마커 낙서체, 한국 교육 유튜브 스타일", emoji: "🖊️" },
-  { id: "ink-wash", name: "수묵담채", desc: "한지 위 먹선, 심리·철학·역사", emoji: "🖌️" },
-  { id: "joseon-reaper", name: "조선 저승사자", desc: "수묵 산수 + 갓 쓴 내레이터, 위트있는 교양", emoji: "👻" },
-  { id: "flat-icon", name: "플랫 아이콘", desc: "깔끔한 플랫 컬러 아이콘, 또렷한 외곽선", emoji: "🟦" },
-  { id: "retro-poster", name: "레트로 포스터", desc: "미드센추리 빈티지, 따뜻한 색·할프톤", emoji: "📻" },
-  { id: "dark-neon", name: "다크 네온", desc: "어두운 배경 + 네온 글로우", emoji: "🌃" },
-  { id: "3d-iso", name: "3D 아이소메트릭", desc: "3D 블록·입체감 (채움범위↑ 권장)", emoji: "🧊" },
-  { id: "newspaper-cartoon", name: "신문 만평", desc: "흑백 캐리커처, 시사·풍자", emoji: "🗞️" },
-  { id: "comic-essay", name: "만화책", desc: "웹툰 에세이체, 이야기로 기억", emoji: "💬" },
-  { id: "collage", name: "콜라주", desc: "테리 길리엄식 오려붙임, 빈티지·풍자", emoji: "✂️" },
-  { id: "minhwa", name: "민화/조선", desc: "오방색 모티프, 한국사·문화", emoji: "🐯" },
-  { id: "drone-light", name: "드론 라이트쇼", desc: "밤하늘 빛점이 모여 형상을 빚는 연출", emoji: "✨" },
-  { id: "graphic-novel", name: "그래픽노블", desc: "다큐 만화 풀씬, 잉크선+해칭+자연색, 역사·교양", emoji: "📖" },
-];
+/** 화풍 카탈로그(정렬). 노출 여부는 런타임에 settings/styles override + pack.enabled로 필터. */
+const STYLE_CATALOG = Object.values(STYLE_PACK_DEFS)
+  .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99))
+  .map((p) => ({ id: p.id as StylePackId, name: p.name, desc: p.description, emoji: STYLE_EMOJI[p.id] ?? "🎨", enabled: p.enabled !== false }));
 
 const ASPECTS: { value: AspectRatio; label: string; sub: string; icon: string }[] = [
   { value: "9:16", label: "세로", sub: "숏폼·릴스", icon: "▯" },
@@ -46,6 +37,15 @@ export default function CreateForm() {
   const router = useRouter();
   const params = useParams();
   const locale = params.locale as string;
+
+  // 화풍 노출 override (settings/styles). 읽기 실패 시 코드 기본값(pack.enabled) 사용.
+  const [styleOverrides, setStyleOverrides] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    getDoc(doc(db, "settings", "styles"))
+      .then((s) => { if (s.exists()) setStyleOverrides((s.data()?.overrides as Record<string, boolean>) ?? {}); })
+      .catch(() => {});
+  }, []);
+  const styleList = STYLE_CATALOG.filter((s) => styleOverrides[s.id] ?? s.enabled);
 
   const [mode, setMode] = useState<"generate" | "faithful" | "corporate">("generate");
   const [topic, setTopic] = useState("");
@@ -414,7 +414,7 @@ export default function CreateForm() {
         <section>
           <p className="text-sm font-medium text-[var(--ink)] mb-3">{t("style")}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {STYLE_PACKS.map((pack) => (
+            {styleList.map((pack) => (
               <StyleCard
                 key={pack.id}
                 pack={pack}
@@ -476,7 +476,7 @@ export default function CreateForm() {
                 ["입력", mode === "faithful" ? (file?.name ?? "-") : mode === "corporate" && corpInput === "script" ? "원고 직접 입력" : (topic.slice(0, 40) || "-")],
                 ["길이", `${formatLength(targetLength)} · 약 ${sceneCountForLength(targetLength)}장면`],
                 ["화면 비율", aspect],
-                ["화풍", STYLE_PACKS.find((p) => p.id === stylePackId)?.name ?? stylePackId],
+                ["화풍", styleList.find((p) => p.id === stylePackId)?.name ?? stylePackId],
                 ["목소리", VOICE_LIST.find((v) => v.id === voiceId)?.name ?? voiceId],
                 ...(mode === "corporate"
                   ? [
