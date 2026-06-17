@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject, internalHeaders } from "@/lib/auth";
 import { refundCredits } from "@/lib/credits";
+import { logEvent } from "@/lib/genlog";
 
 // Vercel(Pro/fluid) 최대 실행 시간 — 이미지 N장 생성이 길어 기본 한도를 넘김
 export const maxDuration = 800;
@@ -96,6 +97,7 @@ export async function POST(req: NextRequest) {
     const scenes = scenesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const total = scenes.length;
     let done = 0;
+    await logEvent(projectId, "generate_start", { meta: { total } });
 
     // 업소 실제 사진 → 장면 매칭 (생성 1회). 사진이 있으면 AI가 적합 장면에 배치 → 그 장면은 사진을 화풍 변환.
     const corp = project.corporate as { photos?: { url: string; label: string }[] } | undefined;
@@ -187,6 +189,11 @@ export async function POST(req: NextRequest) {
             }
           } catch (e) {
             console.error(`Scene ${scene.id} failed:`, e);
+            await logEvent(projectId, "scene_error", {
+              status: "error",
+              message: e instanceof Error ? e.message : "장면 처리 실패",
+              meta: { sceneId: scene.id, order: scene.order },
+            });
           }
 
           done++;
@@ -213,21 +220,33 @@ export async function POST(req: NextRequest) {
       await db.collection("projects").doc(projectId).update({ creditSettled: true });
     } catch { /* noop */ }
 
+    await logEvent(projectId, "generate_done", {
+      status: "ok",
+      message: `생성 완료 (이미지 ${imageCount}/${total})`,
+      meta: { imageCount, total, imageCostUsd: Math.round(imageCostUsd * 10000) / 10000 },
+    });
     return NextResponse.json({ ok: true, total });
   } catch (e) {
     console.error(e);
     // 생성 실패 → 선차감했던 크레딧 환불(확정 전·미환불 건만)
+    let refunded = 0;
     try {
       const projData = (await db.collection("projects").doc(projectId).get()).data() ?? {};
       const hold = (projData.creditHold as number) ?? 0;
       if (hold > 0 && !projData.creditSettled && !projData.creditRefunded && projData.ownerId) {
         await refundCredits(projData.ownerId as string, hold, projectId, "생성 실패 환불");
         await db.collection("projects").doc(projectId).update({ creditRefunded: true });
+        refunded = hold;
       }
     } catch (re) { console.error("refund failed:", re); }
     await db.collection("projects").doc(projectId).update({
       status: "error",
       updatedAt: FieldValue.serverTimestamp(),
+    });
+    await logEvent(projectId, "error", {
+      status: "error",
+      message: e instanceof Error ? e.message : "생성 파이프라인 실패",
+      meta: refunded > 0 ? { refundedCredits: refunded } : undefined,
     });
     return NextResponse.json({ error: "generate pipeline failed" }, { status: 500 });
   }

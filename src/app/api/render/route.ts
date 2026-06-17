@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
 import { tasksConfigured, enqueueRender, workerUrl } from "@/lib/queue";
+import { logEvent } from "@/lib/genlog";
 
 export const maxDuration = 60;
 
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
       console.error("enqueue failed:", e);
       const detail = e instanceof Error ? e.message : String(e);
       await jobRef.update({ status: "error", error: `enqueue failed: ${detail}`, updatedAt: FieldValue.serverTimestamp() });
+      await logEvent(projectId, "render_error", { status: "error", message: `렌더 큐 적재 실패: ${detail}` });
       return NextResponse.json({ error: "enqueue failed", detail }, { status: 502 });
     }
 
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
       status: "rendering",
       updatedAt: FieldValue.serverTimestamp(),
     });
+    await logEvent(projectId, "render_queued", { status: "ok", message: "렌더 큐 적재", meta: { jobId: jobRef.id } });
 
     return NextResponse.json({ jobId: jobRef.id });
   } catch (e) {

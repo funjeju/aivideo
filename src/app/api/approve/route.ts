@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
 import { FREE_VIDEO_LIMIT, isExemptUser, isBillingEnabled, activeTierId, estimateCredits } from "@/lib/billing";
 import { holdCredits } from "@/lib/credits";
+import { logEvent } from "@/lib/genlog";
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,18 +40,21 @@ export async function POST(req: NextRequest) {
         const used = (u.freeVideosUsed as number) ?? 0;
         const alreadyCounted = projData.countedFree === true;
         if (!alreadyCounted && used >= FREE_VIDEO_LIMIT) {
+          await logEvent(projectId, "blocked", { status: "error", message: "무료 한도 초과", meta: { used, limit: FREE_VIDEO_LIMIT } });
           return NextResponse.json({ error: "free_limit", used, limit: FREE_VIDEO_LIMIT }, { status: 403 });
         }
         if (!alreadyCounted) {
           await userRef.set({ freeVideosUsed: FieldValue.increment(1) }, { merge: true });
           await adminDb().collection("projects").doc(projectId).update({ countedFree: true });
         }
+        await logEvent(projectId, "approve", { status: "ok", message: "승인(무료 체험)", meta: { used: used + (alreadyCounted ? 0 : 1) } });
       } else {
         // 구독자 선차감 — 이 프로젝트를 처음 승인할 때만(재승인·재시도 중복차감 방지)
         const need = estimateCredits(targetLength);
         if (!(projData.creditHold > 0)) {
           const res = await holdCredits(ownerId, need, projectId, "영상 생성 선차감");
           if (!res.ok) {
+            await logEvent(projectId, "blocked", { status: "error", message: "크레딧 부족", meta: { balance: res.balance, need } });
             return NextResponse.json(
               { error: "insufficient_credits", credits: res.balance, estimate: need },
               { status: 402 }
@@ -58,7 +62,10 @@ export async function POST(req: NextRequest) {
           }
           await adminDb().collection("projects").doc(projectId).update({ creditHold: need });
         }
+        await logEvent(projectId, "approve", { status: "ok", message: "승인(구독·선차감)", meta: { charged: need } });
       }
+    } else {
+      await logEvent(projectId, "approve", { status: "ok", message: "승인(면제 계정)" });
     }
 
     await adminDb()
