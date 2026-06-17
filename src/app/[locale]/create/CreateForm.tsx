@@ -28,6 +28,7 @@ const STYLE_PACKS: { id: StylePackId; name: string; desc: string; emoji: string 
   { id: "comic-essay", name: "만화책", desc: "웹툰 에세이체, 이야기로 기억", emoji: "💬" },
   { id: "collage", name: "콜라주", desc: "테리 길리엄식 오려붙임, 빈티지·풍자", emoji: "✂️" },
   { id: "minhwa", name: "민화/조선", desc: "오방색 모티프, 한국사·문화", emoji: "🐯" },
+  { id: "drone-light", name: "드론 라이트쇼", desc: "밤하늘 빛점이 모여 형상을 빚는 연출", emoji: "✨" },
 ];
 
 const ASPECTS: { value: AspectRatio; label: string; sub: string; icon: string }[] = [

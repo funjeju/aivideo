@@ -16,6 +16,7 @@ const STYLES: { id: StylePackId; name: string }[] = [
   { id: "ink-wash", name: "수묵담채" },
   { id: "joseon-reaper", name: "조선 저승사자" },
   { id: "minhwa", name: "민화/조선" },
+  { id: "drone-light", name: "드론 라이트쇼" },
 ];
 const ASPECTS: AspectRatio[] = ["9:16", "16:9", "1:1"];
 

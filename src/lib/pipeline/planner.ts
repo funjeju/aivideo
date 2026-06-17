@@ -53,7 +53,7 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     }));
     return {
       sceneId, order, durationSec, narration, audioUrl,
-      canvas: { aspect, background: stylePack.id === "dark-neon" ? "dark" : ["whiteboard", "doodle-edu", "flat-icon"].includes(stylePack.id) ? "white" : "paper-hanji" },
+      canvas: { aspect, background: ["dark-neon", "drone-light"].includes(stylePack.id) ? "dark" : ["whiteboard", "doodle-edu", "flat-icon"].includes(stylePack.id) ? "white" : "paper-hanji" },
       image: { url: imageUrl, fit: "contain" },
       reveal: { objects: tdObjects },
       overlays: stylePack.overlays.map((o) => ({ ...o })),
@@ -126,7 +126,7 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     audioUrl,
     canvas: {
       aspect,
-      background: stylePack.id === "dark-neon" ? "dark" : ["whiteboard", "doodle-edu", "flat-icon"].includes(stylePack.id) ? "white" : "paper-hanji",
+      background: ["dark-neon", "drone-light"].includes(stylePack.id) ? "dark" : ["whiteboard", "doodle-edu", "flat-icon"].includes(stylePack.id) ? "white" : "paper-hanji",
     },
     image: { url: imageUrl, fit: "contain" },
     reveal: { objects: revealObjects },

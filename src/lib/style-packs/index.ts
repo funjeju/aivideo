@@ -382,6 +382,36 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     thumbnailUrls: [],
     sortOrder: 3,
   },
+
+  "drone-light": {
+    id: "drone-light",
+    name: "드론 라이트쇼",
+    description: "밤하늘에 드론 빛점이 모여 형상을 빚어내는 연출. 리빌이 '빛이 모이는' 느낌.",
+    imagePrompt: {
+      template:
+        "night-sky drone light show, {subject}, the subject formed entirely by thousands of tiny glowing drone light points (dot-matrix of luminous dots), bright bokeh dots in cyan, warm gold, magenta and white against a deep dark night sky, soft glow and sparkle, the dotted shapes clearly outlined. Distinct elements with generous dark spacing between them so each can light up one by one. No solid fills — everything made of separated points of light.",
+      negative: "photorealistic continuous surfaces, daylight, white background, paper texture, solid flat fills, dense overlapping, paragraphs of text",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "in-image",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "center-out",
+      strokeStyle: "fill",
+      flowDirection: "center-out",
+      rhythm: "slow-breath",
+      handTool: "pen",
+    },
+    palette: { ink: "#7DD3FC", accent: "#F0ABFC", paper: "#07060F" },
+    userSliders: { lineWeight: { min: 0, max: 1, default: 0.5 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 13,
+  },
 };
 
 export function getStylePack(id: string): StylePackDoc {

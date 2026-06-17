@@ -30,6 +30,7 @@ export const TEMPLATE_SAMPLES: TemplateSample[] = [
   { id: "comic-essay", name: "만화책", desc: "웹툰 에세이체, 이야기로 기억", youtubeId: "" },
   { id: "collage", name: "콜라주", desc: "오려붙임, 빈티지·풍자", youtubeId: "" },
   { id: "minhwa", name: "민화 / 조선", desc: "오방색 모티프, 한국사·문화", youtubeId: "" },
+  { id: "drone-light", name: "드론 라이트쇼", desc: "밤하늘 빛점이 모여 형상을 빚어냄", youtubeId: "" },
 ].map((t) => ({ ...t, poster: `${STYLE_BASE}/${t.id}.png` })) as TemplateSample[];
 
 export interface VoiceSample {
