@@ -352,6 +352,31 @@ export default function CreateForm() {
           </TabsContent>
         </Tabs>
 
+        {/* 캐릭터 참조 이미지 (선택) — 원고와 길이 사이 */}
+        <section>
+          <p className="text-sm font-medium text-[var(--ink)] mb-1">등장인물 참조 <span className="text-[var(--ink-faint)] font-normal">(선택)</span></p>
+          <p className="text-xs text-[var(--ink-soft)] mb-3">실사·애니 등 모델 이미지를 넣으면, 인물 등장 장면에 그 <b>느낌만</b> 참고해 화풍으로 그려요. (똑같이 안 그림)</p>
+          <input
+            ref={charRefInput} type="file" accept="image/*" className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              setCharRefFile(f);
+              setCharRefPreview(f ? URL.createObjectURL(f) : "");
+            }}
+          />
+          {charRefPreview ? (
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={charRefPreview} alt="character" className="w-16 h-16 rounded-[var(--radius)] object-cover border border-[var(--line)]" />
+              <button type="button" onClick={() => { setCharRefFile(null); setCharRefPreview(""); }} className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)]">제거</button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => charRefInput.current?.click()} className="px-4 py-2 rounded-[var(--radius)] border border-[var(--line)] text-sm text-[var(--ink-soft)] hover:bg-[var(--paper-sunken)]">
+              + 인물 이미지 업로드
+            </button>
+          )}
+        </section>
+
         {/* 영상 길이 — 슬라이더 자유 입력 */}
         <section>
           <div className="flex items-baseline justify-between mb-3">
@@ -424,31 +449,6 @@ export default function CreateForm() {
               />
             ))}
           </div>
-        </section>
-
-        {/* 캐릭터 참조 이미지 (선택) */}
-        <section>
-          <p className="text-sm font-medium text-[var(--ink)] mb-1">등장인물 참조 <span className="text-[var(--ink-faint)] font-normal">(선택)</span></p>
-          <p className="text-xs text-[var(--ink-soft)] mb-3">실사·애니 등 모델 이미지를 넣으면, 인물 등장 장면에 그 <b>느낌만</b> 참고해 화풍으로 그려요. (똑같이 안 그림)</p>
-          <input
-            ref={charRefInput} type="file" accept="image/*" className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0] ?? null;
-              setCharRefFile(f);
-              setCharRefPreview(f ? URL.createObjectURL(f) : "");
-            }}
-          />
-          {charRefPreview ? (
-            <div className="flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={charRefPreview} alt="character" className="w-16 h-16 rounded-[var(--radius)] object-cover border border-[var(--line)]" />
-              <button type="button" onClick={() => { setCharRefFile(null); setCharRefPreview(""); }} className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)]">제거</button>
-            </div>
-          ) : (
-            <button type="button" onClick={() => charRefInput.current?.click()} className="px-4 py-2 rounded-[var(--radius)] border border-[var(--line)] text-sm text-[var(--ink-soft)] hover:bg-[var(--paper-sunken)]">
-              + 인물 이미지 업로드
-            </button>
-          )}
         </section>
 
         {/* 목소리 선택 */}
