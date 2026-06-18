@@ -6,8 +6,8 @@ import { getAuth } from "firebase-admin/auth";
 
 const BASE = process.env.E2E_BASE || "https://easyshorts.net";
 const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-const TOPIC = "물은 왜 위에서 아래로 흐를까?";
-const STYLE = "doodle-edu";
+const TOPIC = process.env.E2E_TOPIC || "물은 왜 위에서 아래로 흐를까?";
+const STYLE = process.env.E2E_STYLE || "doodle-edu";
 const VOICE = "kr-leda";
 
 const sa = JSON.parse(process.env.FIREBASE_ADMIN_SA_KEY);

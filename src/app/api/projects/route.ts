@@ -96,6 +96,19 @@ export async function POST(req: NextRequest) {
       corporate = { companyKo, companyEn, logoUrl, useLogoRef: useLogoRef && !!logoUrl, photos: uploadedPhotos };
     }
 
+    // 캐릭터 참조 이미지(전역 1장) — 인물의 "느낌"만 참고해 등장 장면에 반영. 실사·애니 무관.
+    let characterRefUrl = "";
+    const charRef = formData.get("characterRef") as File | null;
+    if (charRef) {
+      const bucket = adminStorage().bucket();
+      const buffer = Buffer.from(await charRef.arrayBuffer());
+      const filePath = `char-refs/${ownerId}/${Date.now()}_${charRef.name}`;
+      const storageFile = bucket.file(filePath);
+      await storageFile.save(buffer, { metadata: { contentType: charRef.type } });
+      await storageFile.makePublic();
+      characterRefUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+    }
+
     const db = adminDb();
     const docRef = await db.collection("projects").add({
       ownerId,
@@ -109,6 +122,7 @@ export async function POST(req: NextRequest) {
       voiceId,
       contentLocale,
       ...(corporate ? { corporate } : {}),
+      ...(characterRefUrl ? { characterRefUrl } : {}),
       status: "draft",
       scriptApproved: false,
       createdAt: FieldValue.serverTimestamp(),

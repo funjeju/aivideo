@@ -41,6 +41,31 @@ ${photoList}
   return out;
 }
 
+/** 캐릭터(인물) 참조가 있을 때, 사람이 자연스럽게 등장할 장면 order만 선별(LLM 1회). */
+async function matchCharacterScenes(
+  scenes: { order: number; visualIntent?: string; narration?: string }[]
+): Promise<Set<number>> {
+  const list = scenes.map((s) => `${s.order}: ${s.visualIntent || s.narration || ""}`).join("\n");
+  const prompt = `이 영상에는 등장인물(주인공) 참조 이미지가 있다. 아래 장면들 중 **사람(인물)이 자연스럽게 등장할 장면의 order만** 골라라.
+- 인물의 행동·감정·이야기가 담긴 장면 = 포함.
+- 순수 다이어그램·도표·풍경·사물·추상 개념만 있는 장면 = 제외.
+- 억지로 다 넣지 말 것. 인물이 어울리는 장면에만.
+[장면 (번호: 설명)]
+${list}
+출력은 JSON만: {"orders":[번호,...]}`;
+  try {
+    const c = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+    });
+    const parsed = JSON.parse(c.choices[0].message.content || "{}");
+    return new Set((parsed.orders || []).filter((n: unknown) => typeof n === "number"));
+  } catch {
+    return new Set();
+  }
+}
+
 /** 내부 호출 + 타임아웃 + 재시도 (응답 없는 외부 API로 인한 영구 행/누락 방지) */
 async function fetchWithTimeout(url: string, body: object, ms: number, retries = 1): Promise<Response | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -125,6 +150,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 캐릭터(인물) 참조 → 사람 등장 장면 선별. 그 장면들만 참조 인물의 "느낌"을 반영해 생성.
+    const characterRefUrl = project.characterRefUrl as string | undefined;
+    const charScenes = new Set<number>();
+    if (characterRefUrl) {
+      try {
+        const orders = await matchCharacterScenes(
+          scenes as { id: string; order: number; visualIntent?: string; narration?: string }[]
+        );
+        orders.forEach((o) => charScenes.add(o));
+      } catch (e) { console.error("character match failed:", e); }
+    }
+
     // 비용 집계 (CORE 원칙 5: 영상 1편의 외부 API 원가 추적)
     let imageCount = 0;
     let imageCostUsd = 0;
@@ -171,6 +208,7 @@ export async function POST(req: NextRequest) {
               const imgRes = await fetchWithTimeout(`${origin}/api/images`, {
                 projectId, sceneId, visualIntent: scene.visualIntent, stylePackId: project.stylePackId,
                 photoUrl: photoByScene.get(sceneId),
+                characterRefUrl: charScenes.has(scene.order as number) ? characterRefUrl : undefined,
               }, 180000);
               if (imgRes?.ok) {
                 const imgData = await imgRes.json();

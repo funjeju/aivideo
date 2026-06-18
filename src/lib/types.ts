@@ -80,6 +80,8 @@ export interface ProjectDoc {
   keySceneOrder?: number;
   /** 업소용(기업 홍보) 영상이면 브랜드 메타 — 매 장면 이미지에 사명/로고를 반영한다 */
   corporate?: CorporateBrand;
+  /** 캐릭터 참조 이미지(전역 1장). 인물 등장 장면에 "느낌만" 반영해 화풍으로 그린다 */
+  characterRefUrl?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

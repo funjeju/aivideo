@@ -61,6 +61,10 @@ export default function CreateForm() {
   const [targetLength, setTargetLength] = useState<TargetLength>(60);
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
+  // 캐릭터 참조 이미지(선택) — 인물 등장 장면에 "느낌만" 반영
+  const [charRefFile, setCharRefFile] = useState<File | null>(null);
+  const [charRefPreview, setCharRefPreview] = useState("");
+  const charRefInput = useRef<HTMLInputElement>(null);
   const [voiceId, setVoiceId] = useState(VOICE_LIST[0].id);
   const voices = VOICE_LIST;
   const [loading, setLoading] = useState(false);
@@ -107,6 +111,8 @@ export default function CreateForm() {
       formData.append("contentLocale", "ko");
       if (submitMode === "generate") formData.append("topic", topic);
       if (submitMode === "faithful" && file) formData.append("file", file);
+      // 캐릭터 참조 이미지(선택, 모든 모드 공통)
+      if (charRefFile) formData.append("characterRef", charRefFile);
       // 업소용 원고 직접 입력은 파일이 아니라 텍스트로 전달
       if (mode === "corporate" && corpInput === "script") formData.append("sourceText", scriptText);
       if (mode === "corporate") {
@@ -418,6 +424,31 @@ export default function CreateForm() {
               />
             ))}
           </div>
+        </section>
+
+        {/* 캐릭터 참조 이미지 (선택) */}
+        <section>
+          <p className="text-sm font-medium text-[var(--ink)] mb-1">등장인물 참조 <span className="text-[var(--ink-faint)] font-normal">(선택)</span></p>
+          <p className="text-xs text-[var(--ink-soft)] mb-3">실사·애니 등 모델 이미지를 넣으면, 인물 등장 장면에 그 <b>느낌만</b> 참고해 화풍으로 그려요. (똑같이 안 그림)</p>
+          <input
+            ref={charRefInput} type="file" accept="image/*" className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              setCharRefFile(f);
+              setCharRefPreview(f ? URL.createObjectURL(f) : "");
+            }}
+          />
+          {charRefPreview ? (
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={charRefPreview} alt="character" className="w-16 h-16 rounded-[var(--radius)] object-cover border border-[var(--line)]" />
+              <button type="button" onClick={() => { setCharRefFile(null); setCharRefPreview(""); }} className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)]">제거</button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => charRefInput.current?.click()} className="px-4 py-2 rounded-[var(--radius)] border border-[var(--line)] text-sm text-[var(--ink-soft)] hover:bg-[var(--paper-sunken)]">
+              + 인물 이미지 업로드
+            </button>
+          )}
         </section>
 
         {/* 목소리 선택 */}

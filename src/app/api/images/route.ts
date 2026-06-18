@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     projectId = body.projectId;
     sceneId = body.sceneId;
-    const { visualIntent, stylePackId, photoUrl } = body;
+    const { visualIntent, stylePackId, photoUrl, characterRefUrl } = body;
 
     if (!projectId || !sceneId || !visualIntent) {
       return NextResponse.json({ error: "projectId, sceneId, visualIntent required" }, { status: 400 });
@@ -70,11 +70,23 @@ export async function POST(req: NextRequest) {
       } catch { /* 사진 fetch 실패 시 일반 생성으로 폴백 */ }
     }
 
+    // 캐릭터 참조(전역 모델 이미지) — 이 인물의 "분위기·인상만" 느슨하게 참고해 등장시킴(똑같이 베끼지 않음).
+    let charBuf: Buffer | null = null;
+    if (typeof characterRefUrl === "string" && characterRefUrl.startsWith("http")) {
+      try {
+        const r = await fetch(characterRefUrl);
+        if (r.ok) charBuf = Buffer.from(await r.arrayBuffer());
+      } catch { /* 참조 fetch 실패 시 일반 생성으로 폴백 */ }
+    }
+    const charInstr = charBuf
+      ? " 제공된 인물 참조 이미지는 등장인물의 분위기·인상·특징만 느슨하게 참고하라(똑같이 베끼지 말고, 위 화풍에 맞춰 자유롭게 그려라). 이 장면에 그 인물이 자연스럽게 등장하면 된다."
+      : "";
+
     // 사진이 있으면 "이 사진을 화풍으로 변환"(구도 유지), 없으면 일반 생성.
     const styleDesc = pack.imagePrompt.template.replace("{subject}", photoBuf ? "the scene in the provided photo" : visualIntent);
-    const prompt = photoBuf
+    const prompt = (photoBuf
       ? `${styleDesc} 제공된 업소 실제 사진의 구도·공간·핵심 피사체를 유지하되, 위 화풍으로 다시 그려라(사진을 그대로 베끼지 말고 화풍으로 재해석).${brandInstr}`
-      : styleDesc + brandInstr;
+      : styleDesc + brandInstr) + charInstr;
 
     // 화질은 전 영상 low 고정(비용 단순화·예측가능). 티어 차이는 크레딧·멀티큐·길이로만.
     const quality = "low" as const;
@@ -91,6 +103,7 @@ export async function POST(req: NextRequest) {
         const refs = [];
         if (photoBuf) refs.push(await toFile(photoBuf, "photo.png", { type: "image/png" }));
         if (logoBuf) refs.push(await toFile(logoBuf, "logo.png", { type: "image/png" }));
+        if (charBuf) refs.push(await toFile(charBuf, "character.png", { type: "image/png" }));
         if (refs.length > 0) {
           response = await openai.images.edit({ model: "gpt-image-2", image: refs.length === 1 ? refs[0] : refs, prompt, size, quality });
         } else {
