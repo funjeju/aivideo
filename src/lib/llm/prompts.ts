@@ -17,11 +17,15 @@ export function buildScriptPrompt({
   const sceneCount = String(sceneCountForLength(targetLength));
   const langInstruction = contentLocale === "ko" ? "한국어로 작성하라." : `Write in ${contentLocale}.`;
 
+  const lengthInstruction = contentLocale === "ko"
+    ? "**각 장면 나레이션은 한국어 48~56자, 2~3문장으로 작성하라.** 한 문장짜리 너무 짧은 나레이션 금지 — 한 장면을 약 7초간 판서로 그려야 하므로 그 시간을 채울 분량이 필요하다. (한국어 TTS 실측 약 7자/초 → 50자 ≈ 7초)"
+    : "**각 장면 나레이션은 15~22 단어(words), 2~3문장으로 작성하라.** 한 문장짜리 너무 짧은 나레이션 금지 — 한 장면을 약 7초간 판서로 그려야 하므로 그 시간을 채울 분량이 필요하다. (영어 TTS 기준 약 15~22 words ≈ 7초)";
+
   const commonInstruction = `
 - 출력은 반드시 아래 JSON 형식만. 서문·마크다운·설명 일절 금지.
 - scenes 배열의 각 항목: order(정수), narration(구어체 나레이션 문장), visualIntent(이 장면에서 보여줄 그림/도형/키워드 한 줄 묘사).
 - 장면 수: 정확히 ${sceneCount}개. (총 ${targetLength}초 = 이미지 1장당 약 7초). 이 개수를 반드시 지켜라 — 목표 길이를 채우기 위한 핵심이다.
-- **각 장면 나레이션은 한국어 48~56자, 2~3문장으로 작성하라.** 한 문장짜리 너무 짧은 나레이션 금지 — 한 장면을 약 7초간 판서로 그려야 하므로 그 시간을 채울 분량이 필요하다. (한국어 TTS 실측 약 7자/초 → 50자 ≈ 7초)
+- ${lengthInstruction}
 - **【매우 중요】 나레이션은 음성합성(TTS)으로 그대로 읽힌다. TTS는 띄어쓰기와 쉼표로만 끊어읽기를 판단하므로, 읽기 호흡이 정확히 보이도록 써라:**
   · **띄어쓰기를 표준 맞춤법대로 100% 정확히** — 붙여쓰기·오타가 있으면 TTS가 거기서 이상하게 끊거나 뭉갠다. (가장 흔한 prosody 사고 원인)
   · **호흡이 필요한 모든 지점에 쉼표(,)** — 긴 주어 뒤, 긴 수식어구 뒤, 접속어(그래서·하지만·즉·그러나) 앞뒤, 나열 사이. 한 문장이 길면 반드시 중간에 쉼표로 끊어라.

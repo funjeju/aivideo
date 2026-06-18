@@ -52,7 +52,7 @@ export async function synthesizeTTS(text: string, voiceId: string | undefined): 
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         input: { text },
-        voice: { languageCode: "ko-KR", name: voice.googleName },
+        voice: { languageCode: voice.languageCode || "ko-KR", name: voice.googleName },
         audioConfig: { audioEncoding: "MP3" },
       }),
     });

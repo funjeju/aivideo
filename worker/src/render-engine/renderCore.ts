@@ -990,7 +990,8 @@ export function renderSceneFrame(
 
 /** 나레이션을 자막 한 줄 단위(문장→길면 어절)로 분할 */
 function splitCaption(text: string): string[] {
-  const MAX = 28;
+  // 한글이 포함되어 있으면(한국어 영상) 28자, 아니면 영문/글로벌로 간주하고 55자로 확장
+  const MAX = /[가-힣]/.test(text) ? 28 : 55;
   const sentences = text.match(/[^.!?…]+[.!?…]*/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
   const out: string[] = [];
   for (const s of sentences) {
@@ -1027,7 +1028,7 @@ function drawCaption(
   const { width, height } = size;
   const fontPx = Math.round(width * 0.045);
   ctx.save();
-  ctx.font = `600 ${fontPx}px "Pretendard", "Noto Sans KR", "Noto Sans CJK KR", sans-serif`;
+  ctx.font = `600 ${fontPx}px "Inter", "Roboto", "Pretendard", "Noto Sans KR", "Noto Sans CJK KR", sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const padX = fontPx * 0.8;

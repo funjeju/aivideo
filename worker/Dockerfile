@@ -6,7 +6,7 @@ FROM node:22-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     ca-certificates fontconfig \
-    fonts-noto-cjk fonts-nanum \
+    fonts-noto fonts-noto-cjk fonts-nanum fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -11,6 +11,8 @@ export interface VoiceDef {
   gender: "female" | "male";
   /** google일 때 실제 보이스 이름 (예: ko-KR-Chirp3-HD-Puck) */
   googleName?: string;
+  /** BCP-47 언어 코드 (예: ko-KR, en-US). 없으면 기본 ko-KR로 취급 */
+  languageCode?: string;
 }
 
 export const VOICES: VoiceDef[] = [
@@ -23,6 +25,10 @@ export const VOICES: VoiceDef[] = [
   { id: "kr-puck", name: "경쾌한 남성", provider: "google", gender: "male", googleName: "ko-KR-Chirp3-HD-Puck" },
   { id: "kr-fenrir", name: "활달한 남성", provider: "google", gender: "male", googleName: "ko-KR-Chirp3-HD-Fenrir" },
   { id: "kr-orus", name: "단단한 남성", provider: "google", gender: "male", googleName: "ko-KR-Chirp3-HD-Orus" },
+
+  // ── Google Journey (영어 원어민, 자연스러움 최상) ──
+  { id: "en-journey-f", name: "차분한 여성 (EN)", provider: "google", gender: "female", googleName: "en-US-Journey-F", languageCode: "en-US" },
+  { id: "en-journey-d", name: "신뢰감있는 남성 (EN)", provider: "google", gender: "male", googleName: "en-US-Journey-D", languageCode: "en-US" },
 
   // ── OpenAI tts-1 (기존, 폴백·다국어) ──
   { id: "nova", name: "따뜻한 여성 (OpenAI)", provider: "openai", gender: "female" },

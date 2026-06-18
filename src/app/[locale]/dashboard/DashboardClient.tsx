@@ -126,6 +126,12 @@ export default function DashboardClient() {
             <span className="font-semibold text-[var(--ink)] tabular-nums">{(userDoc?.credits ?? 0).toLocaleString("ko-KR")} 크레딧</span>
           </button>
           <button
+            onClick={() => router.push(`/${locale}/create-en`)}
+            className="px-4 py-2 rounded-[var(--radius)] border border-[var(--accent)] text-[var(--accent)] text-sm font-medium hover:bg-[var(--accent-soft)] transition-colors"
+          >
+            영어영상 만들기
+          </button>
+          <button
             onClick={() => router.push(`/${locale}/create`)}
             className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
           >
@@ -193,12 +199,20 @@ function EmptyState({ t, onNew }: { t: ReturnType<typeof useTranslations>; onNew
       </div>
       <p className="text-lg font-medium text-[var(--ink)]">{t("empty")}</p>
       <p className="text-sm text-[var(--ink-soft)] mt-1 mb-6">{t("emptyDesc")}</p>
-      <button
-        onClick={onNew}
-        className="px-6 py-3 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
-      >
-        {t("newProject")}
-      </button>
+      <div className="flex gap-3">
+        <button
+          onClick={() => { const loc = window.location.pathname.split("/")[1] || "ko"; window.location.href = `/${loc}/create-en`; }}
+          className="px-6 py-3 rounded-[var(--radius)] border border-[var(--accent)] text-[var(--accent)] text-sm font-medium hover:bg-[var(--accent-soft)] transition-colors"
+        >
+          영어영상 만들기
+        </button>
+        <button
+          onClick={onNew}
+          className="px-6 py-3 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+        >
+          {t("newProject")}
+        </button>
+      </div>
     </div>
   );
 }
