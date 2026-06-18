@@ -3,6 +3,7 @@
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { readFileSync } from "node:fs";
 
 const BASE = process.env.E2E_BASE || "https://easyshorts.net";
 const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
@@ -63,6 +64,11 @@ async function createBareProject(uid, title) {
   fd.append("ownerId", uid); fd.append("mode", "generate"); fd.append("targetLength", "60");
   fd.append("aspect", "9:16"); fd.append("stylePackId", STYLE); fd.append("voiceId", VOICE);
   fd.append("contentLocale", "ko"); fd.append("topic", TOPIC);
+  if (process.env.E2E_CHARREF) {
+    const buf = readFileSync(process.env.E2E_CHARREF);
+    fd.append("characterRef", new Blob([buf], { type: "image/png" }), "ref.png");
+    log("캐릭터 참조 첨부:", process.env.E2E_CHARREF);
+  }
   let r = await api("/api/projects", token, fd, { form: true });
   log("① /api/projects", r.status, JSON.stringify(r.json).slice(0, 120));
   const projectId = r.json.projectId;
@@ -120,6 +126,7 @@ async function createBareProject(uid, title) {
   console.log("\n===== E2E 결과 =====");
   console.log("projectId :", projectId);
   console.log("status    :", p.status);
+  console.log("캐릭터참조 :", p.characterRefUrl ? "저장됨 ✅" : "없음");
   console.log("장면 이미지:", `${withImg}/${finalScenes.length}`);
   console.log("썸네일    :", p.thumbnailUrl ? "있음" : "없음");
   console.log("영상 mp4  :", videoUrl ? "있음 ✅" : "없음 ❌");
