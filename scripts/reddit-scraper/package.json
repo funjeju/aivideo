@@ -1,0 +1,16 @@
+{
+  "name": "reddit-scraper",
+  "version": "1.0.0",
+  "description": "Scrape Reddit and analyze posts with LLM for Easyshorts",
+  "main": "index.js",
+  "scripts": {
+    "scrape": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^16.3.1",
+    "firebase-admin": "^12.0.0",
+    "openai": "^4.0.0"
+  }
+}

@@ -51,6 +51,7 @@ function AdminNav({ locale, t }: { locale: string; t: ReturnType<typeof useTrans
   const navItems = [
     { href: `/${locale}/admin`, label: t("title") },
     { href: `/${locale}/admin/members`, label: t("members") },
+    { href: `/${locale}/admin/insights`, label: "인사이트 DB" },
     { href: `/${locale}/admin/logs`, label: "생성 로그" },
     { href: `/${locale}/admin/templates`, label: t("templates") },
     { href: `/${locale}/admin/styles`, label: "화풍 관리" },

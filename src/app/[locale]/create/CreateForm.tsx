@@ -187,6 +187,15 @@ export default function CreateForm() {
     // &t= 캐시버스트 제거 — 같은 URL이라야 브라우저가 캐싱해 두 번째부턴 즉각 재생.
     audio.pause();
     audio.src = v.previewUrl || `/api/voice-preview?voiceId=${v.id}`;
+    
+    // 캐시된 URL에서 404 등 로드 실패 시, 동적 API를 통해 실시간 생성 및 저장 시도
+    audio.onerror = () => {
+      audio.onerror = null;
+      audio.src = `/api/voice-preview?voiceId=${v.id}`;
+      audio.load();
+      audio.play().catch(() => {});
+    };
+
     audio.load();
     audio.play().catch(() => {});
   }
