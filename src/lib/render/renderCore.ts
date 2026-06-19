@@ -84,6 +84,7 @@ type Cv = { c: HTMLCanvasElement | null };
 const _mask: Cv = { c: null };
 const _masked: Cv = { c: null };
 const _tmp: Cv = { c: null };
+const _blurredMask: Cv = { c: null };
 function scratch(ref: Cv, w: number, h: number): HTMLCanvasElement {
   if (!ref.c) ref.c = _createCanvas(w, h);
   if (ref.c.width !== w) ref.c.width = w;
@@ -927,13 +928,22 @@ export function renderSceneFrame(
           const xctx = masked.getContext("2d")!;
           xctx.clearRect(0, 0, width, height);
           xctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
-          xctx.globalCompositeOperation = "destination-in";
           const isTextured = ["pencil", "charcoal", "dry", "bristle", "crayon"].includes(brushType);
           const baseEdgeBlur = isTextured ? 0 : Math.max(1, baseW * 0.08); // 약간의 기본 안티앨리어싱 (질감 붓 제외)
-          const edgeBlur = baseEdgeBlur + (inkSpread * baseW * (isTextured ? 0.15 : 0.8));
-          if (edgeBlur > 0) xctx.filter = `blur(${edgeBlur}px)`;
-          xctx.drawImage(mask, 0, 0);
-          if (edgeBlur > 0) xctx.filter = "none";
+          const edgeBlur = baseEdgeBlur + (inkSpread * baseW * (isTextured ? 0.05 : 0.25));
+
+          let finalMask = mask;
+          if (edgeBlur > 0) {
+            finalMask = scratch(_blurredMask, width, height);
+            const bctx = finalMask.getContext("2d")!;
+            bctx.clearRect(0, 0, width, height);
+            bctx.filter = `blur(${edgeBlur}px)`;
+            bctx.drawImage(mask, 0, 0);
+            bctx.filter = "none";
+          }
+
+          xctx.globalCompositeOperation = "destination-in";
+          xctx.drawImage(finalMask, 0, 0);
           xctx.globalCompositeOperation = "source-over";
 
           ctx.drawImage(masked, 0, 0);
