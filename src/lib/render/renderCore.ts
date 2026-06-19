@@ -517,20 +517,17 @@ function strokePathOnMask(
   mctx.fillStyle = "#fff";
 
   if (brushType === "round") {
-    // ─ 기본 둥근 붓: 가변 두께 + 잉크 튐 ─
+    // ─ 기본 둥근 붓: 부드럽고 고른 두께(자연 리빌) ─
+    // 잉크 튐(랜덤 점)·과한 두께 변동 제거 — 마스크에 회색 점·얇은 가닥 자국이 남던 직접 원인.
     // shadowBlur 미사용: CPU 캔버스(worker)에서 그림자가 프레임당 비용 폭증(렌더 2배). 부드러움은 fade+채움 blur로 충분.
     mctx.lineCap = "round"; mctx.lineJoin = "round";
     mctx.shadowBlur = 0;
     for (let i = 1; i <= n; i++) {
       const p0 = path[i - 1], p1 = path[i];
-      mctx.lineWidth = baseW * (0.5 + 0.3 * (0.5 + 0.5 * Math.sin(i * 0.35)));
+      // 두께 변동 최소화(0.85~1.0×) → 얇게 비치는 회색 가닥 없이 솔리드하게.
+      mctx.lineWidth = baseW * (0.85 + 0.15 * (0.5 + 0.5 * Math.sin(i * 0.35)));
       mctx.globalAlpha = i > n - fade ? Math.max(0.08, (n - i) / fade) : 1;
       mctx.beginPath(); mctx.moveTo(p0.x, p0.y); mctx.lineTo(p1.x, p1.y); mctx.stroke();
-      if (rnd() < 0.35) {
-        const r = baseW * (0.12 + rnd() * 0.3);
-        mctx.globalAlpha = 0.5 + rnd() * 0.5;
-        mctx.beginPath(); mctx.arc(p1.x + (rnd() - 0.5) * baseW, p1.y + (rnd() - 0.5) * baseW, r, 0, Math.PI * 2); mctx.fill();
-      }
     }
 
   } else if (brushType === "dry") {
