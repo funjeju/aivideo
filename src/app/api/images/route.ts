@@ -84,11 +84,17 @@ export async function POST(req: NextRequest) {
 
     // 사진이 있으면 "이 사진을 화풍으로 변환"(구도 유지), 없으면 일반 생성.
     const styleDesc = pack.imagePrompt.template.replace("{subject}", photoBuf ? "the scene in the provided photo" : visualIntent);
-    const prompt = (photoBuf
-      ? `${styleDesc} 제공된 업소 실제 사진의 구도·공간·핵심 피사체를 유지하되, 위 화풍으로 다시 그려라(사진을 그대로 베끼지 말고 화풍으로 재해석).${brandInstr}`
-      : styleDesc + brandInstr) + charInstr;
+    
+    // 영어 프로젝트인 경우 한글(및 텍스트) 생성 원천 차단
+    const textBan = projData?.contentLocale === "en" 
+      ? " ABSOLUTELY NO KOREAN CHARACTERS, NO HANGUL, NO TEXT, NO WORDS inside the image." 
+      : "";
 
-    // 화질은 전 영상 low 고정(비용 단순화·예측가능). 티어 차이는 크레딧·멀티큐·길이로만.
+    const prompt = (photoBuf
+      ? `${styleDesc} 제공된 장소 실제 사진의 구도·공간·핵심 피사체를 유지하되, 이 화풍으로 다시 그려라(사진을 그대로 베끼지 말고 화풍으로 재해석).${brandInstr}`
+      : styleDesc + brandInstr) + charInstr + textBan;
+
+    // 화질은 무조건 low 고정(비용 단순화·예측가능성). 티어 차이는 프레임·비디오·길이로만.
     const quality = "low" as const;
 
     let imageUrl = "";
