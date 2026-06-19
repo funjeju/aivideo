@@ -60,6 +60,7 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
       reveal: { objects: tdObjects },
       overlays: stylePack.overlays.map((o) => ({ ...o })),
       hand: { enabled: showBrush !== false, asset: handAsset || defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1, brushType: brushType ?? "round", inkSpread, fillRange },
+      flowMode: "topdown",
       subtitles,
     };
   }
@@ -134,6 +135,7 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     reveal: { objects: revealObjects },
     overlays: stylePack.overlays.map((o) => ({ ...o })),
     hand: { enabled: showBrush !== false, asset: handAsset || defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1, brushType: brushType ?? "round", inkSpread, fillRange },
+    flowMode: "sync",
     subtitles,
   };
 }

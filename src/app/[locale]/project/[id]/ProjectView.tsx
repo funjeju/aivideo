@@ -45,12 +45,36 @@ export default function ProjectView({ projectId }: { projectId: string }) {
   const lastProgressRef = useRef<number | null>(null);
   // status가 "approved"(=생성 트리거 안 됨)일 때 클라가 직접 생성을 켠다. 마운트당 1회.
   const genTriggeredRef = useRef(false);
+  // 완료 프로젝트 열 때 현재 붓 프리셋을 sceneSpec에 1회 재반영(미리보기 즉시 일치). 마운트당 1회.
+  const brushRefreshedRef = useRef(false);
 
   // 정체 감지용 시계 (30초마다) — generating이 멈췄는지 판단
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
+
+  // 완료 프로젝트를 열면, 현재 저장된 붓 프리셋을 sceneSpec에 1회 재반영.
+  // (diff 가드라 바뀐 게 없으면 서버에서 no-op) onSnapshot이 갱신을 받아 미리보기가 최신 붓을 그린다.
+  useEffect(() => {
+    if (brushRefreshedRef.current) return;
+    if (viewState !== "done") return;
+    if (scenes.length === 0) return;
+    brushRefreshedRef.current = true;
+    (async () => {
+      try {
+        const { getIdToken } = await import("@/lib/clientAuth");
+        const token = await getIdToken();
+        await fetch("/api/project/refresh-brush", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ projectId }),
+        });
+      } catch {
+        // 실패해도 무시 — 기존 sceneSpec으로 미리보기. 렌더 직전에도 재반영됨.
+      }
+    })();
+  }, [viewState, scenes.length, projectId]);
 
   // 썸네일 편집 문구 초기화(1회): LLM 훅 → 없으면 제목
   useEffect(() => {
@@ -536,6 +560,42 @@ export default function ProjectView({ projectId }: { projectId: string }) {
               <p className="text-[var(--ink-soft)]">장면 데이터를 불러오는 중...</p>
             )}
             <p className="text-[10px] text-[var(--ink-faint)] mt-1 text-center">▲ 영상 미리보기</p>
+            {(() => {
+              const h = sceneSpecs[0]?.hand;
+              if (!h) return null;
+              const BRUSH_NAMES: Record<string, string> = {
+                round: "둥근 붓", dry: "드라이브러시", flat: "평붓", bristle: "강모붓",
+                ink: "먹/캘리", pencil: "연필", charcoal: "목탄", watercolor: "수채", crayon: "크레용",
+              };
+              const TOOL_NAMES: Record<string, string> = {
+                brush: "붓", marker: "마커", pen: "펜", "hand-pen": "손+펜", "hand-brush": "손+붓", "hand-marker": "손+마커",
+              };
+              const flow = sceneSpecs[0]?.flowMode === "topdown" ? "위→아래" : "나레이션 동기";
+              const items: [string, string][] = [
+                ["화풍", project?.stylePackId ?? "—"],
+                ["흐름", flow],
+                ["도구", TOOL_NAMES[h.asset] ?? h.asset],
+                ["붓 종류", BRUSH_NAMES[h.brushType ?? "round"] ?? (h.brushType ?? "—")],
+                ["붓 크기", `${(h.size ?? 1).toFixed(1)}×`],
+                ["붓 개수", `${h.count ?? 1}개`],
+                ["붓 속도", `${(h.speed ?? 1).toFixed(2)}×`],
+                ["번짐", `${Math.round((h.inkSpread ?? 0.5) * 100)}%`],
+                ["채움범위", `${Math.round((h.fillRange ?? 1) * 100)}%`],
+              ];
+              return (
+                <div className="mt-3 border border-[var(--line)] rounded-[var(--radius)] p-3 bg-[var(--paper-sunken)]">
+                  <p className="text-[11px] font-semibold text-[var(--ink)] mb-2">적용된 붓 속성 (붓테스트 저장값과 대조용)</p>
+                  <div className="grid grid-cols-3 gap-x-3 gap-y-1.5">
+                    {items.map(([k, v]) => (
+                      <div key={k} className="flex flex-col">
+                        <span className="text-[10px] text-[var(--ink-faint)]">{k}</span>
+                        <span className="text-xs text-[var(--ink)] tabular-nums">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* 공유 썸네일 — 카톡·블로그 등에 퍼갈 때 보이는 이미지 */}

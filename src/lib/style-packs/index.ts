@@ -583,6 +583,44 @@ export function getStylePack(id: string): StylePackDoc {
   return STYLE_PACKS[id] ?? STYLE_PACKS.whiteboard;
 }
 
+/**
+ * en 영상일 때만 화풍 템플릿에서 "한글 라벨을 유도하는 맥락어"를 중화한다.
+ *
+ * 보존 원칙(부작용 방지): 화풍을 정의하는 한국 미술 용어(korean ink wash, Korean folk
+ * painting/minhwa, Korean webtoon, Korean ink-and-brush 등)는 그대로 둔다 — 그건 사용자가
+ * 고른 그림체 정체성이라 지우면 스타일이 깨진다. 제거 대상은 그림체와 무관한 두 가지뿐:
+ *   (1) 청중/맥락 표지("Korean educational YouTube") — 한국 유튜브 맥락이 한글 글씨를 강하게 유도.
+ *   (2) 프롬프트 안의 리터럴 한글(예: 저승사자) — en 이미지에 그대로 새겨질 위험.
+ * ko는 원본 템플릿을 그대로 반환한다(영향 없음).
+ */
+export function localizeTemplate(template: string, locale: string): string {
+  if (locale !== "en") return template;
+  let t = template;
+  // (1) 청중/맥락 표지만 중화 — "Korean"만 떼어내 그림체(whiteboard doodle 등)는 유지.
+  t = t.replace(/Korean educational YouTube/gi, "educational");
+  // (2) 프롬프트 내 리터럴 한글 → 로마자.
+  t = t.replace(/저승사자/g, "Joseon-era grim reaper");
+  // 안전망: 남은 단독 한글 블록 제거(향후 템플릿에 한글이 섞여도 en 이미지로 새지 않게).
+  t = t.replace(/[가-힣]+/g, "").replace(/\(\s*:/g, "(").replace(/\s{2,}/g, " ");
+  return t;
+}
+
+/**
+ * 이미지(gpt-image-2) 안에 그려지는 글자·라벨의 "언어"를 contentLocale에 맞춰 못박는 지시.
+ * 라벨 언어 통제의 단일 출처. ko/en 대칭 설계 — ko는 한글이, en은 영어가 또렷이 나오게 한다.
+ *
+ * 핵심: 라벨 자체를 막지 않는다(전면 금지 ✗). 필요한 라벨은 분명히 그리되 "언어"만 고정한다.
+ * 배경: 한국 소개 등 영어권 영상에서 이미지에 한글이 섞여 나오던 문제 → 과거엔 en에서 텍스트를
+ *       통째로 금지(NO TEXT)해 우회했으나, 그러면 영어 라벨까지 사라진다. 언어만 고정해 둘 다 해결.
+ */
+export function inImageTextDirective(locale: string): string {
+  if (locale === "en") {
+    return " CRITICAL — IN-IMAGE TEXT LANGUAGE: Every letter, word, label, sign, or caption rendered inside the image MUST be written in clear, correctly-spelled ENGLISH only. Do NOT render any Korean / Hangul characters or any non-Latin script anywhere in the image, even when the subject is about Korea — transliterate Korean names into the Latin alphabet (e.g. 'Hanbok', 'Seoul', 'Kimchi'). The ONLY exception is an exact brand or company name explicitly specified elsewhere in this prompt, which must be rendered exactly as written.";
+  }
+  // ko (기본)
+  return " 매우 중요 — 이미지 속 글자 언어: 화면 안에 그려지는 모든 글자·라벨·간판·자막은 또렷하고 맞춤법에 맞는 한국어(한글)로 표기하라. 라벨이 필요한 곳에는 한글 라벨을 분명히 그려라. 영어·외국어 글자를 불필요하게 섞지 말 것(약어·고유명사·브랜드명 등 꼭 필요한 경우만 원문 그대로 허용).";
+}
+
 /** 비율 → GPT Image 2 지원 해상도 (canvas.aspect와 정합) */
 export function imageSizeForAspect(aspect: string): "1024x1024" | "1024x1536" | "1536x1024" {
   switch (aspect) {

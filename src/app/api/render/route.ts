@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
 import { tasksConfigured, enqueueRender, workerUrl } from "@/lib/queue";
 import { logEvent } from "@/lib/genlog";
+import { rebakeBrushPresets } from "@/lib/pipeline/rebake";
 
 export const maxDuration = 60;
 
@@ -30,7 +31,16 @@ export async function POST(req: NextRequest) {
     if (!projectSnap.exists) {
       return NextResponse.json({ error: "project not found" }, { status: 404 });
     }
-    const ownerId = projectSnap.data()?.ownerId;
+    const project = projectSnap.data()!;
+    const ownerId = project.ownerId;
+
+    // 렌더 직전 현재 붓 프리셋을 모든 장면 sceneSpec.hand에 다시 굽는다(동결 해제).
+    // 실패해도 렌더는 진행(기존 sceneSpec으로 폴백) — 렌더를 막지 않는다.
+    try {
+      await rebakeBrushPresets(db, projectId, project);
+    } catch (e) {
+      console.error("brush re-bake failed (rendering with existing sceneSpec):", e);
+    }
 
     // renderJobs 문서 생성
     const jobRef = await db.collection("renderJobs").add({

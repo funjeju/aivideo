@@ -136,6 +136,8 @@ export interface SceneSpec {
   camera?: Array<{ at: number; scale: number; x: number; y: number }>;
   overlays?: Array<{ type: string; asset: string; opacity?: number; pos?: [number, number]; trigger?: string }>;
   hand?: { enabled: boolean; asset: string; size?: number; count?: number; speed?: number; brushType?: BrushType; inkSpread?: number; fillRange?: number };
+  /** 그리기 흐름: sync(나레이션 동기) | topdown(위→아래). 표시·diff용으로 sceneSpec에 기록. */
+  flowMode?: "sync" | "topdown";
   /** 하단 자막 표시 (기본 true). 나레이션 구절을 음성에 맞춰 자동 표시 */
   subtitles?: boolean;
 

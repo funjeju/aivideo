@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI, { toFile } from "openai";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
-import { getStylePack, imageSizeForAspect } from "@/lib/style-packs";
+import { getStylePack, imageSizeForAspect, inImageTextDirective, localizeTemplate } from "@/lib/style-packs";
 import { FieldValue } from "firebase-admin/firestore";
 import { authorizeRequest, ownsProject } from "@/lib/auth";
 
@@ -83,16 +83,17 @@ export async function POST(req: NextRequest) {
       : "";
 
     // 사진이 있으면 "이 사진을 화풍으로 변환"(구도 유지), 없으면 일반 생성.
-    const styleDesc = pack.imagePrompt.template.replace("{subject}", photoBuf ? "the scene in the provided photo" : visualIntent);
+    // en 영상이면 템플릿의 한글-라벨 유도 맥락어를 먼저 중화(화풍 정의어는 보존).
+    const tmpl = localizeTemplate(pack.imagePrompt.template, projData?.contentLocale ?? "ko");
+    const styleDesc = tmpl.replace("{subject}", photoBuf ? "the scene in the provided photo" : visualIntent);
     
-    // 영어 프로젝트인 경우 한글(및 텍스트) 생성 원천 차단
-    const textBan = projData?.contentLocale === "en" 
-      ? " ABSOLUTELY NO KOREAN CHARACTERS, NO HANGUL, NO TEXT, NO WORDS inside the image." 
-      : "";
+    // 이미지 속 라벨 "언어"를 콘텐츠 언어(ko/en)에 맞춰 고정 — 라벨 단일 출처(style-packs).
+    // ko=한글 또렷이 / en=영어만(한글 금지). 라벨을 막지 않고 언어만 고정한다.
+    const textDirective = inImageTextDirective(projData?.contentLocale ?? "ko");
 
     const prompt = (photoBuf
       ? `${styleDesc} 제공된 장소 실제 사진의 구도·공간·핵심 피사체를 유지하되, 이 화풍으로 다시 그려라(사진을 그대로 베끼지 말고 화풍으로 재해석).${brandInstr}`
-      : styleDesc + brandInstr) + charInstr + textBan;
+      : styleDesc + brandInstr) + charInstr + textDirective;
 
     // 화질은 무조건 low 고정(비용 단순화·예측가능성). 티어 차이는 프레임·비디오·길이로만.
     const quality = "low" as const;
