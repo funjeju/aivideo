@@ -63,6 +63,7 @@ export interface ProjectDoc {
   mode: ProjectMode;
   sourceText: string;
   sourceFileUrl?: string;
+  showBrush?: boolean;
   targetLength: TargetLength;
   aspect: AspectRatio;
   stylePackId: StylePackId;

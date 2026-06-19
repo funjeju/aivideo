@@ -61,6 +61,7 @@ export default function CreateEnForm() {
   const [targetLength, setTargetLength] = useState<TargetLength>(60);
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
+  const [showBrush, setShowBrush] = useState(true);
   // 캐릭터 참조 이미지(선택) — 인물 등장 장면에 "느낌만" 반영
   const [charRefFile, setCharRefFile] = useState<File | null>(null);
   const [charRefPreview, setCharRefPreview] = useState("");
@@ -107,6 +108,7 @@ export default function CreateEnForm() {
       formData.append("targetLength", String(targetLength));
       formData.append("aspect", aspect);
       formData.append("stylePackId", stylePackId);
+      formData.append("showBrush", String(showBrush));
       formData.append("voiceId", voiceId);
       formData.append("contentLocale", "en");
       if (submitMode === "generate") formData.append("topic", topic);
@@ -183,19 +185,14 @@ export default function CreateEnForm() {
   function previewVoice(v: { id: string; previewUrl?: string }) {
     const audio = audioRef.current;
     if (!audio) return;
-    // 공개 Storage URL을 직접 재생(브라우저 캐시 → 즉시). 없으면 라우트 폴백.
-    // &t= 캐시버스트 제거 — 같은 URL이라야 브라우저가 캐싱해 두 번째부턴 즉각 재생.
     audio.pause();
     audio.src = v.previewUrl || `/api/voice-preview?voiceId=${v.id}`;
-    
-    // 캐시된 URL에서 404 등 로드 실패 시, 동적 API를 통해 실시간 생성 및 저장 시도
     audio.onerror = () => {
       audio.onerror = null;
       audio.src = `/api/voice-preview?voiceId=${v.id}`;
       audio.load();
       audio.play().catch(() => {});
     };
-
     audio.load();
     audio.play().catch(() => {});
   }
@@ -447,7 +444,13 @@ export default function CreateEnForm() {
 
         {/* 화풍 선택 — 샘플 이미지 카드 */}
         <section>
-          <p className="text-sm font-medium text-[var(--ink)] mb-3">{t("style")}</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-[var(--ink)]">Style (Art style)</p>
+            <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
+              <input type="checkbox" checked={showBrush} onChange={(e) => setShowBrush(e.target.checked)} className="accent-[var(--accent)]" />
+              Show Brush
+            </label>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {styleList.map((pack) => (
               <StyleCard
@@ -509,10 +512,11 @@ export default function CreateEnForm() {
               {[
                 ["방식", mode === "generate" ? "주제로 생성" : mode === "faithful" ? "자료 업로드" : "업소용"],
                 ["입력", mode === "faithful" ? (file?.name ?? "-") : mode === "corporate" && corpInput === "script" ? "원고 직접 입력" : (topic.slice(0, 40) || "-")],
-                ["길이", `${formatLength(targetLength)} · 약 ${sceneCountForLength(targetLength)}장면`],
-                ["화면 비율", aspect],
-                ["화풍", styleList.find((p) => p.id === stylePackId)?.name ?? stylePackId],
-                ["목소리", EN_VOICE_LIST.find((v) => v.id === voiceId)?.name ?? voiceId],
+                ["Length", `${formatLength(targetLength)} target / ~${sceneCountForLength(targetLength)} scenes`],
+                ["Aspect", aspect],
+                ["Style", styleList.find((p) => p.id === stylePackId)?.name ?? stylePackId],
+                ["Show Brush", showBrush ? "Yes" : "No"],
+                ["Voice", EN_VOICE_LIST.find((v) => v.id === voiceId)?.name ?? voiceId],
                 ...(mode === "corporate"
                   ? [
                       ["회사명", [companyKo, companyEn].filter(Boolean).join(" / ") || "-"] as [string, string],

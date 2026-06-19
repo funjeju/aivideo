@@ -61,7 +61,8 @@ export default function CreateForm() {
   const [targetLength, setTargetLength] = useState<TargetLength>(60);
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
-  // 캐릭터 참조 이미지(선택) — 인물 등장 장면에 "느낌만" 반영
+  const [showBrush, setShowBrush] = useState(true);
+  // 캐릭터 참조 이미지(단 1장) - 인물이 등장하는 장면에 "주인공" 반영
   const [charRefFile, setCharRefFile] = useState<File | null>(null);
   const [charRefPreview, setCharRefPreview] = useState("");
   const charRefInput = useRef<HTMLInputElement>(null);
@@ -107,6 +108,7 @@ export default function CreateForm() {
       formData.append("targetLength", String(targetLength));
       formData.append("aspect", aspect);
       formData.append("stylePackId", stylePackId);
+      formData.append("showBrush", String(showBrush));
       formData.append("voiceId", voiceId);
       formData.append("contentLocale", "ko");
       if (submitMode === "generate") formData.append("topic", topic);
@@ -447,7 +449,13 @@ export default function CreateForm() {
 
         {/* 화풍 선택 — 샘플 이미지 카드 */}
         <section>
-          <p className="text-sm font-medium text-[var(--ink)] mb-3">{t("style")}</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-[var(--ink)]">{t("style")}</p>
+            <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
+              <input type="checkbox" checked={showBrush} onChange={(e) => setShowBrush(e.target.checked)} className="accent-[var(--accent)]" />
+              붓 표시 (그리기 효과)
+            </label>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {styleList.map((pack) => (
               <StyleCard
@@ -509,9 +517,10 @@ export default function CreateForm() {
               {[
                 ["방식", mode === "generate" ? "주제로 생성" : mode === "faithful" ? "자료 업로드" : "업소용"],
                 ["입력", mode === "faithful" ? (file?.name ?? "-") : mode === "corporate" && corpInput === "script" ? "원고 직접 입력" : (topic.slice(0, 40) || "-")],
-                ["길이", `${formatLength(targetLength)} · 약 ${sceneCountForLength(targetLength)}장면`],
+                ["길이", `${formatLength(targetLength)} 목표 / 약 ${sceneCountForLength(targetLength)}컷`],
                 ["화면 비율", aspect],
                 ["화풍", styleList.find((p) => p.id === stylePackId)?.name ?? stylePackId],
+                ["붓 표시", showBrush ? "사용" : "숨김"],
                 ["목소리", VOICE_LIST.find((v) => v.id === voiceId)?.name ?? voiceId],
                 ...(mode === "corporate"
                   ? [

@@ -9,7 +9,6 @@
  *
  * 결정적: 같은 SceneSpec + 같은 t → 같은 픽셀 (랜덤은 seeded).
  */
-// worker 격리본 — 메인 src/lib/render/renderCore.ts의 복사본. 수정 시 양쪽 동기화 + sceneHash v 증가.
 import { SceneSpec, RevealObject, BrushType } from "./types.js";
 import { createSeededRandom, hashSeed } from "./seededRandom.js";
 
@@ -85,6 +84,7 @@ type Cv = { c: HTMLCanvasElement | null };
 const _mask: Cv = { c: null };
 const _masked: Cv = { c: null };
 const _tmp: Cv = { c: null };
+const _blurredMask: Cv = { c: null };
 function scratch(ref: Cv, w: number, h: number): HTMLCanvasElement {
   if (!ref.c) ref.c = _createCanvas(w, h);
   if (ref.c.width !== w) ref.c.width = w;
@@ -928,8 +928,22 @@ export function renderSceneFrame(
           const xctx = masked.getContext("2d")!;
           xctx.clearRect(0, 0, width, height);
           xctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
+          const isTextured = ["pencil", "charcoal", "dry", "bristle", "crayon"].includes(brushType);
+          const baseEdgeBlur = isTextured ? 0 : Math.max(1, baseW * 0.08); // 약간의 기본 안티앨리어싱 (질감 붓 제외)
+          const edgeBlur = baseEdgeBlur + (inkSpread * baseW * (isTextured ? 0.05 : 0.25));
+
+          let finalMask = mask;
+          if (edgeBlur > 0) {
+            finalMask = scratch(_blurredMask, width, height);
+            const bctx = finalMask.getContext("2d")!;
+            bctx.clearRect(0, 0, width, height);
+            bctx.filter = `blur(${edgeBlur}px)`;
+            bctx.drawImage(mask, 0, 0);
+            bctx.filter = "none";
+          }
+
           xctx.globalCompositeOperation = "destination-in";
-          xctx.drawImage(mask, 0, 0);
+          xctx.drawImage(finalMask, 0, 0);
           xctx.globalCompositeOperation = "source-over";
 
           ctx.drawImage(masked, 0, 0);
@@ -990,8 +1004,7 @@ export function renderSceneFrame(
 
 /** 나레이션을 자막 한 줄 단위(문장→길면 어절)로 분할 */
 function splitCaption(text: string): string[] {
-  // 한글이 포함되어 있으면(한국어 영상) 28자, 아니면 영문/글로벌로 간주하고 55자로 확장
-  const MAX = /[가-힣]/.test(text) ? 28 : 55;
+  const MAX = 28;
   const sentences = text.match(/[^.!?…]+[.!?…]*/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
   const out: string[] = [];
   for (const s of sentences) {
@@ -1028,7 +1041,7 @@ function drawCaption(
   const { width, height } = size;
   const fontPx = Math.round(width * 0.045);
   ctx.save();
-  ctx.font = `600 ${fontPx}px "Inter", "Roboto", "Pretendard", "Noto Sans KR", "Noto Sans CJK KR", sans-serif`;
+  ctx.font = `600 ${fontPx}px "Pretendard", "Noto Sans KR", "Noto Sans CJK KR", sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const padX = fontPx * 0.8;
