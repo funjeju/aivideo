@@ -98,6 +98,8 @@ export async function POST(req: NextRequest) {
       title: parsed.title ?? "",
       thumbnailHook: typeof parsed.thumbnailHook === "string" ? parsed.thumbnailHook : (parsed.title ?? ""),
       keySceneOrder: Number.isFinite(parsed.keySceneOrder) ? Math.round(parsed.keySceneOrder) : 1,
+      // 반복 등장 인물 외형 시트(있으면) — 이미지 생성 때 매 장면 프롬프트에 주입해 인물 일관성 유지
+      characterSheet: typeof parsed.characterSheet === "string" ? parsed.characterSheet.trim() : "",
       status: "script_ready",
       updatedAt: FieldValue.serverTimestamp(),
       "costLog.llmCostUsd": llmCostUsd,

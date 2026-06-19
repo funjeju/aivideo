@@ -91,9 +91,18 @@ export async function POST(req: NextRequest) {
     // ko=한글 또렷이 / en=영어만(한글 금지). 라벨을 막지 않고 언어만 고정한다.
     const textDirective = inImageTextDirective(projData?.contentLocale ?? "ko");
 
+    // 반복 등장 인물 일관성: 원고 LLM이 만든 characterSheet가 있으면 매 장면에 주입.
+    // 인물이 그려질 때만 적용(장면에 사람 없으면 모델이 무시). 텍스트라 추가 비용 없음.
+    const charSheet = typeof projData?.characterSheet === "string" ? projData.characterSheet.trim() : "";
+    const charSheetInstr = charSheet
+      ? (projData?.contentLocale === "en"
+          ? ` CHARACTER CONSISTENCY: if a person appears in this scene, they MUST match this exact appearance (same face, hair, build, clothing as in every other scene): ${charSheet}.`
+          : ` 등장인물 일관성: 이 장면에 인물이 등장하면 반드시 다음 외형을 정확히 유지하라(다른 모든 장면과 같은 얼굴·헤어·체형·복장): ${charSheet}.`)
+      : "";
+
     const prompt = (photoBuf
       ? `${styleDesc} 제공된 장소 실제 사진의 구도·공간·핵심 피사체를 유지하되, 이 화풍으로 다시 그려라(사진을 그대로 베끼지 말고 화풍으로 재해석).${brandInstr}`
-      : styleDesc + brandInstr) + charInstr + textDirective;
+      : styleDesc + brandInstr) + charInstr + charSheetInstr + textDirective;
 
     // 화질은 무조건 low 고정(비용 단순화·예측가능성). 티어 차이는 프레임·비디오·길이로만.
     const quality = "low" as const;

@@ -34,12 +34,14 @@ export function buildScriptPromptKo({
 - **title은 클릭을 부르는 강한 훅으로 작성하라**: 호기심을 자극하는 질문 또는 의외의 사실, 12~22자 내외.
 - **thumbnailHook**: 위 title보다 **더 짧고 더 자극적인** 썸네일 문구. **14자 이내**, 한눈에 꽂히게.
 - **keySceneOrder**: scenes 중 **가장 임팩트가 강해 썸네일 배경으로 쓸 장면의 order 번호**.
+- **characterSheet**: 이 영상에 **반복 등장하는 주인공(인물)**이 있으면, 모든 장면에서 똑같이 그려지도록 그 인물의 고정 외형을 한 줄로 묘사하라(성별·대략 나이·체형·헤어·얼굴 특징·복장·색감). 인물이 없거나 장면마다 다른 사람이 나오면 빈 문자열("")로 둬라. 예: "20대 후반 한국 남성, 마른 체형, 검은 단발, 짙은 눈썹, 네이비 후드티". 이 묘사는 화면 일관성용이며 나레이션에는 영향을 주지 않는다.
 
 출력 형식:
 {
   "title": "영상 제목",
   "thumbnailHook": "14자 이내 자극적 문구",
   "keySceneOrder": 3,
+  "characterSheet": "반복 등장 인물 외형 한 줄 (없으면 \"\")",
   "scenes": [
     { "order": 1, "narration": "...", "visualIntent": "..." }
   ]
@@ -96,12 +98,14 @@ export function buildScriptPromptEn({
 - **"title" MUST be a strong, click-inducing hook**: 4-8 words. Provoke curiosity.
 - **"thumbnailHook"**: Even shorter and punchier than the title. **Max 4 words**, extremely eye-catching for a thumbnail.
 - **"keySceneOrder"**: The order number of the most visually impactful scene to be used as the thumbnail background.
+- **"characterSheet"**: If the video has a **recurring main character (a person)**, describe their fixed appearance in one line so they are drawn identically in every scene (gender, approx age, build, hair, facial features, clothing, colors). If there is no person, or each scene shows different people, set it to an empty string (""). e.g. "Korean man in his late 20s, slim build, short black hair, thick eyebrows, navy hoodie". This is for visual consistency only; it does not affect the narration.
 
 Output Format:
 {
   "title": "Video Title",
   "thumbnailHook": "Punchy Hook",
   "keySceneOrder": 3,
+  "characterSheet": "one-line appearance of the recurring character (\"\" if none)",
   "scenes": [
     { "order": 1, "narration": "...", "visualIntent": "..." }
   ]
