@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, Fragment } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,9 @@ interface RedditRaw {
 }
 
 export default function InsightsAdminPage() {
+  const params = useParams();
+  const router = useRouter();
+  const locale = params.locale as string;
   const [posts, setPosts] = useState<RedditRaw[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -263,6 +267,18 @@ export default function InsightsAdminPage() {
                             <div className="text-sm font-semibold text-[var(--ink)]">{post.analysis.topic}</div>
                             <div className="text-xs text-[var(--ink-soft)] mt-0.5">앵글: {post.analysis.angle}</div>
                             <div className="text-xs text-[var(--ink)] mt-1 whitespace-pre-wrap">{post.analysis.summary}</div>
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs mt-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const a = post.analysis!;
+                                const topic = a.summary ? `${a.topic}\n\n참고 내용: ${a.summary}` : a.topic;
+                                router.push(`/${locale}/create?topic=${encodeURIComponent(topic)}`);
+                              }}
+                            >
+                              🎬 이 주제로 영상 만들기 →
+                            </Button>
                           </div>
                         )}
                         <div>

@@ -44,6 +44,12 @@ export default function CreateForm() {
 
   const [mode, setMode] = useState<"generate" | "faithful" | "corporate">("generate");
   const [topic, setTopic] = useState("");
+
+  // 인사이트 DB 등에서 ?topic=... 로 넘어오면 주제 프리필(생성 모드)
+  useEffect(() => {
+    const t0 = new URLSearchParams(window.location.search).get("topic");
+    if (t0) { setMode("generate"); setTopic(t0); }
+  }, []);
   const [file, setFile] = useState<File | null>(null);
   // 업소용(기업) 영상 — 사명/로고를 매 장면에 반영
   const [companyKo, setCompanyKo] = useState("");
