@@ -72,15 +72,19 @@ async function getPostDetails(page, postUrl) {
       const bodyEl = document.querySelector(".top-matter .usertext-body");
       const selftext = bodyEl ? bodyEl.innerText : "";
 
-      const commentEls = Array.from(document.querySelectorAll(".commentarea > .sitetable > .comment")).slice(0, 3);
+      // 상위(top 정렬) 댓글을 넉넉히 — 본문이 사진/링크인 글은 댓글이 곧 콘텐츠라 충분히 긁는다.
+      const commentEls = Array.from(document.querySelectorAll(".commentarea > .sitetable > .comment")).slice(0, 40);
       const comments = commentEls.map(c => {
         const body = c.querySelector(".usertext-body");
         const score = c.querySelector(".score.unvoted");
         return {
-          body: body ? body.innerText : "",
+          body: body ? body.innerText.trim() : "",
           ups: score ? score.innerText : "0"
         };
-      });
+      })
+      // 삭제/빈 댓글 제외, 본문 있는 것만, 최대 25개
+      .filter(c => c.body && c.body !== "[deleted]" && c.body !== "[removed]")
+      .slice(0, 25);
 
       return { selftext, comments };
     });
