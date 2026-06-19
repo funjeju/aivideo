@@ -18,6 +18,7 @@ interface RedditRaw {
   top_comments: any[];
   analyzed: boolean;
   analysis?: { topic: string; angle: string; summary: string; worth: number; at: string };
+  triage?: { worth: number; cat: string };
 }
 
 export default function InsightsAdminPage() {
@@ -33,7 +34,9 @@ export default function InsightsAdminPage() {
   const [systemStatus, setSystemStatus] = useState<any>(null);
 
   // 정렬 상태 (client-side)
-  const [sortBy, setSortBy] = useState<"date" | "ups" | "comments">("ups");
+  const [sortBy, setSortBy] = useState<"date" | "ups" | "comments" | "worth">("ups");
+  const [onlyWorthy, setOnlyWorthy] = useState(false); // 영상거리(★3+)만 보기
+  const [triaging, setTriaging] = useState(false);
   // 펼친 행(본문·댓글 보기)
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // AI 분석 진행 중인 행
@@ -65,12 +68,33 @@ export default function InsightsAdminPage() {
   }, []);
 
   const sortedPosts = useMemo(() => {
-    const arr = [...posts];
+    let arr = [...posts];
+    if (onlyWorthy) arr = arr.filter((p) => (p.triage?.worth ?? 0) >= 3);
     if (sortBy === "ups") arr.sort((a, b) => b.ups - a.ups);
     else if (sortBy === "comments") arr.sort((a, b) => b.comments_count - a.comments_count);
+    else if (sortBy === "worth") arr.sort((a, b) => (b.triage?.worth ?? 0) - (a.triage?.worth ?? 0) || b.comments_count - a.comments_count);
     else arr.sort((a, b) => new Date(b.post_date).getTime() - new Date(a.post_date).getTime());
     return arr;
-  }, [posts, sortBy]);
+  }, [posts, sortBy, onlyWorthy]);
+
+  async function triggerTriage() {
+    if (triaging) return;
+    setTriaging(true);
+    try {
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
+      const res = await fetch("/api/admin/insight-triage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { alert("선별 실패"); return; }
+      setSortBy("worth"); // 결과를 영상거리순으로 바로 보여줌
+    } catch {
+      alert("네트워크 오류");
+    } finally {
+      setTriaging(false);
+    }
+  }
 
   function triggerScrape() {
     // Reddit은 비-브라우저/서버 요청을 차단해(403), 수집은 실제 크롬(Puppeteer)이 필요하다.
@@ -143,6 +167,9 @@ export default function InsightsAdminPage() {
             <Button size="sm" onClick={triggerScrape} disabled={systemStatus?.isRunning} className="h-7 text-xs">
               {systemStatus?.isRunning ? "수집 중..." : "스크래퍼 시작"}
             </Button>
+            <Button size="sm" variant="outline" onClick={triggerTriage} disabled={triaging} className="h-7 text-xs" title="제목을 AI로 평가해 영상거리만 골라냄(사진·짤 제외)">
+              {triaging ? "선별 중..." : "✨ 자동 선별"}
+            </Button>
           </div>
           
           {/* 스크래퍼 실시간 진행 상태 UI */}
@@ -171,10 +198,14 @@ export default function InsightsAdminPage() {
 
         </div>
         
-        {/* 정렬 버튼 */}
-        <div className="flex gap-2 self-end">
+        {/* 정렬 + 필터 */}
+        <div className="flex gap-2 self-end items-center">
+          <label className="flex items-center gap-1 text-xs text-[var(--ink-soft)] mr-2 cursor-pointer">
+            <input type="checkbox" checked={onlyWorthy} onChange={(e) => setOnlyWorthy(e.target.checked)} className="accent-[var(--accent)]" />
+            영상거리만(★3+)
+          </label>
           <span className="text-xs text-[var(--ink-soft)] self-center mr-1">정렬:</span>
-          {(["date", "ups", "comments"] as const).map(f => (
+          {(["worth", "date", "ups", "comments"] as const).map(f => (
             <button
               key={f}
               onClick={() => setSortBy(f)}
@@ -184,7 +215,7 @@ export default function InsightsAdminPage() {
                   : "bg-[var(--paper-sunken)] text-[var(--ink-soft)] hover:text-[var(--ink)]"
               }`}
             >
-              {f === "date" ? "최신순" : f === "ups" ? "좋아요순" : "댓글순"}
+              {f === "worth" ? "영상거리순" : f === "date" ? "최신순" : f === "ups" ? "좋아요순" : "댓글순"}
             </button>
           ))}
         </div>
@@ -230,6 +261,15 @@ export default function InsightsAdminPage() {
                   <td className="p-3">
                     <div className="font-medium text-[var(--ink)] line-clamp-2 flex items-start gap-1" title={post.title}>
                       <span className="text-[var(--ink-faint)] mt-0.5">{expanded ? "▼" : "▶"}</span>
+                      {post.triage && (
+                        <span className={`shrink-0 mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          post.triage.worth >= 4 ? "bg-red-100 text-red-700"
+                          : post.triage.worth >= 3 ? "bg-amber-100 text-amber-700"
+                          : "bg-gray-100 text-gray-400"
+                        }`} title={`영상거리 ${post.triage.worth}/5 · ${post.triage.cat}`}>
+                          ★{post.triage.worth} {post.triage.cat}
+                        </span>
+                      )}
                       <span>{post.title}</span>
                     </div>
                     <div className="text-[10px] text-[var(--ink-faint)] mt-1 truncate max-w-xl pl-4">
