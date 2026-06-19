@@ -29,11 +29,12 @@ export async function POST(req: NextRequest) {
       .map((c: { body?: string; ups?: string | number }, i: number) => `${i + 1}. (▲${c.ups ?? 0}) ${c.body ?? ""}`)
       .join("\n");
 
-    const prompt = `너는 해외 반응·인사이트 영상의 기획자다. 아래는 Reddit(${p.subreddit}) 인기 글과 댓글이다.
-이 토론에서 한국 시청자가 흥미로워할 "영상 한 편" 거리를 뽑아라.
+    const bodyText = (p.selftext && p.selftext.trim()) || (p.article_text && p.article_text.trim()) || "";
+    const prompt = `너는 해외 반응·인사이트 영상의 기획자다. 아래는 Reddit(${p.subreddit}) 인기 글과 그 본문/기사, 댓글이다.
+이 내용에서 한국 시청자가 흥미로워할 "영상 한 편" 거리를 뽑아라.
 
 [제목] ${p.title}
-[본문] ${p.selftext || "(없음 — 사진/링크 글)"}
+${p.source_url ? `[출처] ${p.source_domain || p.source_url}\n` : ""}[본문/기사] ${bodyText || "(본문 없음 — 사진 글. 제목과 댓글 반응 위주로 판단)"}
 [인기 댓글]
 ${commentText || "(없음)"}
 

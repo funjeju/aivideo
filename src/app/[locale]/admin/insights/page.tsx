@@ -15,6 +15,9 @@ interface RedditRaw {
   comments_count: number;
   post_date: string;
   selftext: string;
+  article_text?: string;
+  source_url?: string;
+  source_domain?: string;
   top_comments: any[];
   analyzed: boolean;
   analysis?: { topic: string; angle: string; summary: string; worth: number; at: string };
@@ -273,7 +276,9 @@ export default function InsightsAdminPage() {
                       <span>{post.title}</span>
                     </div>
                     <div className="text-[10px] text-[var(--ink-faint)] mt-1 truncate max-w-xl pl-4">
-                      {post.selftext ? post.selftext : comments.length ? `💬 댓글 ${comments.length}개 — 펼쳐보기` : "(본문 없음)"}
+                      {post.selftext || post.article_text
+                        ? (post.article_text && !post.selftext ? "📄 기사 본문 + " : "") + (post.selftext || post.article_text)
+                        : comments.length ? `💬 댓글 ${comments.length}개 — 펼쳐보기` : "(본문 없음 — 사진 글)"}
                     </div>
                   </td>
                   <td className="p-3 text-right font-semibold text-red-500 tabular-nums">
@@ -322,9 +327,11 @@ export default function InsightsAdminPage() {
                           </div>
                         )}
                         <div>
-                          <div className="text-[11px] font-semibold text-[var(--ink-soft)] mb-1">본문</div>
-                          <div className="text-xs text-[var(--ink)] whitespace-pre-wrap">
-                            {post.selftext?.trim() || <span className="text-[var(--ink-faint)]">(본문 없음 — 사진/링크 글)</span>}
+                          <div className="text-[11px] font-semibold text-[var(--ink-soft)] mb-1">
+                            {post.selftext?.trim() ? "본문" : post.article_text?.trim() ? `기사 본문 (${post.source_domain || "출처"})` : "본문"}
+                          </div>
+                          <div className="text-xs text-[var(--ink)] whitespace-pre-wrap max-h-60 overflow-y-auto">
+                            {post.selftext?.trim() || post.article_text?.trim() || <span className="text-[var(--ink-faint)]">(본문 없음 — 사진 글. 댓글 반응 위주)</span>}
                           </div>
                         </div>
                         <div>
