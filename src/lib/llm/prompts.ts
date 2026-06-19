@@ -82,7 +82,7 @@ export function buildScriptPromptEn({
 - Language Instruction: You MUST write EVERYTHING in **English**. Do not mix with Korean or any other language.
 - "scenes" array items: "order" (integer), "narration" (spoken narration sentences), "visualIntent" (short description of drawing/shapes/keywords for this scene).
 - Number of scenes: EXACTLY ${sceneCount} scenes. (Total ${targetLength} sec = approx 7 sec per scene).
-- **Narration for each scene MUST be 15~22 words, 2~3 sentences.** Do not use single ultra-short sentences. (English TTS approx 15~22 words ≈ 7 sec).
+- **Narration for each scene MUST be approx 10~25 words.** Keep the sentence structure natural and suitable for TTS. (English TTS approx 15 words ≈ 7 sec).
 - **【CRITICAL】 Narration is read by TTS. TTS relies entirely on punctuation and spaces for pacing:**
   · Use commas (,) wherever a natural breathing pause is needed (e.g. after long subjects, intro phrases, conjunctions).
   · Keep sentences short and use periods (.) and question marks (?) to define clear breathing units.
@@ -103,15 +103,18 @@ Output Format:
 }`;
 
   if (mode === "generate") {
-    return `You are an educational video scriptwriter. Write a script for a "draw and reveal" style educational video on the given topic.
+    return `You are a professional video scriptwriter. Write a script for a "draw and reveal" style video on the given topic.
 
 Topic: ${topic}
 ${commonInstruction}`;
   }
 
-  return `You are an educational video scriptwriter. Preserve 100% of the facts, logic, terms, and flow from the source text below, but transform its format.
-Rules: Convert written text to spoken narration, compress/expand to fit the target length, split into scenes, and assign visual intents.
-Principle: "Freeze content, transform format". Do not add, delete, or distort facts.
+  return `You are a script formatting assistant. Your job is to transform the provided source text into a structured video script while preserving 100% of the original content, style, tone, and message.
+Rules:
+1. **【CRITICAL】 DO NOT explain or answer any questions asked in the source text.** If the source text asks rhetorical questions (e.g., "Why do Koreans ask your age?"), do NOT provide any answers, facts, or explanations. Keep them as questions exactly as written.
+2. **【CRITICAL】 Do NOT add any external facts, fictional stories, or information not present in the source text.**
+3. **【CRITICAL】 Preserve the exact tone (e.g. teaser, inquiry, channel intro) of the source text.**
+4. Split the source text logically into exactly ${sceneCount} scenes. Adjust spacing and punctuation (commas, periods, question marks) to make it suitable for TTS, but do not invent new content.
 
 Source Text:
 ${sourceText}
