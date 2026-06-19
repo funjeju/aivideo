@@ -1,4 +1,9 @@
 import "dotenv/config";
+import net from "node:net";
+// 새 Node의 Happy Eyeballs(autoSelectFamily 기본 on)가 Cloud Run egress에서 googleapis
+// OAuth 토큰 페치를 조기 종료(ERR_STREAM_PREMATURE_CLOSE)시키는 사고 발생(베이스 이미지 갱신 후).
+// IPv4 우선 순차 연결로 고정해 회피. (Node 19.4+ API, 없으면 옵셔널 체이닝으로 무시)
+net.setDefaultAutoSelectFamily?.(false);
 import { createServer } from "node:http";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
