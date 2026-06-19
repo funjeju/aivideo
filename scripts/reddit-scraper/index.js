@@ -73,6 +73,16 @@ async function getPostDetails(page, postUrl) {
 }
 
 async function processAndSave() {
+  const statusRef = db.collection("system_status").doc("reddit_scraper");
+  await statusRef.set({
+    isRunning: true,
+    timeFilter: TIME_FILTER,
+    targetLimit: LIMIT * SUBREDDITS.length,
+    successCount: 0,
+    currentSubreddit: "준비 중...",
+    startTime: new Date().toISOString()
+  });
+
   console.log(`🚀 Starting Reddit Raw Scrape (${TIME_FILTER}, LIMIT=${LIMIT})`);
   let totalPosts = 0;
   let successCount = 0;
@@ -87,6 +97,7 @@ async function processAndSave() {
 
   for (const sub of SUBREDDITS) {
     console.log(`\n📌 Scraping r/${sub}...`);
+    await statusRef.update({ currentSubreddit: `r/${sub}` });
     const posts = await scrapeReddit(page, sub, TIME_FILTER, LIMIT);
     totalPosts += posts.length;
 
@@ -110,6 +121,8 @@ async function processAndSave() {
         // 무지성 Raw DB 저장
         await db.collection("reddit_raw").doc(post.id).set(rawData);
         successCount++;
+        
+        await statusRef.update({ successCount });
         console.log(`  ✅ Saved to reddit_raw`);
       } catch (e) {
         console.error(`  ❌ Failed to process post:`, e.message);
@@ -127,6 +140,12 @@ async function processAndSave() {
     total_found: totalPosts,
     success_count: successCount,
     fail_count: totalPosts - successCount
+  });
+
+  await statusRef.update({
+    isRunning: false,
+    successCount,
+    currentSubreddit: "수집 완료"
   });
 
   console.log(`\n🎉 Raw Scraping complete! Saved ${successCount}/${totalPosts} posts.`);

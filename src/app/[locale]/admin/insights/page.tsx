@@ -23,9 +23,9 @@ export default function InsightsAdminPage() {
   const [loading, setLoading] = useState(true);
   
   // 수동 스크래퍼 상태
-  const [isScraping, setIsScraping] = useState(false);
   const [scrapeTime, setScrapeTime] = useState("year");
   const [scrapeLimit, setScrapeLimit] = useState(50);
+  const [systemStatus, setSystemStatus] = useState<any>(null);
 
   // 정렬 상태 (client-side)
   const [sortBy, setSortBy] = useState<"date" | "ups" | "comments">("ups");
@@ -42,7 +42,17 @@ export default function InsightsAdminPage() {
       setLoading(false);
     });
 
-    return unsub;
+    // 스크래퍼 상태 구독
+    const statusUnsub = onSnapshot(doc(db, "system_status", "reddit_scraper"), (docSnap) => {
+      if (docSnap.exists()) {
+        setSystemStatus(docSnap.data());
+      }
+    });
+
+    return () => {
+      unsub();
+      statusUnsub();
+    };
   }, []);
 
   const sortedPosts = useMemo(() => {
@@ -55,23 +65,18 @@ export default function InsightsAdminPage() {
 
   async function triggerScrape() {
     if (!confirm(`'${scrapeTime}' 기간의 데이터를 ${scrapeLimit}개 수집합니다. 진행하시겠습니까?`)) return;
-    setIsScraping(true);
     try {
       const res = await fetch("/api/admin/reddit-scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ timeFilter: scrapeTime, limit: scrapeLimit })
       });
-      if (res.ok) {
-        alert("원문 스크래핑이 시작되었습니다. 수집되는 대로 테이블에 표시됩니다.");
-      } else {
+      if (!res.ok) {
         alert("실행 실패");
       }
     } catch (e) {
       console.error(e);
       alert("네트워크 오류");
-    } finally {
-      setIsScraping(false);
     }
   }
 
@@ -115,10 +120,35 @@ export default function InsightsAdminPage() {
               <option value={500}>500개</option>
               <option value={1000}>1000개(최대)</option>
             </select>
-            <Button size="sm" onClick={triggerScrape} disabled={isScraping} className="h-7 text-xs">
-              {isScraping ? "수집 요청 중..." : "스크래퍼 시작"}
+            <Button size="sm" onClick={triggerScrape} disabled={systemStatus?.isRunning} className="h-7 text-xs">
+              {systemStatus?.isRunning ? "수집 중..." : "스크래퍼 시작"}
             </Button>
           </div>
+          
+          {/* 스크래퍼 실시간 진행 상태 UI */}
+          {systemStatus?.isRunning && (
+            <div className="mb-4 p-4 border border-blue-200 bg-blue-50 rounded-lg max-w-xl">
+              <div className="flex justify-between items-center mb-2">
+                <div className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+                  <span className="animate-pulse h-2 w-2 bg-blue-600 rounded-full"></span>
+                  백그라운드 스크래핑 진행 중...
+                </div>
+                <div className="text-xs text-blue-600 font-medium">
+                  {systemStatus.successCount} / {systemStatus.targetLimit} 완료
+                </div>
+              </div>
+              <div className="w-full bg-blue-100 rounded-full h-2 mb-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out" 
+                  style={{ width: `${Math.min(100, (systemStatus.successCount / (systemStatus.targetLimit || 1)) * 100)}%` }}
+                ></div>
+              </div>
+              <div className="text-xs text-blue-600">
+                현재 위치: <span className="font-medium">{systemStatus.currentSubreddit}</span>
+              </div>
+            </div>
+          )}
+
         </div>
         
         {/* 정렬 버튼 */}

@@ -72,5 +72,17 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+    }
+
+    // Reddit Scraper Raw Data
+    match /reddit_raw/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // 시스템 상태 (진행률 바 용도)
+    match /system_status/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }
