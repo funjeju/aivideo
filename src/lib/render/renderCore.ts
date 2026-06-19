@@ -46,6 +46,56 @@ function ease(t: number): number {
 }
 function clamp01(x: number): number { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
+/**
+ * 분리형 박스블러(슬라이딩 합, passes회 반복 ≈ 가우시안). ImageData 직접 처리라 캔버스 백엔드 무관.
+ * 이유: @napi-rs/canvas(worker)의 ctx.filter='blur()'가 대형 캔버스에서 오작동(부드러운 번짐 대신
+ * 하드 엣지 dilation) → mp4에 블러가 안 먹던 근본원인. filter 대신 이걸 쓴다(브라우저/worker 동일 결과).
+ * channels: 블러할 채널 오프셋. 마스크 가장자리는 [3](알파)만, 컬러 영역은 [0,1,2,3].
+ */
+function boxBlurCanvas(
+  cnv: HTMLCanvasElement, radius: number, channels: number[], passes = 3
+): void {
+  const r = Math.max(1, Math.round(radius));
+  const ctx = cnv.getContext("2d")!;
+  const w = cnv.width, h = cnv.height;
+  if (w < 2 || h < 2) return;
+  const img = ctx.getImageData(0, 0, w, h);
+  const a = img.data;
+  const norm = 2 * r + 1;
+  const line = new Float32Array(Math.max(w, h));
+  for (let pass = 0; pass < passes; pass++) {
+    // 가로 패스
+    for (const c of channels) {
+      for (let y = 0; y < h; y++) {
+        const base = y * w * 4 + c;
+        let sum = 0;
+        for (let x = -r; x <= r; x++) sum += a[base + Math.min(w - 1, Math.max(0, x)) * 4];
+        for (let x = 0; x < w; x++) {
+          line[x] = sum / norm;
+          const xi = Math.min(w - 1, x + r + 1) * 4, xo = Math.max(0, x - r) * 4;
+          sum += a[base + xi] - a[base + xo];
+        }
+        for (let x = 0; x < w; x++) a[base + x * 4] = line[x];
+      }
+    }
+    // 세로 패스
+    for (const c of channels) {
+      for (let x = 0; x < w; x++) {
+        const base = x * 4 + c, rowB = w * 4;
+        let sum = 0;
+        for (let y = -r; y <= r; y++) sum += a[base + Math.min(h - 1, Math.max(0, y)) * rowB];
+        for (let y = 0; y < h; y++) {
+          line[y] = sum / norm;
+          const yi = Math.min(h - 1, y + r + 1) * rowB, yo = Math.max(0, y - r) * rowB;
+          sum += a[base + yi] - a[base + yo];
+        }
+        for (let y = 0; y < h; y++) a[base + y * rowB] = line[y];
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
 function computeFit(canvas: CanvasSize, img?: ImageSource) {
   const iw = img?.width ?? SRC_IMG_W;
   const ih = img?.height ?? SRC_IMG_H;
@@ -885,8 +935,9 @@ export function renderSceneFrame(
                   if (blurredRegionCache.size > 80) blurredRegionCache.clear();
                   blurred = _createCanvas(width, height);
                   const bx = blurred.getContext("2d")!;
-                  bx.filter = `blur(${blurPx}px)`;
                   bx.drawImage(it.region, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
+                  // filter='blur()' 미지원/오작동(@napi-rs) 대비 직접 박스블러. 객체당 1회(캐시)라 비용 OK.
+                  boxBlurCanvas(blurred, blurPx, [0, 1, 2, 3], 3);
                   blurredRegionCache.set(bkey, blurred);
                 }
                 mctx.drawImage(blurred, 0, 0);
@@ -934,9 +985,9 @@ export function renderSceneFrame(
             finalMask = scratch(_blurredMask, width, height);
             const bctx = finalMask.getContext("2d")!;
             bctx.clearRect(0, 0, width, height);
-            bctx.filter = `blur(${edgeBlur}px)`;
             bctx.drawImage(mask, 0, 0);
-            bctx.filter = "none";
+            // 가장자리 소프트닝 — destination-in은 알파만 쓰므로 알파 채널만, 매 프레임이라 1-pass(작은 반경엔 충분).
+            boxBlurCanvas(finalMask, edgeBlur, [3], 1);
           }
 
           xctx.globalCompositeOperation = "destination-in";
