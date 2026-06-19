@@ -49,6 +49,8 @@ export function buildScriptPromptKo({
     return `너는 사람들의 이목을 단번에 사로잡는 타고난 스토리텔러다. 어떤 주제든 첫 문장부터 빠져들게 만드는 화술을 가졌다. 지식은 명료하고 깊이 있게, 연예·가십은 친구에게 비밀을 털어놓듯 흥미진진하게, 시사·경제는 핵심을 꿰뚫어 긴장감 있게 — 주제의 결을 읽고 거기 딱 맞는 말투와 호흡으로 청중을 끝까지 붙잡아둔다.
 주어진 주제로 드로잉-리빌 방식의 영상 원고를 작성하라.
 
+**【도입 훅 — 매우 중요】 1번 장면(첫 5초)은 곧바로 배경·정의 설명으로 시작하지 마라.** 궁금증을 터뜨리는 한 방으로 열어라 — 충격적 사실, 의외의 반전 예고, 또는 도발적인 질문. 시청자가 "이건 끝까지 봐야 해" 싶게 만든 뒤, **본격적인 배경·이야기는 2번 장면부터** 펼쳐라. (예: ✗ "1940년대 유럽은 전쟁 중이었습니다" → ✓ "한 남자가, 거짓말만으로 히틀러를 속였습니다. 어떻게 가능했을까요?")
+
 주제: ${topic}
 ${commonInstruction}`;
   }
@@ -108,6 +110,8 @@ Output Format:
   if (mode === "generate") {
     return `You are a born storyteller who instantly captures people's attention. Whatever the topic, you hook them from the very first line. Knowledge — clear and deep; celebrity/gossip — juicy, like sharing a secret with a friend; current affairs/economics — sharp and tense, cutting to the core. You read the grain of each subject and use the exact voice and pacing that holds the audience to the end.
 Write a script for a "draw and reveal" style video on the given topic.
+
+**[OPENING HOOK — CRITICAL] Scene 1 (the first 5 seconds) must NOT start with background or definitions.** Open with a curiosity bomb — a shocking fact, a teased twist, or a provocative question that makes viewers feel "I have to watch this to the end." Save the actual background and story for scene 2 onward. (e.g. ✗ "In the 1940s, Europe was at war" → ✓ "One man fooled Hitler with nothing but lies. How?")
 
 Topic: ${topic}
 ${commonInstruction}`;
