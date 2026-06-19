@@ -4,14 +4,14 @@ import path from "path";
 
 export async function POST(req: NextRequest) {
   try {
-    const { timeFilter = "year" } = await req.json();
+    const { timeFilter = "year", limit = 50 } = await req.json();
     
     // 비동기로 백그라운드 스크립트 실행
     const cwd = path.join(process.cwd(), "scripts", "reddit-scraper");
 
-    console.log(`Starting manual scrape job: node index.js --time ${timeFilter}`);
+    console.log(`Starting manual scrape job: node index.js --time ${timeFilter} --limit ${limit}`);
     
-    exec(`node index.js --time ${timeFilter}`, { cwd }, (error, stdout, stderr) => {
+    exec(`node index.js --time ${timeFilter} --limit ${limit}`, { cwd }, (error, stdout, stderr) => {
       if (error) {
         console.error("Scraper exec error:", error);
         return;

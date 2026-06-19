@@ -1,65 +1,69 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { useEffect, useState, useMemo } from "react";
+import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Button } from "@/components/ui/button";
 
-interface RedditTopic {
+interface RedditRaw {
   id: string;
-  topic: string;
-  subtopic: string;
-  appear_count: number;
-  first_seen: string;
-  last_seen: string;
-  platforms: string[];
-  recent_growth_rate: number;
-  status: "DRAFT" | "OFFICIAL";
+  reddit_id: string;
+  subreddit: string;
+  title: string;
+  ups: number;
+  comments_count: number;
+  post_date: string;
+  selftext: string;
+  top_comments: any[];
+  analyzed: boolean;
 }
 
 export default function InsightsAdminPage() {
-  const [topics, setTopics] = useState<RedditTopic[]>([]);
+  const [posts, setPosts] = useState<RedditRaw[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"ALL" | "DRAFT" | "OFFICIAL">("ALL");
-
+  
+  // 수동 스크래퍼 상태
   const [isScraping, setIsScraping] = useState(false);
   const [scrapeTime, setScrapeTime] = useState("year");
+  const [scrapeLimit, setScrapeLimit] = useState(50);
+
+  // 정렬 상태 (client-side)
+  const [sortBy, setSortBy] = useState<"date" | "ups" | "comments">("ups");
 
   useEffect(() => {
-    // 1. reddit_topics 컬렉션 구독 (appear_count 내림차순)
-    const q = query(collection(db, "reddit_topics"), orderBy("appear_count", "desc"));
+    // 가장 최근 수집된 데이터 500개를 가져와서 클라이언트에서 정렬
+    const q = query(collection(db, "reddit_raw"), orderBy("post_date", "desc"), limit(500));
     const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as RedditTopic));
-      setTopics(data);
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as RedditRaw));
+      setPosts(data);
       setLoading(false);
     }, (err) => {
-      console.error("Failed to fetch reddit topics:", err);
+      console.error("Failed to fetch reddit raw:", err);
       setLoading(false);
     });
 
     return unsub;
   }, []);
 
-  async function approveTopic(id: string) {
-    try {
-      await updateDoc(doc(db, "reddit_topics", id), { status: "OFFICIAL" });
-    } catch (e) {
-      console.error(e);
-      alert("승인 실패");
-    }
-  }
+  const sortedPosts = useMemo(() => {
+    const arr = [...posts];
+    if (sortBy === "ups") arr.sort((a, b) => b.ups - a.ups);
+    else if (sortBy === "comments") arr.sort((a, b) => b.comments_count - a.comments_count);
+    else arr.sort((a, b) => new Date(b.post_date).getTime() - new Date(a.post_date).getTime());
+    return arr;
+  }, [posts, sortBy]);
 
   async function triggerScrape() {
-    if (!confirm(`'${scrapeTime}' 기준으로 스크래핑을 백그라운드에서 실행하시겠습니까?`)) return;
+    if (!confirm(`'${scrapeTime}' 기간의 데이터를 ${scrapeLimit}개 수집합니다. 진행하시겠습니까?`)) return;
     setIsScraping(true);
     try {
       const res = await fetch("/api/admin/reddit-scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ timeFilter: scrapeTime })
+        body: JSON.stringify({ timeFilter: scrapeTime, limit: scrapeLimit })
       });
       if (res.ok) {
-        alert("스크래핑이 시작되었습니다. 서버 터미널 로그를 확인하세요.");
+        alert("원문 스크래핑이 시작되었습니다. 수집되는 대로 테이블에 표시됩니다.");
       } else {
         alert("실행 실패");
       }
@@ -71,19 +75,22 @@ export default function InsightsAdminPage() {
     }
   }
 
-  const filteredTopics = topics.filter(t => filter === "ALL" || t.status === filter);
+  async function triggerAnalyze(post: RedditRaw) {
+    alert("AI 분석 파이프라인 호출 예정: " + post.id);
+    // TODO: AI API 호출 후 analyzed = true 처리
+  }
 
   if (loading) {
-    return <div className="p-6">불러오는 중...</div>;
+    return <div className="p-6">데이터 불러오는 중...</div>;
   }
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-[var(--ink)]">인사이트 DB (Reddit)</h1>
+          <h1 className="text-2xl font-semibold text-[var(--ink)]">인사이트 원문 DB (Reddit Raw)</h1>
           <p className="text-sm text-[var(--ink-soft)] mt-1 mb-4">
-            수집된 외국인 한국 인식 데이터입니다. 승인된 토픽은 향후 영상 생성 소스로 사용됩니다.
+            AI 분석을 거치지 않고 Reddit에서 순수하게 긁어온 원문(Raw Data)입니다. (최신 500개)
           </p>
           <div className="flex items-center gap-2 mb-2 p-3 bg-[var(--paper-sunken)] rounded-lg border border-[var(--line)] w-fit">
             <span className="text-xs font-medium text-[var(--ink)]">수동 수집 실행:</span>
@@ -98,24 +105,36 @@ export default function InsightsAdminPage() {
               <option value="year">올해 (Year)</option>
               <option value="all">전체 (All Time)</option>
             </select>
+            <select 
+              value={scrapeLimit} 
+              onChange={e => setScrapeLimit(Number(e.target.value))}
+              className="text-xs p-1 rounded border border-[var(--line)] bg-[var(--paper)]"
+            >
+              <option value={50}>50개</option>
+              <option value={200}>200개</option>
+              <option value={500}>500개</option>
+              <option value={1000}>1000개(최대)</option>
+            </select>
             <Button size="sm" onClick={triggerScrape} disabled={isScraping} className="h-7 text-xs">
-              {isScraping ? "실행 요청 중..." : "스크래퍼 시작"}
+              {isScraping ? "수집 요청 중..." : "스크래퍼 시작"}
             </Button>
-            <span className="text-[10px] text-[var(--ink-faint)] ml-2">※ 백그라운드에서 실행되며 완료 시 테이블에 자동 반영됩니다.</span>
           </div>
         </div>
-        <div className="flex gap-2">
-          {(["ALL", "DRAFT", "OFFICIAL"] as const).map(f => (
+        
+        {/* 정렬 버튼 */}
+        <div className="flex gap-2 self-end">
+          <span className="text-xs text-[var(--ink-soft)] self-center mr-1">정렬:</span>
+          {(["date", "ups", "comments"] as const).map(f => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                filter === f
+              onClick={() => setSortBy(f)}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                sortBy === f
                   ? "bg-[var(--accent)] text-white"
                   : "bg-[var(--paper-sunken)] text-[var(--ink-soft)] hover:text-[var(--ink)]"
               }`}
             >
-              {f === "ALL" ? "전체" : f === "DRAFT" ? "승인 대기 (Draft)" : "정식 등록 (Official)"}
+              {f === "date" ? "최신순" : f === "ups" ? "좋아요순" : "댓글순"}
             </button>
           ))}
         </div>
@@ -125,62 +144,55 @@ export default function InsightsAdminPage() {
         <table className="w-full text-left text-sm">
           <thead className="bg-[var(--paper-sunken)] border-b border-[var(--line)]">
             <tr>
-              <th className="p-3 font-medium text-[var(--ink-soft)] w-20">상태</th>
-              <th className="p-3 font-medium text-[var(--ink-soft)]">주제 (Topic)</th>
-              <th className="p-3 font-medium text-[var(--ink-soft)]">세부 주제 (Subtopic)</th>
-              <th className="p-3 font-medium text-[var(--ink-soft)] text-right">등장 횟수</th>
-              <th className="p-3 font-medium text-[var(--ink-soft)] text-right">최근 증가율</th>
-              <th className="p-3 font-medium text-[var(--ink-soft)]">기간 / 플랫폼</th>
-              <th className="p-3 font-medium text-[var(--ink-soft)] text-right">관리</th>
+              <th className="p-3 font-medium text-[var(--ink-soft)] w-24">상태</th>
+              <th className="p-3 font-medium text-[var(--ink-soft)] w-24">커뮤니티</th>
+              <th className="p-3 font-medium text-[var(--ink-soft)]">제목 (Title)</th>
+              <th className="p-3 font-medium text-[var(--ink-soft)] text-right w-24">👍 좋아요</th>
+              <th className="p-3 font-medium text-[var(--ink-soft)] text-right w-24">💬 댓글수</th>
+              <th className="p-3 font-medium text-[var(--ink-soft)] text-right w-28">AI 분석</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--line)]">
-            {filteredTopics.length === 0 ? (
+            {sortedPosts.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-[var(--ink-faint)]">
-                  데이터가 없습니다. 스크래퍼를 실행하여 데이터를 수집하세요.
+                <td colSpan={6} className="p-8 text-center text-[var(--ink-faint)]">
+                  데이터가 없습니다. 스크래퍼를 실행하여 원문을 수집하세요.
                 </td>
               </tr>
             ) : (
-              filteredTopics.map((topic) => (
-                <tr key={topic.id} className="hover:bg-[var(--paper-sunken)]/50 transition-colors">
+              sortedPosts.map((post) => (
+                <tr key={post.id} className="hover:bg-[var(--paper-sunken)]/50 transition-colors">
                   <td className="p-3">
-                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                      topic.status === "OFFICIAL" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                    <span className={`px-2 py-0.5 text-[10px] rounded-full font-medium ${
+                      post.analyzed ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
                     }`}>
-                      {topic.status}
+                      {post.analyzed ? "분석완료" : "미분석"}
                     </span>
                   </td>
-                  <td className="p-3 font-medium text-[var(--ink)]">{topic.topic}</td>
-                  <td className="p-3 text-[var(--ink-soft)]">{topic.subtopic}</td>
-                  <td className="p-3 text-right font-semibold text-[var(--ink)] tabular-nums">
-                    {topic.appear_count.toLocaleString()}회
-                  </td>
-                  <td className="p-3 text-right tabular-nums text-[var(--ink-soft)]">
-                    {topic.recent_growth_rate > 0 ? (
-                      <span className="text-red-500">+{topic.recent_growth_rate}%</span>
-                    ) : (
-                      <span className="text-blue-500">{topic.recent_growth_rate}%</span>
-                    )}
-                  </td>
+                  <td className="p-3 text-xs text-[var(--ink-soft)]">r/{post.subreddit}</td>
                   <td className="p-3">
-                    <div className="text-xs text-[var(--ink-soft)]">
-                      {topic.first_seen} ~ {topic.last_seen}
+                    <div className="font-medium text-[var(--ink)] line-clamp-2" title={post.title}>
+                      {post.title}
                     </div>
-                    <div className="text-[10px] text-[var(--ink-faint)] mt-0.5 truncate max-w-[150px]">
-                      {topic.platforms.join(", ")}
+                    <div className="text-[10px] text-[var(--ink-faint)] mt-1 truncate max-w-xl">
+                      {post.selftext || "(본문 없음)"}
                     </div>
+                  </td>
+                  <td className="p-3 text-right font-semibold text-red-500 tabular-nums">
+                    {post.ups.toLocaleString()}
+                  </td>
+                  <td className="p-3 text-right font-semibold text-blue-500 tabular-nums">
+                    {post.comments_count.toLocaleString()}
                   </td>
                   <td className="p-3 text-right">
-                    {topic.status === "DRAFT" ? (
-                      <Button size="sm" onClick={() => approveTopic(topic.id)}>
-                        승인
-                      </Button>
-                    ) : (
-                      <Button size="sm" variant="outline" onClick={() => alert("영상 생성 연결 준비 중")}>
-                        영상화
-                      </Button>
-                    )}
+                    <Button 
+                      size="sm" 
+                      variant={post.analyzed ? "outline" : "default"}
+                      onClick={() => triggerAnalyze(post)}
+                      className="h-7 text-xs"
+                    >
+                      {post.analyzed ? "재분석" : "AI 분석"}
+                    </Button>
                   </td>
                 </tr>
               ))
