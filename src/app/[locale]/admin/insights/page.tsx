@@ -22,6 +22,9 @@ export default function InsightsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"ALL" | "DRAFT" | "OFFICIAL">("ALL");
 
+  const [isScraping, setIsScraping] = useState(false);
+  const [scrapeTime, setScrapeTime] = useState("year");
+
   useEffect(() => {
     // 1. reddit_topics 컬렉션 구독 (appear_count 내림차순)
     const q = query(collection(db, "reddit_topics"), orderBy("appear_count", "desc"));
@@ -46,6 +49,28 @@ export default function InsightsAdminPage() {
     }
   }
 
+  async function triggerScrape() {
+    if (!confirm(`'${scrapeTime}' 기준으로 스크래핑을 백그라운드에서 실행하시겠습니까?`)) return;
+    setIsScraping(true);
+    try {
+      const res = await fetch("/api/admin/reddit-scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timeFilter: scrapeTime })
+      });
+      if (res.ok) {
+        alert("스크래핑이 시작되었습니다. 서버 터미널 로그를 확인하세요.");
+      } else {
+        alert("실행 실패");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("네트워크 오류");
+    } finally {
+      setIsScraping(false);
+    }
+  }
+
   const filteredTopics = topics.filter(t => filter === "ALL" || t.status === filter);
 
   if (loading) {
@@ -57,9 +82,27 @@ export default function InsightsAdminPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--ink)]">인사이트 DB (Reddit)</h1>
-          <p className="text-sm text-[var(--ink-soft)] mt-1">
+          <p className="text-sm text-[var(--ink-soft)] mt-1 mb-4">
             수집된 외국인 한국 인식 데이터입니다. 승인된 토픽은 향후 영상 생성 소스로 사용됩니다.
           </p>
+          <div className="flex items-center gap-2 mb-2 p-3 bg-[var(--paper-sunken)] rounded-lg border border-[var(--line)] w-fit">
+            <span className="text-xs font-medium text-[var(--ink)]">수동 수집 실행:</span>
+            <select 
+              value={scrapeTime} 
+              onChange={e => setScrapeTime(e.target.value)}
+              className="text-xs p-1 rounded border border-[var(--line)] bg-[var(--paper)]"
+            >
+              <option value="day">오늘 (Day)</option>
+              <option value="week">이번 주 (Week)</option>
+              <option value="month">이번 달 (Month)</option>
+              <option value="year">올해 (Year)</option>
+              <option value="all">전체 (All Time)</option>
+            </select>
+            <Button size="sm" onClick={triggerScrape} disabled={isScraping} className="h-7 text-xs">
+              {isScraping ? "실행 요청 중..." : "스크래퍼 시작"}
+            </Button>
+            <span className="text-[10px] text-[var(--ink-faint)] ml-2">※ 백그라운드에서 실행되며 완료 시 테이블에 자동 반영됩니다.</span>
+          </div>
         </div>
         <div className="flex gap-2">
           {(["ALL", "DRAFT", "OFFICIAL"] as const).map(f => (
