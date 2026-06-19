@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { adminDb } from "@/lib/firebase/admin";
-import { buildScriptPrompt } from "@/lib/llm/prompts";
+import { buildScriptPromptKo, buildScriptPromptEn } from "@/lib/llm/prompts";
 import { ProjectMode, TargetLength } from "@/lib/types";
 import { resolveLlmModel, isReasoningModel } from "@/lib/llm/model";
 import { isGeminiModel, geminiGenerateJSON, geminiAvailable } from "@/lib/llm/gemini";
@@ -34,13 +34,20 @@ export async function POST(req: NextRequest) {
       resolvedSource = pd?.sourceText ?? "";
     }
 
-    const prompt = buildScriptPrompt({
-      mode: mode as ProjectMode,
-      topic,
-      sourceText: resolvedSource,
-      targetLength: targetLength as TargetLength,
-      contentLocale: contentLocale ?? "ko",
-    });
+    const loc = contentLocale ?? "ko";
+    const prompt = loc === "en" 
+      ? buildScriptPromptEn({
+          mode: mode as ProjectMode,
+          topic,
+          sourceText: resolvedSource,
+          targetLength: targetLength as TargetLength,
+        })
+      : buildScriptPromptKo({
+          mode: mode as ProjectMode,
+          topic,
+          sourceText: resolvedSource,
+          targetLength: targetLength as TargetLength,
+        });
 
     // 어드민에서 고른 LLM 모델 (settings/global.llmModel, 기본 gpt-4o). gemini면 Gemini.
     const settings = (await adminDb().collection("settings").doc("global").get()).data() ?? {};

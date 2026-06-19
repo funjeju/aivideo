@@ -124,7 +124,7 @@ async function renderSegment(
     "-i", audioPath,
     "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
     "-r", String(FPS),
-    "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+    "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-af", "apad",
     "-shortest", outPath,
   ]);
   let ffErr = "";
@@ -331,6 +331,12 @@ export async function renderProject(
         await download(audioUrl, audioPath);
         const measured = await probeDuration(audioPath);
         if (measured > 0) durationSec = measured;
+        
+        // 마지막 컷 장면 1초 유지 (아웃트로 전 여운)
+        if (i === total - 1) {
+          durationSec += 1.0;
+        }
+
         log(`  audio ${durationSec.toFixed(1)}s`);
       } else {
         await run(FFMPEG, ["-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", String(durationSec), audioPath]);
