@@ -949,7 +949,7 @@ export function renderSceneFrame(
           ctx.drawImage(masked, 0, 0);
 
           if (opts.showHand !== false && scene.hand?.enabled) {
-            const penScale = Math.max(0.6, brushSize) * (height / 1920) * 1.2;
+            const penScale = 0.8 * (height / 1920) * 1.2;
             for (const pen of pens) drawHand(ctx, pen.pos, pen.angle, scene.hand.asset, penScale);
           }
         } // end t < effective
