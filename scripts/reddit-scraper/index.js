@@ -11,36 +11,56 @@ const db = getFirestore();
 
 const SUBREDDITS = ["korea", "Living_in_Korea"];
 const TIME_FILTER = process.argv.includes("--time") ? process.argv[process.argv.indexOf("--time") + 1] : "year"; 
-const LIMIT = process.argv.includes("--limit") ? parseInt(process.argv[process.argv.indexOf("--limit") + 1], 10) : 50;
+const LIMIT = process.argv.includes("--limit") ? parseInt(process.argv[process.argv.indexOf("--limit") + 1], 10) : 100;
 
+// 한 페이지(old.reddit는 ~25개)에서 글 목록 + 다음 페이지 링크 추출
+async function extractListPage(page) {
+  return page.evaluate(() => {
+    const things = Array.from(document.querySelectorAll("#siteTable > .thing"));
+    const posts = things.map(t => {
+      const titleEl = t.querySelector("a.title");
+      const commentsEl = t.querySelector("a.comments");
+      const scoreEl = t.querySelector(".score.unvoted");
+      return {
+        id: t.getAttribute("data-fullname"),
+        title: titleEl ? titleEl.innerText : "",
+        ups: scoreEl ? parseInt(scoreEl.getAttribute("title") || scoreEl.innerText || "0", 10) : 0,
+        url: commentsEl ? commentsEl.href : "",
+        num_comments: commentsEl ? parseInt((commentsEl.innerText.match(/\d+/) || ["0"])[0], 10) : 0
+      };
+    }).filter(p => p.url && p.id);
+    const nextEl = document.querySelector("span.next-button > a");
+    return { posts, next: nextEl ? nextEl.href : null };
+  });
+}
+
+// 페이지네이션: limit 채울 때까지 "다음" 링크를 따라가며 누적 수집
 async function scrapeReddit(page, subreddit, timeFilter, limit) {
-  try {
-    const url = `https://old.reddit.com/r/${subreddit}/top/?sort=top&t=${timeFilter}`;
-    console.log(`Loading ${url}...`);
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-
-    const posts = await page.evaluate((maxLimit) => {
-      const things = Array.from(document.querySelectorAll("#siteTable > .thing")).slice(0, maxLimit);
-      return things.map(t => {
-        const titleEl = t.querySelector("a.title");
-        const commentsEl = t.querySelector("a.comments");
-        const scoreEl = t.querySelector(".score.unvoted");
-        
-        return {
-          id: t.getAttribute("data-fullname"),
-          title: titleEl ? titleEl.innerText : "",
-          ups: scoreEl ? parseInt(scoreEl.getAttribute("title") || scoreEl.innerText || "0", 10) : 0,
-          url: commentsEl ? commentsEl.href : "",
-          num_comments: commentsEl ? parseInt((commentsEl.innerText.match(/\d+/) || ["0"])[0], 10) : 0
-        };
-      }).filter(p => p.url && p.id);
-    }, limit);
-
-    return posts;
-  } catch (e) {
-    console.error(`Failed to load r/${subreddit}:`, e.message);
-    return [];
+  let url = `https://old.reddit.com/r/${subreddit}/top/?sort=top&t=${timeFilter}`;
+  const all = [];
+  const seen = new Set();
+  for (let pageNum = 1; pageNum <= 40 && all.length < limit; pageNum++) {
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    } catch (e) {
+      console.error(`  page ${pageNum} 로드 실패 (r/${subreddit}):`, e.message);
+      break;
+    }
+    let next = null;
+    try {
+      const res = await extractListPage(page);
+      for (const p of res.posts) { if (!seen.has(p.id)) { seen.add(p.id); all.push(p); } }
+      next = res.next;
+      console.log(`  page ${pageNum}: +${res.posts.length} (누적 ${all.length}/${limit})`);
+    } catch (e) {
+      console.error(`  page ${pageNum} 파싱 실패:`, e.message);
+      break;
+    }
+    if (!next || all.length >= limit) break;
+    url = next;
+    await new Promise(r => setTimeout(r, 1500)); // 페이지 간 딜레이(차단 회피)
   }
+  return all.slice(0, limit);
 }
 
 async function getPostDetails(page, postUrl) {

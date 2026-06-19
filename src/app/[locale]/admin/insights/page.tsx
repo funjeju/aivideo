@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Fragment } from "react";
 import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ interface RedditRaw {
   selftext: string;
   top_comments: any[];
   analyzed: boolean;
+  analysis?: { topic: string; angle: string; summary: string; worth: number; at: string };
 }
 
 export default function InsightsAdminPage() {
@@ -29,6 +30,10 @@ export default function InsightsAdminPage() {
 
   // 정렬 상태 (client-side)
   const [sortBy, setSortBy] = useState<"date" | "ups" | "comments">("ups");
+  // 펼친 행(본문·댓글 보기)
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // AI 분석 진행 중인 행
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
   useEffect(() => {
     // 가장 최근 수집된 데이터 500개를 가져와서 클라이언트에서 정렬
@@ -63,26 +68,37 @@ export default function InsightsAdminPage() {
     return arr;
   }, [posts, sortBy]);
 
-  async function triggerScrape() {
-    if (!confirm(`'${scrapeTime}' 기간의 데이터를 ${scrapeLimit}개 수집합니다. 진행하시겠습니까?`)) return;
-    try {
-      const res = await fetch("/api/admin/reddit-scrape", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ timeFilter: scrapeTime, limit: scrapeLimit })
-      });
-      if (!res.ok) {
-        alert("실행 실패");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("네트워크 오류");
-    }
+  function triggerScrape() {
+    // Reddit은 비-브라우저/서버 요청을 차단해(403), 수집은 실제 크롬(Puppeteer)이 필요하다.
+    // 그래서 배포 서버(Vercel)에선 실행 불가 → 로컬 PC에서 돌려야 한다.
+    alert(
+      "Reddit 수집은 서버(배포본)에서 실행할 수 없습니다.\n" +
+      "Reddit이 서버 요청을 차단하기 때문에 실제 브라우저가 필요합니다.\n\n" +
+      "▶ 내 PC에서 실행하세요:\n" +
+      "scripts/reddit-scraper/수집실행.bat 더블클릭\n" +
+      "(기간·개수 입력 → 자동 수집, 서브레딧당 100개 이상 페이지네이션)\n\n" +
+      "수집되면 이 화면에 자동으로 나타납니다."
+    );
   }
 
   async function triggerAnalyze(post: RedditRaw) {
-    alert("AI 분석 파이프라인 호출 예정: " + post.id);
-    // TODO: AI API 호출 후 analyzed = true 처리
+    if (analyzingId) return;
+    setAnalyzingId(post.id);
+    try {
+      const { getIdToken } = await import("@/lib/clientAuth");
+      const token = await getIdToken();
+      const res = await fetch("/api/admin/insight-analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: post.id }),
+      });
+      if (!res.ok) { alert("분석 실패"); return; }
+      setExpandedId(post.id); // 결과 바로 보이게 펼침 (onSnapshot이 analysis 갱신)
+    } catch {
+      alert("네트워크 오류");
+    } finally {
+      setAnalyzingId(null);
+    }
   }
 
   if (loading) {
@@ -190,8 +206,15 @@ export default function InsightsAdminPage() {
                 </td>
               </tr>
             ) : (
-              sortedPosts.map((post) => (
-                <tr key={post.id} className="hover:bg-[var(--paper-sunken)]/50 transition-colors">
+              sortedPosts.map((post) => {
+                const expanded = expandedId === post.id;
+                const comments = Array.isArray(post.top_comments) ? post.top_comments : [];
+                return (
+                <Fragment key={post.id}>
+                <tr
+                  className="hover:bg-[var(--paper-sunken)]/50 transition-colors cursor-pointer"
+                  onClick={() => setExpandedId(expanded ? null : post.id)}
+                >
                   <td className="p-3">
                     <span className={`px-2 py-0.5 text-[10px] rounded-full font-medium ${
                       post.analyzed ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
@@ -201,11 +224,12 @@ export default function InsightsAdminPage() {
                   </td>
                   <td className="p-3 text-xs text-[var(--ink-soft)]">r/{post.subreddit}</td>
                   <td className="p-3">
-                    <div className="font-medium text-[var(--ink)] line-clamp-2" title={post.title}>
-                      {post.title}
+                    <div className="font-medium text-[var(--ink)] line-clamp-2 flex items-start gap-1" title={post.title}>
+                      <span className="text-[var(--ink-faint)] mt-0.5">{expanded ? "▼" : "▶"}</span>
+                      <span>{post.title}</span>
                     </div>
-                    <div className="text-[10px] text-[var(--ink-faint)] mt-1 truncate max-w-xl">
-                      {post.selftext || "(본문 없음)"}
+                    <div className="text-[10px] text-[var(--ink-faint)] mt-1 truncate max-w-xl pl-4">
+                      {post.selftext ? post.selftext : comments.length ? `💬 댓글 ${comments.length}개 — 펼쳐보기` : "(본문 없음)"}
                     </div>
                   </td>
                   <td className="p-3 text-right font-semibold text-red-500 tabular-nums">
@@ -214,18 +238,69 @@ export default function InsightsAdminPage() {
                   <td className="p-3 text-right font-semibold text-blue-500 tabular-nums">
                     {post.comments_count.toLocaleString()}
                   </td>
-                  <td className="p-3 text-right">
-                    <Button 
-                      size="sm" 
+                  <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="sm"
                       variant={post.analyzed ? "outline" : "default"}
                       onClick={() => triggerAnalyze(post)}
+                      disabled={analyzingId === post.id}
                       className="h-7 text-xs"
                     >
-                      {post.analyzed ? "재분석" : "AI 분석"}
+                      {analyzingId === post.id ? "분석 중..." : post.analyzed ? "재분석" : "AI 분석"}
                     </Button>
                   </td>
                 </tr>
-              ))
+                {expanded && (
+                  <tr className="bg-[var(--paper-sunken)]/40">
+                    <td colSpan={6} className="p-4">
+                      <div className="max-w-3xl space-y-3">
+                        {post.analysis && (
+                          <div className="rounded-md border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[11px] font-semibold text-[var(--accent)]">🎬 AI 영상 기획</span>
+                              <span className="text-[10px] text-[var(--ink-faint)]">영상 가치 {"★".repeat(post.analysis.worth || 0)}{"☆".repeat(5 - (post.analysis.worth || 0))}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-[var(--ink)]">{post.analysis.topic}</div>
+                            <div className="text-xs text-[var(--ink-soft)] mt-0.5">앵글: {post.analysis.angle}</div>
+                            <div className="text-xs text-[var(--ink)] mt-1 whitespace-pre-wrap">{post.analysis.summary}</div>
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-[11px] font-semibold text-[var(--ink-soft)] mb-1">본문</div>
+                          <div className="text-xs text-[var(--ink)] whitespace-pre-wrap">
+                            {post.selftext?.trim() || <span className="text-[var(--ink-faint)]">(본문 없음 — 사진/링크 글)</span>}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-semibold text-[var(--ink-soft)] mb-1">인기 댓글 {comments.length}개</div>
+                          {comments.length === 0 ? (
+                            <div className="text-xs text-[var(--ink-faint)]">(수집된 댓글 없음)</div>
+                          ) : (
+                            <ul className="space-y-2">
+                              {comments.map((c: { body?: string; ups?: string | number }, i: number) => (
+                                <li key={i} className="text-xs text-[var(--ink)] border-l-2 border-[var(--line)] pl-2">
+                                  <span className="text-[10px] text-[var(--accent)] font-medium mr-1">▲ {c.ups ?? 0}</span>
+                                  <span className="whitespace-pre-wrap">{c.body || "(빈 댓글)"}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        <a
+                          href={`https://reddit.com/${post.reddit_id?.startsWith("t3_") ? "comments/" + post.reddit_id.slice(3) : ""}`}
+                          target="_blank" rel="noreferrer"
+                          className="inline-block text-[11px] text-[var(--accent)] hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          원본 글 열기 →
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+                );
+              })
             )}
           </tbody>
         </table>
