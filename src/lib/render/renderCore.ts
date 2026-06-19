@@ -928,7 +928,12 @@ export function renderSceneFrame(
           xctx.clearRect(0, 0, width, height);
           xctx.drawImage(image, fit.offsetX, fit.offsetY, fit.drawW, fit.drawH);
           xctx.globalCompositeOperation = "destination-in";
+          const isTextured = ["pencil", "charcoal", "dry", "bristle", "crayon"].includes(brushType);
+          const baseEdgeBlur = isTextured ? 0 : Math.max(1, baseW * 0.08); // 약간의 기본 안티앨리어싱 (질감 붓 제외)
+          const edgeBlur = baseEdgeBlur + (inkSpread * baseW * (isTextured ? 0.15 : 0.8));
+          if (edgeBlur > 0) xctx.filter = `blur(${edgeBlur}px)`;
           xctx.drawImage(mask, 0, 0);
+          if (edgeBlur > 0) xctx.filter = "none";
           xctx.globalCompositeOperation = "source-over";
 
           ctx.drawImage(masked, 0, 0);

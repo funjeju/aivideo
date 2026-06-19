@@ -567,7 +567,7 @@ function StyleCard({
         {imgOk ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`${SAMPLE_BASE}/${pack.id}.png`}
+            src={pack.id === "webtoon" ? `/style-samples/${pack.id}.png` : `${SAMPLE_BASE}/${pack.id}.png`}
             alt={pack.name}
             onError={() => setImgOk(false)}
             className="w-full h-full object-cover"

@@ -31,7 +31,8 @@ export const TEMPLATE_SAMPLES: TemplateSample[] = [
   { id: "collage", name: "콜라주", desc: "오려붙임, 빈티지·풍자", youtubeId: "" },
   { id: "minhwa", name: "민화 / 조선", desc: "오방색 모티프, 한국사·문화", youtubeId: "" },
   { id: "drone-light", name: "드론 라이트쇼", desc: "밤하늘 빛점이 모여 형상을 빚어냄", youtubeId: "" },
-].map((t) => ({ ...t, poster: `${STYLE_BASE}/${t.id}.png` })) as TemplateSample[];
+  { id: "webtoon", name: "웹툰", desc: "깔끔한 네이버 웹툰 감성", youtubeId: "" },
+].map((t) => ({ ...t, poster: t.id === "webtoon" ? `/style-samples/${t.id}.png` : `${STYLE_BASE}/${t.id}.png` })) as TemplateSample[];
 
 const LANDING_BASE = "https://storage.googleapis.com/golpo-b6407.firebasestorage.app/landing";
 
