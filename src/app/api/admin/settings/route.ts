@@ -72,11 +72,9 @@ export async function POST(req: NextRequest) {
   if (typeof body.llmModel === "string" && LLM_MODELS.includes(body.llmModel as never)) patch.llmModel = body.llmModel;
   if (body.imageQuality === "low" || body.imageQuality === "medium" || body.imageQuality === "high") patch.imageQuality = body.imageQuality;
 
-  // stylePackId가 있으면 그 프리셋에만 저장, 없으면 전역(레거시 기본)
+  // stylePackId가 있으면 해당 프리셋에만 저장, 없으면 전역(레거시 기본)
   if (typeof body.stylePackId === "string" && body.stylePackId) {
-    for (const [k, v] of Object.entries(brush)) {
-      patch[`presets.${body.stylePackId}.${k}`] = v;
-    }
+    patch.presets = { [body.stylePackId]: brush };
   } else {
     Object.assign(patch, brush);
   }
