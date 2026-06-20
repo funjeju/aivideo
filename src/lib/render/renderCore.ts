@@ -397,11 +397,15 @@ function computeSceneGeo(
       gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
     }
 
-    // 2) 잉크 이진화: 어두운 픽셀 = 판서 선. 선이 너무 적으면(연한 그림) 소벨 엣지로 보강.
+    // 2) 잉크 이진화: "검정 외곽선"만 잡는다 — 어둡고(저밝기) + 무채색(저채도).
+    //    컬러 채움(고채도)을 잉크에서 제외해야, 세선화 중심선이 채움 한복판이 아니라
+    //    실제 보이는 검정 외곽선을 따라간다 → 붓이 선을 자연스럽게 트레이스. (선이 적으면 소벨 보강)
     const ink = new Uint8Array(dw * dh);
     let inkCnt = 0;
     for (let i = 0; i < dw * dh; i++) {
-      if (gray[i] < 150) { ink[i] = 1; inkCnt++; }
+      const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
+      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      if (gray[i] < 120 && chroma < 50) { ink[i] = 1; inkCnt++; }
     }
     if (inkCnt < dw * dh * 0.004) {
       for (let y = 1; y < dh - 1; y++) {
