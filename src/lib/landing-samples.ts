@@ -31,6 +31,7 @@ export const TEMPLATE_SAMPLES: TemplateSample[] = [
   { id: "pop-art", name: "팝아트", desc: "벤데이 도트 + 강렬한 원색, 시선강탈", youtubeId: "" },
   { id: "euro-graphic-novel", name: "유럽 그래픽노블", desc: "유럽 BD 선화, 인물·여행·역사", youtubeId: "" },
   { id: "graphic-novel", name: "그래픽노블", desc: "다큐 그래픽노블 선화, 역사·인류·교양", youtubeId: "" },
+  { id: "explainer-doodle", name: "설명형 컬러두들", desc: "손그림 마커 + 컬러 + 형광펜. 강의·교양·설명(Golpo풍)", youtubeId: "" },
   { id: "collage", name: "콜라주", desc: "오려붙임, 빈티지·풍자", youtubeId: "" },
   { id: "minhwa", name: "민화 / 조선", desc: "오방색 모티프, 한국사·문화", youtubeId: "" },
   { id: "drone-light", name: "드론 라이트쇼", desc: "밤하늘 빛점이 모여 형상을 빚어냄", youtubeId: "" },
