@@ -563,6 +563,66 @@ export const STYLE_PACKS: Record<string, StylePackDoc> = {
     thumbnailUrls: [],
     sortOrder: 18,
   },
+
+  "explainer-doodle": {
+    id: "explainer-doodle",
+    name: "설명형 컬러두들",
+    description: "미국식 프리미엄 설명영상(Golpo풍) — 굵은 마커선 + 밝은 컬러 + 형광펜 강조 + 박스·화살표. 교양·강의·지식 최적.",
+    imagePrompt: {
+      template:
+        "modern explainer doodle infographic in the polished style of premium American educational videos, {subject}, bold confident hand-drawn black marker outlines with bright flat color fills, simple friendly characters and clear concept icons, arrows and rounded callout boxes connecting ideas, a few key words emphasized with highlighter accents (yellow highlight, red underline or circle), clean light cream/white background, generous whitespace, cheerful and approachable yet credible. Picture-driven with only short keyword labels (no sentences, no paragraphs, no dense text). Distinct elements clearly separated with crisp outlines so they can be drawn one by one.",
+      negative: "photorealistic, 3d render, watercolor, ink wash, dark background, smooth gradient, heavy shading, dense paragraphs, walls of text, cluttered, small unreadable text, realistic proportions, manga, anime",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "in-image",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "left-to-right",
+      strokeStyle: "outline",
+      flowDirection: "left-to-right",
+      rhythm: "fast-beat",
+      handTool: "marker",
+    },
+    palette: { ink: "#1A1A1A", accent: "#F59E0B", paper: "#FFFDF6" },
+    userSliders: { lineWeight: { min: 0, max: 1, default: 0.7 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 19,
+  },
+
+  "mono-line": {
+    id: "mono-line",
+    name: "모노 라인",
+    description: "가는 단색 라인 일러스트 + 아이콘·라벨. 깔끔·편집디자인 톤. 구조·시스템·개요 설명에 적합.",
+    imagePrompt: {
+      template:
+        "clean monochrome line-art infographic illustration, {subject}, fine even single-color (black or dark grey) linework on a white background, precise minimal vector-like lines, small labeled icons connected with thin lines and arrows, elegant editorial and calm, NO color fills (line only, no shading), generous whitespace. Only short keyword labels (no paragraphs). Distinct elements with clear thin outlines so they can be drawn one by one.",
+      negative: "color fills, bright colors, heavy marker, halftone, 3d render, photorealistic, watercolor, dark background, dense text, paragraphs, cluttered, heavy cross-hatching, shadows",
+      model: "gpt-image-2",
+      quality: "medium",
+      size: "1024x1536",
+    },
+    textStrategy: "hybrid",
+    fontTitle: "Pretendard",
+    fontLabel: "Pretendard",
+    overlays: [],
+    plannerDefaults: {
+      revealStyle: "left-to-right",
+      strokeStyle: "outline",
+      flowDirection: "left-to-right",
+      rhythm: "fast-beat",
+      handTool: "pen",
+    },
+    palette: { ink: "#2A2A2E", accent: "#555555", paper: "#FFFFFF" },
+    userSliders: { lineWeight: { min: 0, max: 1, default: 0.35 } },
+    enabled: true,
+    thumbnailUrls: [],
+    sortOrder: 20,
+  },
 };
 
 /** id → 생성 화면 표시용 이모지 (관리/선택 UI 공용). */
@@ -572,6 +632,7 @@ export const STYLE_EMOJI: Record<string, string> = {
   "newspaper-cartoon": "🗞️", "comic-essay": "💬", collage: "✂️", minhwa: "🐯",
   "drone-light": "✨", "graphic-novel": "📖", "cinematic-hype": "🎬",
   "euro-graphic-novel": "🏛️", "pop-art": "💥", webtoon: "📱",
+  "explainer-doodle": "🖍️", "mono-line": "✒️",
 };
 
 /** 화풍 카탈로그(정렬). create/admin 등 모든 화풍 선택 UI의 공용 단일 출처. */
