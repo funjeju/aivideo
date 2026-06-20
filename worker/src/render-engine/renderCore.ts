@@ -51,15 +51,25 @@ function clamp01(x: number): number { return x < 0 ? 0 : x > 1 ? 1 : x; }
  * 이유: @napi-rs/canvas(worker)의 ctx.filter='blur()'가 대형 캔버스에서 오작동(부드러운 번짐 대신
  * 하드 엣지 dilation) → mp4에 블러가 안 먹던 근본원인. filter 대신 이걸 쓴다(브라우저/worker 동일 결과).
  * channels: 블러할 채널 오프셋. 마스크 가장자리는 [3](알파)만, 컬러 영역은 [0,1,2,3].
+ * region: 처리할 사각 영역(없으면 캔버스 전체). 블러는 국소 연산이라, 내용이 있는 영역만
+ *   (반경 여유 포함해) 처리하면 결과는 동일하고 비용은 면적에 비례해 준다 — 프레임당 엣지 블러 가속.
  */
 function boxBlurCanvas(
-  cnv: HTMLCanvasElement, radius: number, channels: number[], passes = 3
+  cnv: HTMLCanvasElement, radius: number, channels: number[], passes = 3,
+  region?: { x: number; y: number; w: number; h: number }
 ): void {
   const r = Math.max(1, Math.round(radius));
   const ctx = cnv.getContext("2d")!;
-  const w = cnv.width, h = cnv.height;
+  const cw = cnv.width, ch = cnv.height;
+  let x0 = 0, y0 = 0, w = cw, h = ch;
+  if (region) {
+    x0 = Math.max(0, Math.floor(region.x));
+    y0 = Math.max(0, Math.floor(region.y));
+    w = Math.min(cw, Math.ceil(region.x + region.w)) - x0;
+    h = Math.min(ch, Math.ceil(region.y + region.h)) - y0;
+  }
   if (w < 2 || h < 2) return;
-  const img = ctx.getImageData(0, 0, w, h);
+  const img = ctx.getImageData(x0, y0, w, h);
   const a = img.data;
   const norm = 2 * r + 1;
   const line = new Float32Array(Math.max(w, h));
@@ -93,7 +103,7 @@ function boxBlurCanvas(
       }
     }
   }
-  ctx.putImageData(img, 0, 0);
+  ctx.putImageData(img, x0, y0);
 }
 
 function computeFit(canvas: CanvasSize, img?: ImageSource) {
@@ -147,15 +157,17 @@ function scratch(ref: Cv, w: number, h: number): HTMLCanvasElement {
 // 따라 걸어 폴리라인(획)으로 추출한다. 붓이 실제 선 위를 한 획씩 따라가므로
 // 사람이 판서하듯 "슥슥" 그려진다. (VideoScribe/Golpo류 핵심 기법)
 interface Pt { x: number; y: number }
+interface Box { x1: number; y1: number; x2: number; y2: number } // 표시 좌표계 사각 영역
 interface SceneItem {
   obj: RevealObject;
   strokes: Pt[][];   // 그리는 순서의 획 목록 (펜 이동 최소화 정렬)
   lens: number[];    // 획별 길이(px)
   total: number;     // 총 획 길이
   region: HTMLCanvasElement | null; // 이 객체에 배정된 픽셀 영역 (채움 패스)
+  regionBox: Box | null;            // 그 영역이 실제 칠해지는 표시 좌표 범위(엣지 블러 영역 제한용)
 }
 // 기하만 캐시 — obj(startAt/endAt)는 항상 현재 sceneSpec 값 사용
-interface SceneGeo { strokes: Pt[][][]; lens: number[][]; totals: number[]; regions: (HTMLCanvasElement | null)[] }
+interface SceneGeo { strokes: Pt[][][]; lens: number[][]; totals: number[]; regions: (HTMLCanvasElement | null)[]; regionBoxes: (Box | null)[] }
 const sceneGeoCache = new Map<string, SceneGeo>();
 
 // 영역 채움 blur 사전계산 캐시: 같은 region+같은 blur는 매 프레임 다시 blur하지 않고 재사용.
@@ -331,6 +343,7 @@ function computeSceneGeo(
       lens: cached.lens[i] ?? [],
       total: cached.totals[i] ?? 0,
       region: cached.regions[i] ?? null,
+      regionBox: cached.regionBoxes?.[i] ?? null,
     }));
   }
 
@@ -448,6 +461,8 @@ function computeSceneGeo(
     const RG = 3;
     const rw = Math.ceil(dw / RG), rh = Math.ceil(dh / RG);
     const regionData = objects.map(() => new Uint8ClampedArray(rw * rh * 4));
+    // 객체별 영역이 실제 칠해지는 표시 좌표 범위(min/max) — 엣지 블러를 그 영역만 처리하기 위함
+    const rbox: (Box | null)[] = objects.map(() => null);
     for (let ry = 0; ry < rh; ry++) {
       for (let rx = 0; rx < rw; rx++) {
         const px = fit.offsetX + ((rx + 0.5) * RG / dw) * fit.drawW;
@@ -457,6 +472,9 @@ function computeSceneGeo(
           const o = (ry * rw + rx) * 4;
           regionData[owner][o] = 255; regionData[owner][o + 1] = 255;
           regionData[owner][o + 2] = 255; regionData[owner][o + 3] = 255;
+          const b = rbox[owner];
+          if (!b) rbox[owner] = { x1: px, y1: py, x2: px, y2: py };
+          else { if (px < b.x1) b.x1 = px; if (py < b.y1) b.y1 = py; if (px > b.x2) b.x2 = px; if (py > b.y2) b.y2 = py; }
         }
       }
     }
@@ -466,8 +484,8 @@ function computeSceneGeo(
       return cv;
     });
 
-    sceneGeoCache.set(key, { strokes, lens, totals, regions });
-    items = objects.map((obj, i) => ({ obj, strokes: strokes[i], lens: lens[i], total: totals[i], region: regions[i] }));
+    sceneGeoCache.set(key, { strokes, lens, totals, regions, regionBoxes: rbox });
+    items = objects.map((obj, i) => ({ obj, strokes: strokes[i], lens: lens[i], total: totals[i], region: regions[i], regionBox: rbox[i] }));
   } catch {
     // CORS tainted 등 → 지그재그 한 획을 첫 객체에 폴백
     const points: Pt[] = [];
@@ -481,8 +499,8 @@ function computeSceneGeo(
     const lens = strokes.map((b) => b.map(lineLen));
     const totals = lens.map((b) => Math.max(b.reduce((a, x) => a + x, 0), 1));
     const regions = objects.map(() => null);
-    sceneGeoCache.set(key, { strokes, lens, totals, regions });
-    items = objects.map((obj, i) => ({ obj, strokes: strokes[i], lens: lens[i], total: totals[i], region: null }));
+    sceneGeoCache.set(key, { strokes, lens, totals, regions, regionBoxes: objects.map(() => null) });
+    items = objects.map((obj, i) => ({ obj, strokes: strokes[i], lens: lens[i], total: totals[i], region: null, regionBox: null }));
   }
 
   return items;
@@ -855,10 +873,28 @@ export function renderSceneFrame(
           mctx.clearRect(0, 0, width, height);
 
           const pens: { pos: Pt; angle: number }[] = [];
+          // 이 프레임에 마스크가 칠해지는 범위 누적(엣지 블러를 그 영역만 처리 → 가속). fullDirty면 전체.
+          let dx1 = Infinity, dy1 = Infinity, dx2 = -Infinity, dy2 = -Infinity, fullDirty = false;
+          const addBox = (x1: number, y1: number, x2: number, y2: number) => {
+            if (x1 < dx1) dx1 = x1; if (y1 < dy1) dy1 = y1; if (x2 > dx2) dx2 = x2; if (y2 > dy2) dy2 = y2;
+          };
           for (const it of sched) {
             const prog = clamp01((tEff - it.s) / Math.max(it.e - it.s, 0.01));
             if (prog <= 0) continue;
             const eased = ease(prog);
+
+            // dirty 누적: 획=객체 bbox, 채움=영역 bbox (영역 모름/CORS 폴백이면 전체로 안전 처리)
+            {
+              const ox1 = it.obj.bbox[0] * fit.bScaleX + fit.offsetX;
+              const oy1 = it.obj.bbox[1] * fit.bScaleY + fit.offsetY;
+              const ox2 = it.obj.bbox[2] * fit.bScaleX + fit.offsetX;
+              const oy2 = it.obj.bbox[3] * fit.bScaleY + fit.offsetY;
+              addBox(ox1, oy1, ox2, oy2);
+              // 획·채움 모두 객체의 보로노이 셀 안에 칠해진다(획도 bbox 아닌 셀 기준 배정) → 셀 bbox로 덮는다.
+              if (!it.region) fullDirty = true;                 // CORS 폴백: 전체 스팬
+              else if (it.regionBox) addBox(it.regionBox.x1, it.regionBox.y1, it.regionBox.x2, it.regionBox.y2);
+              else fullDirty = true;                            // 영역 있는데 bbox 모름 → 안전하게 전체
+            }
 
             // 붓 개수: 획 목록을 누적 길이 기준 brushCount 그룹으로 나눠 동시 진행.
             // 각 그룹 안에서는 획을 순서대로 — 한 획씩 선을 따라 슥슥 그려진다.
@@ -969,6 +1005,7 @@ export function renderSceneFrame(
             mctx.fillStyle = "#fff";
             mctx.fillRect(0, 0, width, height);
             mctx.restore();
+            fullDirty = true; // 전체 흰 채움 → 엣지 블러도 전체 필요
           }
 
           // masked = 원본 ∩ 마스크 (destination-in)
@@ -987,7 +1024,15 @@ export function renderSceneFrame(
             bctx.clearRect(0, 0, width, height);
             bctx.drawImage(mask, 0, 0);
             // 가장자리 소프트닝 — destination-in은 알파만 쓰므로 알파 채널만, 매 프레임이라 1-pass(작은 반경엔 충분).
-            boxBlurCanvas(finalMask, edgeBlur, [3], 1);
+            // 칠해진 영역(dirty)만 처리해 가속. 여유=블러 반경+붓 두께(엣지가 잘리지 않게). fullDirty면 전체.
+            let blurRegion: { x: number; y: number; w: number; h: number } | undefined;
+            if (!fullDirty && dx2 > dx1) {
+              // 채움 영역은 3-pass 블러(blurPx)로 셀 밖까지 번진다 → 그 번짐(~3×blurPx)+엣지블러+붓두께만큼 여유.
+              const regionSpread = (Math.max(3, baseW * 0.4) + inkSpread * 38) * 3;
+              const m = regionSpread + edgeBlur + baseW + 4;
+              blurRegion = { x: dx1 - m, y: dy1 - m, w: (dx2 - dx1) + 2 * m, h: (dy2 - dy1) + 2 * m };
+            }
+            boxBlurCanvas(finalMask, edgeBlur, [3], 1, blurRegion);
           }
 
           xctx.globalCompositeOperation = "destination-in";
