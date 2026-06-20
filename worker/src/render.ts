@@ -332,9 +332,9 @@ export async function renderProject(
         const measured = await probeDuration(audioPath);
         if (measured > 0) durationSec = measured;
         
-        // 마지막 컷 장면 1초 유지 (아웃트로 전 여운)
+        // 마지막 컷 장면을 더 길게 유지 (아웃트로 전 여운) — 마지막 그림이 충분히 남았다 사라지게
         if (i === total - 1) {
-          durationSec += 1.0;
+          durationSec += 2.2;
         }
 
         log(`  audio ${durationSec.toFixed(1)}s`);
