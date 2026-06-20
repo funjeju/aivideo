@@ -68,6 +68,8 @@ export default function CreateForm() {
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [stylePackId, setStylePackId] = useState<StylePackId>("whiteboard");
   const [showBrush, setShowBrush] = useState(true);
+  // 블러 품질/속도 단계: 1 빠름(또렷) · 2 중간(색만 부드럽게) · 3 부드러움(현재, 느림)
+  const [blurLevel, setBlurLevel] = useState<1 | 2 | 3>(2);
   // 캐릭터 참조 이미지(단 1장) - 인물이 등장하는 장면에 "주인공" 반영
   const [charRefFile, setCharRefFile] = useState<File | null>(null);
   const [charRefPreview, setCharRefPreview] = useState("");
@@ -115,6 +117,7 @@ export default function CreateForm() {
       formData.append("aspect", aspect);
       formData.append("stylePackId", stylePackId);
       formData.append("showBrush", String(showBrush));
+      formData.append("blurLevel", String(blurLevel));
       formData.append("voiceId", voiceId);
       formData.append("contentLocale", "ko");
       if (submitMode === "generate") formData.append("topic", topic);
@@ -455,13 +458,37 @@ export default function CreateForm() {
 
         {/* 화풍 선택 — 샘플 이미지 카드 */}
         <section>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-1">
             <p className="text-sm font-medium text-[var(--ink)]">{t("style")}</p>
             <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
               <input type="checkbox" checked={showBrush} onChange={(e) => setShowBrush(e.target.checked)} className="accent-[var(--accent)]" />
               붓 표시 (그리기 효과)
             </label>
           </div>
+          {/* 블러 품질/속도 단계 — 느려지는 주범(가장자리 블러)을 단계로 조절 */}
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="text-sm text-[var(--ink-soft)]">블러 품질</span>
+            <div className="flex gap-1">
+              {([1, 2, 3] as const).map((lv) => (
+                <button
+                  key={lv} type="button" onClick={() => setBlurLevel(lv)}
+                  className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+                    blurLevel === lv ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "border-[var(--line)] text-[var(--ink)] hover:border-[var(--accent)]"
+                  }`}
+                >
+                  {lv === 1 ? "빠름" : lv === 2 ? "중간" : "부드러움"}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-[var(--ink-faint)]">
+              {blurLevel === 1 ? "또렷한 가장자리 · 가장 빠름(현재 대비 ~2배+)"
+                : blurLevel === 2 ? "색은 부드럽게, 선은 또렷 · 빠름"
+                : "전체 부드러움 · 현재 화질(가장 느림)"}
+            </span>
+          </div>
+          <p className="text-[11px] text-[var(--ink-faint)] mb-3">
+            * 수묵담채처럼 번짐이 중요한 화풍은 <b>부드러움</b>, 화이트보드·플랫 등 또렷한 화풍은 <b>빠름/중간</b>이 잘 어울려요.
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {styleList.map((pack) => (
               <StyleCard
@@ -527,6 +554,7 @@ export default function CreateForm() {
                 ["화면 비율", aspect],
                 ["화풍", styleList.find((p) => p.id === stylePackId)?.name ?? stylePackId],
                 ["붓 표시", showBrush ? "사용" : "숨김"],
+                ["블러 품질", blurLevel === 1 ? "빠름" : blurLevel === 2 ? "중간" : "부드러움"],
                 ["목소리", VOICE_LIST.find((v) => v.id === voiceId)?.name ?? voiceId],
                 ...(mode === "corporate"
                   ? [

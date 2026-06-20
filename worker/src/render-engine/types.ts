@@ -38,6 +38,6 @@ export interface SceneSpec {
   };
   camera?: Array<{ at: number; scale: number; x: number; y: number }>;
   overlays?: Array<{ type: string; asset: string; opacity?: number; pos?: [number, number]; trigger?: string }>;
-  hand?: { enabled: boolean; asset: string; size?: number; count?: number; speed?: number; brushType?: BrushType; inkSpread?: number; fillRange?: number };
+  hand?: { enabled: boolean; asset: string; size?: number; count?: number; speed?: number; brushType?: BrushType; inkSpread?: number; fillRange?: number; blurLevel?: 1 | 2 | 3 };
   subtitles?: boolean;
 }

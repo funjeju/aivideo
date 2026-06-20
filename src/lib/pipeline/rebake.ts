@@ -62,6 +62,7 @@ export async function rebakeBrushPresets(
       fillRange: pick("fillRange", 1),
       subtitles: (settings.subtitles ?? true) !== false,
       showBrush: project.showBrush !== false,
+      blurLevel: (project.blurLevel as 1 | 2 | 3) ?? 3,
     });
 
     // 붓/흐름이 안 바뀐 장면은 건너뜀(세그먼트 캐시 유지).

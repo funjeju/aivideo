@@ -25,10 +25,12 @@ interface PlannerInput {
   subtitles?: boolean;
   /** 붓/손 에셋 표시 여부 (기본 true) */
   showBrush?: boolean;
+  /** 블러 품질/속도 단계: 1 빠름·2 중간·3 부드러움(현재). 기본 3(기존 동작 보존) */
+  blurLevel?: 1 | 2 | 3;
 }
 
 export function buildSceneSpec(input: PlannerInput): SceneSpec {
-  const { sceneId, order, narration, durationSec, audioUrl, imageUrl, objects, stylePack, aspect, brushSize, brushCount, brushSpeed, brushType, handAsset, flowMode, inkSpread, fillRange, subtitles, showBrush } = input;
+  const { sceneId, order, narration, durationSec, audioUrl, imageUrl, objects, stylePack, aspect, brushSize, brushCount, brushSpeed, brushType, handAsset, flowMode, inkSpread, fillRange, subtitles, showBrush, blurLevel } = input;
   const defaults = stylePack.plannerDefaults;
 
   // Reveal Planner: revealOrder가 이미 지정돼 있으면(=LLM 의미 매칭) 그 순서, 없으면 role 순서
@@ -59,7 +61,7 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
       image: { url: imageUrl, fit: "contain" },
       reveal: { objects: tdObjects },
       overlays: stylePack.overlays.map((o) => ({ ...o })),
-      hand: { enabled: showBrush !== false, asset: handAsset || defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1, brushType: brushType ?? "round", inkSpread, fillRange },
+      hand: { enabled: showBrush !== false, asset: handAsset || defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1, brushType: brushType ?? "round", inkSpread, fillRange, blurLevel: blurLevel ?? 3 },
       flowMode: "topdown",
       subtitles,
     };
@@ -134,7 +136,7 @@ export function buildSceneSpec(input: PlannerInput): SceneSpec {
     image: { url: imageUrl, fit: "contain" },
     reveal: { objects: revealObjects },
     overlays: stylePack.overlays.map((o) => ({ ...o })),
-    hand: { enabled: showBrush !== false, asset: handAsset || defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1, brushType: brushType ?? "round", inkSpread, fillRange },
+    hand: { enabled: showBrush !== false, asset: handAsset || defaults.handTool, size: brushSize ?? 1, count: brushCount ?? 1, speed: brushSpeed ?? 1, brushType: brushType ?? "round", inkSpread, fillRange, blurLevel: blurLevel ?? 3 },
     flowMode: "sync",
     subtitles,
   };

@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
       fillRange: pick("fillRange", 1),
       subtitles: (settings.subtitles ?? true) !== false,
       showBrush: project.showBrush !== false,
+      blurLevel: (project.blurLevel as 1 | 2 | 3) ?? 3,
     });
 
     await db.collection("projects").doc(projectId).collection("scenes").doc(sceneId).update({

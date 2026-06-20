@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     const aspect = (formData.get("aspect") as string) ?? "9:16";
     const stylePackId = formData.get("stylePackId") as string ?? "whiteboard";
     const showBrush = formData.get("showBrush") !== "false";
+    const blurLevel = Math.min(3, Math.max(1, parseInt((formData.get("blurLevel") as string) || "2", 10) || 2)) as 1 | 2 | 3;
     const voiceId = formData.get("voiceId") as string ?? "nova";
     const contentLocale = formData.get("contentLocale") as string ?? "ko";
     const file = formData.get("file") as File | null;
@@ -121,6 +122,7 @@ export async function POST(req: NextRequest) {
       aspect,
       stylePackId,
       showBrush,
+      blurLevel,
       voiceId,
       contentLocale,
       ...(corporate ? { corporate } : {}),

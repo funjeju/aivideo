@@ -825,6 +825,10 @@ export function renderSceneFrame(
     // 화풍별 시각 질감 게이지(프리셋별). inkSpread: 0 또렷 ~ 1 번짐. fillRange: 채움이 객체에서 퍼지는 범위(1=영역 전체).
     const inkSpread = Math.max(0, Math.min(1, scene.hand?.inkSpread ?? 0.5));
     const fillRange = Math.max(0.1, Math.min(1, scene.hand?.fillRange ?? 1));
+    // 블러 품질/속도 단계: 3=현재(매 프레임 엣지 블러, 느림) / 2=중간(엣지 블러 생략, 채움은 부드럽게) / 1=빠름(채움도 또렷)
+    const blurLevel = (scene.hand?.blurLevel ?? 3) as 1 | 2 | 3;
+    const doEdgeBlur = blurLevel >= 3;            // 매 프레임 풀캔버스 블러는 3단계만 — 느림의 주범
+    const regionBlurMul = blurLevel === 1 ? 0.35 : 1; // 1단계는 채움 블러도 약하게(또렷)
 
     const drawWindow = Math.max(scene.durationSec * 0.85, 0.5);
 
@@ -964,7 +968,7 @@ export function renderSceneFrame(
                 }
                 // 영역 마스크 업스케일 + blur를 객체당 1회만 계산해 캐시 (매 프레임 alpha만 조절).
                 // inkSpread로 blur 조절: 작으면 또렷(화이트보드), 크면 잉크 번짐(수묵).
-                const blurPx = Math.max(3, baseW * 0.4) + inkSpread * 38;
+                const blurPx = (Math.max(3, baseW * 0.4) + inkSpread * 38) * regionBlurMul;
                 const bkey = `${scene.sceneId ?? "s"}|${it.obj.id}|${Math.round(blurPx)}|${Math.round(fit.drawW)}x${Math.round(fit.drawH)}`;
                 let blurred = blurredRegionCache.get(bkey);
                 if (!blurred) {
@@ -1018,7 +1022,7 @@ export function renderSceneFrame(
           const edgeBlur = baseEdgeBlur + (inkSpread * baseW * (isTextured ? 0.05 : 0.25));
 
           let finalMask = mask;
-          if (edgeBlur > 0) {
+          if (edgeBlur > 0 && doEdgeBlur) {
             finalMask = scratch(_blurredMask, width, height);
             const bctx = finalMask.getContext("2d")!;
             bctx.clearRect(0, 0, width, height);
