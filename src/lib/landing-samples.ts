@@ -29,6 +29,7 @@ export const TEMPLATE_SAMPLES: TemplateSample[] = [
   { id: "newspaper-cartoon", name: "신문 만평", desc: "흑백 캐리커처, 시사·풍자", youtubeId: "" },
   { id: "comic-essay", name: "만화책", desc: "웹툰 에세이체, 이야기로 기억", youtubeId: "" },
   { id: "pop-art", name: "팝아트", desc: "벤데이 도트 + 강렬한 원색, 시선강탈", youtubeId: "" },
+  { id: "euro-graphic-novel", name: "유럽 그래픽노블", desc: "유럽 BD 선화, 인물·여행·역사", youtubeId: "" },
   { id: "collage", name: "콜라주", desc: "오려붙임, 빈티지·풍자", youtubeId: "" },
   { id: "minhwa", name: "민화 / 조선", desc: "오방색 모티프, 한국사·문화", youtubeId: "" },
   { id: "drone-light", name: "드론 라이트쇼", desc: "밤하늘 빛점이 모여 형상을 빚어냄", youtubeId: "" },
