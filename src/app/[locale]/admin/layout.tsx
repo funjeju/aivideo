@@ -59,6 +59,7 @@ function AdminNav({ locale, t }: { locale: string; t: ReturnType<typeof useTrans
     { href: `/${locale}/admin/voices`, label: t("voices") },
     { href: `/${locale}/admin/brush`, label: "붓 테스트" },
     { href: `/${locale}/admin/cinemagraph`, label: "시네마그래프" },
+    { href: `/${locale}/admin/emoticon`, label: "이모티콘 테스트" },
     { href: `/${locale}/admin/corporate`, label: "업체용 테스트" },
     { href: `/${locale}/admin/outro`, label: "아웃트로" },
     { href: `/${locale}/admin/billing`, label: t("billing") },
