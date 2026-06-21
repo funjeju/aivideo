@@ -14,7 +14,61 @@ export default function EmoticonTestPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ image: string; costKrw: number; costUsd: number; frames: number; grid: string } | null>(null);
   const [err, setErr] = useState("");
+  // GIF 합성
+  const [useCutout, setUseCutout] = useState(true);
+  const [delayMs, setDelayMs] = useState(250);
+  const [making, setMaking] = useState(false);
+  const [gifUrl, setGifUrl] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  function loadImg(src: string): Promise<HTMLImageElement> {
+    return new Promise((res, rej) => { const im = new Image(); im.crossOrigin = "anonymous"; im.onload = () => res(im); im.onerror = rej; im.src = src; });
+  }
+
+  // 시트 → 슬라이스 → (누끼) → GIF 루프. 전부 브라우저, 비용 0.
+  async function makeGif() {
+    if (!result || making) return;
+    setMaking(true); setErr(""); setGifUrl("");
+    try {
+      const cols = result.frames === 4 ? 2 : 3;
+      const rows = result.frames === 9 ? 3 : 2;
+      const sheet = await loadImg(result.image);
+      const cw = sheet.width / cols, ch = sheet.height / rows;
+      const T = 320; // 프레임 출력 크기
+      const { GIFEncoder, quantize, applyPalette } = await import("gifenc");
+      const gif = GIFEncoder();
+      const remove = useCutout ? (await import("@imgly/background-removal")).removeBackground : null;
+
+      for (let i = 0; i < result.frames; i++) {
+        const sx = (i % cols) * cw, sy = Math.floor(i / cols) * ch;
+        const cell = document.createElement("canvas"); cell.width = T; cell.height = T;
+        const cctx = cell.getContext("2d")!;
+        if (!remove) { cctx.fillStyle = "#fff"; cctx.fillRect(0, 0, T, T); }
+        cctx.drawImage(sheet, sx, sy, cw, ch, 0, 0, T, T);
+
+        let frameCv = cell;
+        if (remove) {
+          const blob = await remove(cell.toDataURL("image/png"));
+          const cut = await loadImg(URL.createObjectURL(blob));
+          const fc = document.createElement("canvas"); fc.width = T; fc.height = T;
+          fc.getContext("2d")!.drawImage(cut, 0, 0, T, T);
+          frameCv = fc;
+        }
+        const data = frameCv.getContext("2d")!.getImageData(0, 0, T, T).data;
+        const fmt = remove ? "rgba4444" : "rgb565";
+        const palette = quantize(data, 256, { format: fmt });
+        const index = applyPalette(data, palette, fmt);
+        gif.writeFrame(index, T, T, { palette, delay: delayMs, transparent: !!remove });
+      }
+      gif.finish();
+      const blob = new Blob([gif.bytes() as BlobPart], { type: "image/gif" });
+      setGifUrl(URL.createObjectURL(blob));
+    } catch (e) {
+      setErr("GIF 실패: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setMaking(false);
+    }
+  }
 
   function onRef(f: File | null) {
     if (!f) { setRefDataUrl(""); return; }
@@ -25,7 +79,7 @@ export default function EmoticonTestPage() {
 
   async function generate() {
     if (loading) return;
-    setLoading(true); setErr(""); setResult(null);
+    setLoading(true); setErr(""); setResult(null); setGifUrl("");
     try {
       const { getIdToken } = await import("@/lib/clientAuth");
       const token = await getIdToken();
@@ -104,6 +158,36 @@ export default function EmoticonTestPage() {
               <p className="text-[11px] text-[var(--ink-faint)] mt-1">
                 일관성 확인 포인트: 모든 칸의 캐릭터가 같은 얼굴·옷·색인지, 동작만 자연스럽게 바뀌는지.
               </p>
+
+              {/* 슬라이스 → 누끼 → GIF 루프 (전부 브라우저, 비용 0) */}
+              <div className="mt-4 border-t border-[var(--line)] pt-4">
+                <p className="text-sm font-semibold text-[var(--ink)] mb-2">움직이는 이모티콘 만들기 (GIF)</p>
+                <div className="flex items-center gap-4 flex-wrap mb-2">
+                  <label className="flex items-center gap-2 text-sm text-[var(--ink)] cursor-pointer">
+                    <input type="checkbox" checked={useCutout} onChange={(e) => setUseCutout(e.target.checked)} className="accent-[var(--accent)]" />
+                    누끼(투명배경)
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-[var(--ink)]">
+                    프레임 속도
+                    <input type="range" min={80} max={500} step={10} value={delayMs} onChange={(e) => setDelayMs(Number(e.target.value))} className="accent-[var(--accent)]" />
+                    <span className="text-xs tabular-nums w-12">{delayMs}ms</span>
+                  </label>
+                  <button onClick={makeGif} disabled={making}
+                    className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium disabled:opacity-50">
+                    {making ? "만드는 중…" : "GIF 만들기"}
+                  </button>
+                </div>
+                {gifUrl && (
+                  <div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={gifUrl} alt="emoticon gif" className="h-40 rounded border border-[var(--line)]"
+                      style={{ background: "repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 16px 16px" }} />
+                    <div className="mt-1">
+                      <a href={gifUrl} download="emoticon.gif" className="text-xs text-[var(--accent)] hover:underline">⬇ GIF 다운로드</a>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="aspect-square rounded-[var(--radius)] border border-[var(--line)] bg-[var(--paper-sunken)] flex items-center justify-center text-[var(--ink-faint)] text-sm">
